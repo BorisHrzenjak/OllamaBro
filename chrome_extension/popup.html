@@ -3,206 +3,208 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OllamaBro Models</title>
+    <title>OllamaBro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-:root {
-    --font-primary: 'Inter', sans-serif;
+        :root {
+            --bg-primary: #0a0a0a;
+            --bg-secondary: #141414;
+            --bg-hover: #1f1f1f;
+            --bg-active: #2a2a2a;
+            --text-primary: #fafafa;
+            --text-secondary: #a3a3a3;
+            --text-muted: #737373;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --border: #262626;
+            --radius-sm: 6px;
+            --radius-md: 8px;
+            --transition: 150ms ease;
+        }
 
-    /* Consistent Dark Theme Colors from chat.html */
-    --theme-bg-page: #2D2F3A; /* Matching chat.html body */
-    --theme-bg-primary: #202123; /* Main popup background */
-    --theme-bg-secondary: #343541; /* List item background */
-    --theme-bg-tertiary: #40414F; /* Hover states */
-    --theme-bg-header: #171717; /* Header background */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-    --theme-text-primary: #ECECEC;
-    --theme-text-secondary: #B4B4B4;
-    --theme-text-tertiary: #8E8EA0;
-    --theme-text-accent: #A5A5E8; /* For selected items or accents */
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            width: 340px;
+            max-height: 480px;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+        }
 
-    --theme-border-primary: #363739;
-    --theme-border-secondary: #4A4B57;
+        .header {
+            padding: 16px 20px;
+            background-color: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
+        }
 
-    --theme-scrollbar-thumb: #5A5B64;
-    --theme-scrollbar-thumb-hover: #6B6C74;
-    --theme-scrollbar-track: var(--theme-bg-primary);
+        .header-title {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
 
-    --theme-shadow-soft: 0 1px 2px rgba(0,0,0,0.1), 0 2px 4px rgba(0,0,0,0.1);
+        .header-subtitle {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
 
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 12px;
-    --spacing-lg: 16px;
+        .content {
+            max-height: 380px;
+            overflow-y: auto;
+            padding: 8px;
+        }
 
-    --font-size-xs: 0.75rem;  /* 12px */
-    --font-size-sm: 0.875rem; /* 14px */
-    --font-size-md: 1rem;     /* 16px (base) */
-    --font-size-lg: 1.0rem; /* Header title size, was 1.125rem, adjusted for popup */
+        .model-list {
+            list-style: none;
+        }
 
-    --line-height-md: 1.5; /* Adjusted for popup density */
+        .model-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 14px;
+            margin-bottom: 4px;
+            background-color: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition);
+            border: 1px solid transparent;
+        }
 
-    --border-radius-sm: 4px;
-    --border-radius-md: 6px;
+        .model-item:hover {
+            background-color: var(--bg-hover);
+            border-color: var(--border);
+        }
 
-    --transition-duration: 0.15s;
-    --transition-timing-function: ease-in-out;
-}
+        .model-item:last-child {
+            margin-bottom: 0;
+        }
 
-*, *::before, *::after {
-    box-sizing: border-box;
-}
+        .model-info {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+        }
 
-body {
-    font-family: var(--font-primary);
-    font-size: var(--font-size-md);
-    line-height: var(--line-height-md);
-    width: 320px;
-    margin: 0;
-    background-color: var(--theme-bg-primary); /* Use primary for overall popup background */
-    color: var(--theme-text-primary);
-    overflow: hidden; /* Prevent scrollbars on body */
-}
+        .model-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-.popup-header {
-    background-color: var(--theme-bg-header);
-    padding: var(--spacing-md) var(--spacing-lg);
-    border-bottom: 1px solid var(--theme-border-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+        .model-size {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 1px;
+        }
 
-.popup-header h3 {
-    margin: 0;
-    font-size: var(--font-size-lg);
-    font-weight: 500; /* Slightly less bold than chat header */
-    color: var(--theme-text-primary);
-}
+        .model-arrow {
+            width: 16px;
+            height: 16px;
+            color: var(--text-muted);
+            opacity: 0;
+            transition: opacity var(--transition);
+            flex-shrink: 0;
+            margin-left: 8px;
+        }
 
-#modelListContainer {
-    /* padding: var(--spacing-sm); */ /* Padding applied to ul or li directly if needed */
-    max-height: 280px; /* Max height for the scrollable list area */
-    overflow-y: auto;
-}
+        .model-item:hover .model-arrow {
+            opacity: 1;
+        }
 
-#modelList {
-    list-style-type: none;
-    padding: var(--spacing-sm); /* Add padding here for spacing around items */
-    margin: 0;
-}
+        .status {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
 
-#modelList li {
-    padding: var(--spacing-md);
-    margin-bottom: var(--spacing-sm);
-    border-radius: var(--border-radius-md);
-    cursor: pointer;
-    background-color: var(--theme-bg-secondary);
-    color: var(--theme-text-primary);
-    transition: background-color var(--transition-duration) var(--transition-timing-function);
-    font-size: var(--font-size-sm);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    box-shadow: var(--theme-shadow-soft);
-}
-#modelList li:last-child {
-    margin-bottom: 0;
-}
+        .status-text {
+            font-size: 14px;
+        }
 
-#modelList li:hover {
-    background-color: var(--theme-bg-tertiary);
-}
+        .error {
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-md);
+            margin: 8px;
+            padding: 16px;
+        }
 
-.model-name {
-    flex-grow: 1;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    margin-right: var(--spacing-sm); /* Space before size/button */
-}
+        .error-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #fca5a5;
+            margin-bottom: 4px;
+        }
 
-.model-size {
-    font-size: var(--font-size-xs);
-    color: var(--theme-text-secondary);
-    white-space: nowrap;
-}
+        .error-text {
+            font-size: 12px;
+            color: #fca5a5;
+            opacity: 0.9;
+            line-height: 1.4;
+        }
 
-.model-pull-button { /* Keeping existing class for JS compatibility */
-    padding: var(--spacing-xs) var(--spacing-sm);
-    font-size: var(--font-size-xs);
-    margin-left: var(--spacing-sm);
-    background-color: var(--theme-bg-tertiary);
-    color: var(--theme-text-primary);
-    border: 1px solid var(--theme-border-secondary);
-    border-radius: var(--border-radius-sm);
-    cursor: pointer;
-    transition: background-color var(--transition-duration) var(--transition-timing-function);
-}
-.model-pull-button:hover {
-    background-color: var(--theme-text-accent);
-    color: var(--theme-bg-primary);
-    border-color: var(--theme-text-accent);
-}
-.model-pulling-button { /* Style for when pulling */
-    background-color: var(--theme-text-accent);
-    color: var(--theme-bg-primary);
-    border-color: var(--theme-text-accent);
-    cursor: default;
-}
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--bg-hover);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 12px;
+        }
 
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
 
-#loadingMessage, #errorMessage {
-    text-align: center;
-    padding: var(--spacing-lg);
-    color: var(--theme-text-secondary);
-    font-size: var(--font-size-sm);
-}
-#loadingMessage {
-    padding-top: var(--spacing-xl); /* More space if it's the only thing visible */
-}
+        .content::-webkit-scrollbar {
+            width: 6px;
+        }
 
-#errorMessage {
-    background-color: #442020;
-    color: #FDB8B8;
-    border-radius: var(--border-radius-md);
-    margin: var(--spacing-sm) var(--spacing-sm) 0 var(--spacing-sm); /* Margin if it appears above list */
-}
+        .content::-webkit-scrollbar-track {
+            background: transparent;
+        }
 
-/* Scrollbar Styling for modelListContainer */
-#modelListContainer::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-}
-#modelListContainer::-webkit-scrollbar-track {
-    background: var(--theme-bg-primary);
-    border-radius: var(--border-radius-sm);
-}
-#modelListContainer::-webkit-scrollbar-thumb {
-    background: var(--theme-scrollbar-thumb);
-    border-radius: var(--border-radius-sm);
-    border: 2px solid var(--theme-bg-primary); /* Creates padding around thumb */
-}
-#modelListContainer::-webkit-scrollbar-thumb:hover {
-    background: var(--theme-scrollbar-thumb-hover);
-}
-#modelListContainer::-webkit-scrollbar-corner {
-    background: transparent;
-}
+        .content::-webkit-scrollbar-thumb {
+            background-color: var(--bg-hover);
+            border-radius: 3px;
+        }
+
+        .content::-webkit-scrollbar-thumb:hover {
+            background-color: var(--bg-active);
+        }
     </style>
 </head>
 <body>
-    <div class="popup-header">
-        <h3>Available Ollama Models</h3>
+    <div class="header">
+        <div class="header-title">OllamaBro</div>
+        <div class="header-subtitle">Select a model to chat</div>
     </div>
-    <div id="modelListContainer">
-        <ul id="modelList">
-            <!-- Models will be listed here by JavaScript -->
-        </ul>
-        <div id="loadingMessage" style="display:none;">Loading models...</div> <!-- Initially hidden, shown by JS -->
-        <div id="errorMessage" style="display:none;"></div>
+    <div class="content" id="modelListContainer">
+        <ul class="model-list" id="modelList"></ul>
+        <div class="status" id="loadingMessage" style="display: none;">
+            <div class="spinner"></div>
+            <div class="status-text">Loading models...</div>
+        </div>
+        <div id="errorMessage" style="display: none;"></div>
     </div>
     <script src="popup.js"></script>
 </body>
