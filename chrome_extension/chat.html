@@ -7,6 +7,11 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Markdown & Syntax Highlighting -->
+    <link rel="stylesheet" href="lib/atom-one-dark.min.css">
+    <script src="lib/marked.min.js"></script>
+    <script src="lib/highlight.min.js"></script>
+    <script src="lib/dompurify.min.js"></script>
     <style>
         :root {
             /* Modern Minimal Color Palette */
@@ -637,6 +642,129 @@
             padding: var(--space-md);
             color: var(--text-muted);
             font-size: var(--font-size-sm);
+        }
+
+        /* Markdown Content Styles */
+        .message-text-content {
+            overflow-x: auto;
+        }
+
+        .message-text-content pre {
+            background-color: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            margin: var(--space-sm) 0;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .message-text-content code {
+            font-family: 'Fira Code', 'Consolas', 'Monaco', monospace;
+            font-size: 0.9em;
+        }
+
+        .message-text-content pre code {
+            background: none;
+            padding: 0;
+        }
+
+        .message-text-content :not(pre) > code {
+            background-color: var(--bg-tertiary);
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .message-text-content p {
+            margin: var(--space-sm) 0;
+        }
+
+        .message-text-content p:first-child {
+            margin-top: 0;
+        }
+
+        .message-text-content p:last-child {
+            margin-bottom: 0;
+        }
+
+        .message-text-content ul, .message-text-content ol {
+            margin: var(--space-sm) 0;
+            padding-left: 1.5em;
+        }
+
+        .message-text-content li {
+            margin: 4px 0;
+        }
+
+        .message-text-content h1, .message-text-content h2, 
+        .message-text-content h3, .message-text-content h4,
+        .message-text-content h5, .message-text-content h6 {
+            margin: var(--space-md) 0 var(--space-sm) 0;
+            font-weight: 600;
+        }
+
+        .message-text-content h1 { font-size: 1.4em; }
+        .message-text-content h2 { font-size: 1.3em; }
+        .message-text-content h3 { font-size: 1.2em; }
+
+        .message-text-content blockquote {
+            border-left: 3px solid var(--accent);
+            margin: var(--space-sm) 0;
+            padding-left: var(--space-md);
+            color: var(--text-secondary);
+        }
+
+        .message-text-content table {
+            border-collapse: collapse;
+            margin: var(--space-sm) 0;
+            width: 100%;
+        }
+
+        .message-text-content th, .message-text-content td {
+            border: 1px solid var(--border);
+            padding: var(--space-xs) var(--space-sm);
+        }
+
+        .message-text-content th {
+            background-color: var(--bg-tertiary);
+        }
+
+        .message-text-content a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .message-text-content a:hover {
+            text-decoration: underline;
+        }
+
+        /* Code block copy button */
+        .code-copy-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            padding: 4px 8px;
+            background-color: var(--bg-quaternary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            opacity: 0;
+            transition: all var(--transition);
+        }
+
+        .message-text-content pre:hover .code-copy-button {
+            opacity: 1;
+        }
+
+        .code-copy-button:hover {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .code-copy-button.copied {
+            background-color: var(--success);
+            color: white;
         }
     </style>
 </head>

@@ -196,35 +196,80 @@ document.addEventListener('DOMContentLoaded', async () => {
         URL.revokeObjectURL(url);
     }
 
-    function parseAndStyleThinking(text) {
-        const fragment = document.createDocumentFragment();
-        // Ensure text is a string; treat null/undefined as empty string
-        if (typeof text !== 'string' || text === null) {
-            if (text === null || typeof text === 'undefined') text = '';
-            else text = String(text);
+    function renderMarkdownWithThinking(text) {
+        if (typeof text !== 'string' || text === null) text = '';
+        
+        const thinkRegex = /<\s*think\s*>([\s\S]*?)<\/\s*think\s*>/gi;
+        let thinkBlocks = [];
+        
+        let processedText = text.replace(thinkRegex, (match, content) => {
+            const placeholder = `__THINK_BLOCK_${thinkBlocks.length}__`;
+            thinkBlocks.push(content);
+            return placeholder;
+        });
+        
+        let htmlContent;
+        if (typeof marked !== 'undefined') {
+            htmlContent = marked.parse(processedText, {
+                breaks: true,
+                gfm: true
+            });
+        } else {
+            htmlContent = processedText;
         }
-
-        const regex = /<\s*think\s*>([\s\S]*?)<\/\s*think\s*>/gi; // Handles raw <think> tags, case-insensitive, allows spaces
-        let lastIndex = 0;
-        let match;
-
-        while ((match = regex.exec(text)) !== null) {
-            // Add text before the <think> tag
-            if (match.index > lastIndex) {
-                fragment.appendChild(document.createTextNode(text.substring(lastIndex, match.index)));
+        
+        if (typeof DOMPurify !== 'undefined') {
+            htmlContent = DOMPurify.sanitize(htmlContent);
+        }
+        
+        const container = document.createElement('div');
+        container.innerHTML = htmlContent;
+        
+        thinkBlocks.forEach((content, index) => {
+            const placeholder = `__THINK_BLOCK_${index}__`;
+            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+            
+            while (walker.nextNode()) {
+                const node = walker.currentNode;
+                if (node.nodeValue.includes(placeholder)) {
+                    const thinkingSpan = document.createElement('span');
+                    thinkingSpan.className = 'thinking-block';
+                    thinkingSpan.textContent = content;
+                    node.parentNode.replaceChild(thinkingSpan, node);
+                    break;
+                }
             }
-            // Add the <think> content, styled
-            const thinkingSpan = document.createElement('span');
-            thinkingSpan.className = 'thinking-block';
-            thinkingSpan.textContent = match[1]; // Content between <think> and </think>
-            fragment.appendChild(thinkingSpan);
-            lastIndex = regex.lastIndex;
+        });
+        
+        container.querySelectorAll('pre').forEach(pre => {
+            pre.style.position = 'relative';
+            const code = pre.querySelector('code');
+            
+            if (code) {
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'code-copy-button';
+                copyBtn.textContent = 'Copy';
+                copyBtn.addEventListener('click', async () => {
+                    await navigator.clipboard.writeText(code.textContent);
+                    copyBtn.textContent = 'Copied!';
+                    copyBtn.classList.add('copied');
+                    setTimeout(() => {
+                        copyBtn.textContent = 'Copy';
+                        copyBtn.classList.remove('copied');
+                    }, 2000);
+                });
+                pre.appendChild(copyBtn);
+            }
+        });
+        
+        if (typeof hljs !== 'undefined') {
+            container.querySelectorAll('pre code').forEach(block => {
+                hljs.highlightElement(block);
+            });
         }
-
-        // Add any remaining text after the last </think>
-        if (lastIndex < text.length) {
-            fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
-        }
+        
+        const fragment = document.createDocumentFragment();
+        fragment.appendChild(container);
         return fragment;
     }
 
@@ -411,13 +456,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const textContentDiv = document.createElement('div');
         textContentDiv.classList.add('message-text-content'); 
         if (messageClass === 'bot-message') {
-            // Ensure initialText is treated as a string, even if null or undefined, before parsing
             const textToParse = (initialText === null || typeof initialText === 'undefined') ? '' : String(initialText);
-            const fragment = parseAndStyleThinking(textToParse);
+            const fragment = renderMarkdownWithThinking(textToParse);
             textContentDiv.appendChild(fragment);
-            textContentDiv.dataset.fullMessage = textToParse; // Initialize dataset for consistency
+            textContentDiv.dataset.fullMessage = textToParse;
         } else {
-            textContentDiv.textContent = initialText; // User messages don't need parsing for <think> tags
+            textContentDiv.textContent = initialText;
         }
         messageDiv.appendChild(textContentDiv);
 
@@ -540,16 +584,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updateBotMessageInUI(botTextElement, newContentChunk) {
-        const previousRawFullText = botTextElement.dataset.fullMessage || ''; // Get raw from previous step
-        const currentRawFullText = previousRawFullText + newContentChunk; // Accumulate raw
+        const previousRawFullText = botTextElement.dataset.fullMessage || '';
+        const currentRawFullText = previousRawFullText + newContentChunk;
         
-        // Clear existing content and apply parsing to the whole updated text
-        botTextElement.innerHTML = ''; // Clear previous spans/text nodes
-        const fragment = parseAndStyleThinking(currentRawFullText); // Parse accumulated raw
+        botTextElement.innerHTML = '';
+        const fragment = renderMarkdownWithThinking(currentRawFullText);
         botTextElement.appendChild(fragment);
         
-        // Store the full accumulated raw message content (with tags) in the botTextElement's data attribute
-        botTextElement.dataset.fullMessage = currentRawFullText; 
+        botTextElement.dataset.fullMessage = currentRawFullText;
 
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
