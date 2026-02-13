@@ -1,4 +1,9 @@
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize Lucide icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
     const modelNameDisplay = document.getElementById('modelNameDisplay');
     const chatContainer = document.getElementById('chatContainer');
     const messageInput = document.getElementById('messageInput');
@@ -31,6 +36,17 @@ const clearChatButton = document.getElementById('clearChatButton');
     let availableModels = [];
     let currentAbortController = null; // Track current request for aborting
     let selectedImages = []; // Store selected images for sending
+
+    // Helper function to create Lucide icons
+    function createLucideIcon(iconName, size = 16) {
+        const icon = document.createElement('i');
+        icon.setAttribute('data-lucide', iconName);
+        icon.style.width = size + 'px';
+        icon.style.height = size + 'px';
+        icon.style.stroke = 'currentColor';
+        icon.style.fill = 'none';
+        return icon;
+    }
 
     function toggleImageUploadUI(show) {
         if (imageButton) {
@@ -323,11 +339,20 @@ const clearChatButton = document.getElementById('clearChatButton');
         
         const toggle = document.createElement('div');
         toggle.className = 'thinking-toggle';
-        toggle.innerHTML = `
-            <span class="thinking-icon">🧠</span>
-            <span class="thinking-indicator">${isStreaming ? 'Thinking...' : 'Show thinking'}</span>
-            <span class="thinking-chevron">▶</span>
-        `;
+        
+        const brainIcon = createLucideIcon('brain', 16);
+        brainIcon.className = 'thinking-icon';
+        
+        const indicator = document.createElement('span');
+        indicator.className = 'thinking-indicator';
+        indicator.textContent = isStreaming ? 'Thinking...' : 'Show thinking';
+        
+        const chevronIcon = createLucideIcon('chevron-right', 14);
+        chevronIcon.className = 'thinking-chevron';
+        
+        toggle.appendChild(brainIcon);
+        toggle.appendChild(indicator);
+        toggle.appendChild(chevronIcon);
         
         const contentDiv = document.createElement('div');
         contentDiv.className = 'thinking-content';
@@ -348,7 +373,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const isExpanded = contentDiv.classList.contains('expanded');
             contentDiv.classList.toggle('expanded');
             toggle.classList.toggle('expanded');
-            toggle.querySelector('.thinking-indicator').textContent = isExpanded ? 'Show thinking' : 'Hide thinking';
+            indicator.textContent = isExpanded ? 'Show thinking' : 'Hide thinking';
         });
         
         container.appendChild(toggle);
@@ -557,18 +582,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const copyButton = document.createElement('button');
             copyButton.classList.add('action-button', 'copy-button');
             copyButton.title = 'Copy to clipboard';
-
-            const svgCopyIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svgCopyIcon.setAttribute('viewBox', '0 0 24 24');
-            svgCopyIcon.setAttribute('fill', 'currentColor');
-            svgCopyIcon.setAttribute('width', '18'); 
-            svgCopyIcon.setAttribute('height', '18');
-
-            const pathCopy = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            pathCopy.setAttribute('d', 'M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z');
-
-            svgCopyIcon.appendChild(pathCopy);
-            copyButton.appendChild(svgCopyIcon);
+            copyButton.appendChild(createLucideIcon('copy', 16));
 
             copyButton.addEventListener('click', (e) => {
                 e.stopPropagation(); // Prevent message click if any
@@ -580,18 +594,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const downloadTxtButton = document.createElement('button');
             downloadTxtButton.classList.add('action-button', 'download-txt-button');
             downloadTxtButton.title = 'Download as .txt';
-
-            const svgTxtIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svgTxtIcon.setAttribute('viewBox', '0 0 24 24');
-            svgTxtIcon.setAttribute('fill', 'currentColor');
-            svgTxtIcon.setAttribute('width', '18');
-            svgTxtIcon.setAttribute('height', '18');
-
-            const pathTxt = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            pathTxt.setAttribute('d', 'M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z');
-
-            svgTxtIcon.appendChild(pathTxt);
-            downloadTxtButton.appendChild(svgTxtIcon);
+            downloadTxtButton.appendChild(createLucideIcon('file-down', 16));
 
             downloadTxtButton.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -605,18 +608,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const downloadMdButton = document.createElement('button');
             downloadMdButton.classList.add('action-button', 'download-md-button');
             downloadMdButton.title = 'Download as .md';
-
-            const svgMdIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svgMdIcon.setAttribute('viewBox', '0 0 24 24');
-            svgMdIcon.setAttribute('fill', 'currentColor');
-            svgMdIcon.setAttribute('width', '18');
-            svgMdIcon.setAttribute('height', '18');
-
-            const pathMd = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            pathMd.setAttribute('d', 'M9.4 16.6 4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0 4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z');
-
-            svgMdIcon.appendChild(pathMd);
-            downloadMdButton.appendChild(svgMdIcon);
+            downloadMdButton.appendChild(createLucideIcon('file-code', 16));
 
             downloadMdButton.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -633,18 +625,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             stopButton.classList.add('action-button', 'stop-button');
             stopButton.title = 'Stop generation';
             stopButton.style.display = 'none'; // Hidden by default
-
-            const svgStopIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-            svgStopIcon.setAttribute('viewBox', '0 0 24 24');
-            svgStopIcon.setAttribute('fill', 'currentColor');
-            svgStopIcon.setAttribute('width', '18');
-            svgStopIcon.setAttribute('height', '18');
-
-            const pathStop = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            pathStop.setAttribute('d', 'M6 6h12v12H6z');
-
-            svgStopIcon.appendChild(pathStop);
-            stopButton.appendChild(svgStopIcon);
+            stopButton.appendChild(createLucideIcon('square', 16));
 
             stopButton.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -699,6 +680,11 @@ const clearChatButton = document.getElementById('clearChatButton');
             });
         } else {
              addMessageToChatUI(currentModelName, `Hello! Start a new conversation with ${decodeURIComponent(currentModelName)}.`, 'bot-message', modelData);
+        }
+        
+        // Initialize Lucide icons for dynamically created message action buttons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
         }
     }
 
@@ -788,7 +774,7 @@ const clearChatButton = document.getElementById('clearChatButton');
 
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-conversation-button');
-            deleteButton.innerHTML = '&#x1F5D1;'; // Trash can icon
+            deleteButton.appendChild(createLucideIcon('trash-2', 14));
             deleteButton.title = 'Delete chat';
             deleteButton.dataset.conversationId = conv.id;
 
@@ -805,6 +791,11 @@ const clearChatButton = document.getElementById('clearChatButton');
                 handleDeleteConversation(modelForSidebar, conv.id);
             });
         });
+        
+        // Initialize Lucide icons for dynamically created elements
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
     }
 
     async function sendMessageToOllama(prompt) {

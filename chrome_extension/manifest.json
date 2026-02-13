@@ -27,7 +27,7 @@
     "storage"
   ],
   "web_accessible_resources": [{
-    "resources": ["lib/*"],
+    "resources": ["lib/*", "images/*"],
     "matches": ["<all_urls>"]
   }]
 }

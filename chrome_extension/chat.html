@@ -855,6 +855,48 @@
             background-color: var(--success);
             color: white;
         }
+
+        /* Lucide icon sizing and colors */
+        .lucide {
+            width: 18px;
+            height: 18px;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke: currentColor;
+            fill: none;
+            color: inherit;
+        }
+
+        .header-icon-button .lucide {
+            width: 18px;
+            height: 18px;
+        }
+
+        .input-icon-button .lucide {
+            width: 20px;
+            height: 20px;
+        }
+
+        .action-button .lucide {
+            width: 16px;
+            height: 16px;
+        }
+
+        .delete-conversation-button .lucide {
+            width: 14px;
+            height: 14px;
+        }
+
+        #newChatButton .lucide {
+            width: 16px;
+            height: 16px;
+        }
+
+        #collapseSidebarButton .lucide {
+            width: 20px;
+            height: 20px;
+        }
     </style>
 </head>
 <body>
@@ -869,10 +911,7 @@
         <div id="conversationSidebar">
             <div id="sidebarHeader">
                 <button id="newChatButton">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <line x1="12" y1="5" x2="12" y2="19"></line>
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
+                    <i data-lucide="plus"></i>
                     New Chat
                 </button>
             </div>
@@ -881,26 +920,19 @@
 
         <div id="mainChatArea">
             <header>
-                <button id="collapseSidebarButton">&#x2190;</button>
+                <button id="collapseSidebarButton" title="Toggle sidebar">
+                    <i data-lucide="panel-left-close"></i>
+                </button>
                 <h1>OllamaBro</h1>
                 <div id="modelNameDisplay">Loading...</div>
                 <button id="clearChatButton" class="header-icon-button" title="Clear conversation">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
+                    <i data-lucide="trash-2"></i>
                 </button>
                 <button id="exportChatButton" class="header-icon-button" title="Export conversation as Markdown">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
+                    <i data-lucide="download"></i>
                 </button>
                 <button id="modelSwitcherButton" class="header-icon-button" title="Switch model">
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <polyline points="6 9 12 15 18 9"></polyline>
-                    </svg>
+                    <i data-lucide="chevron-down"></i>
                 </button>
                 <div id="modelSwitcherDropdown"></div>
             </header>
@@ -914,11 +946,7 @@
             <div id="inputArea">
                 <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
                 <button id="imageButton" class="input-icon-button" title="Add image" style="display: none;">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                        <circle cx="8.5" cy="8.5" r="1.5"></circle>
-                        <polyline points="21 15 16 10 5 21"></polyline>
-                    </svg>
+                    <i data-lucide="image-plus"></i>
                 </button>
                 <textarea id="messageInput" placeholder="Message..." rows="1"></textarea>
                 <button id="sendButton">Send</button>
@@ -926,6 +954,7 @@
         </div>
     </div>
 
+    <script src="lib/lucide.min.js"></script>
     <script src="chat.js" defer></script>
 </body>
 </html>

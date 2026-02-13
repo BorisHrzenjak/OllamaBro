@@ -44,18 +44,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     const listItem = document.createElement('li');
                     listItem.className = 'model-item';
                     
+                    const modelInfoDiv = document.createElement('div');
+                    modelInfoDiv.className = 'model-info';
+                    
                     const modelNameSpan = document.createElement('span');
                     modelNameSpan.className = 'model-name';
                     modelNameSpan.textContent = model.name;
                     
-                    const modelDetailsSpan = document.createElement('span');
-                    modelDetailsSpan.className = 'model-details';
+                    const modelSizeSpan = document.createElement('span');
+                    modelSizeSpan.className = 'model-size';
                     // Convert bytes to GB and format
                     const sizeGB = (model.size / (1024 * 1024 * 1024)).toFixed(2);
-                    modelDetailsSpan.textContent = `${sizeGB} GB`;
+                    modelSizeSpan.textContent = `${sizeGB} GB`;
 
-                    listItem.appendChild(modelNameSpan);
-                    listItem.appendChild(modelDetailsSpan);
+                    modelInfoDiv.appendChild(modelNameSpan);
+                    modelInfoDiv.appendChild(modelSizeSpan);
+                    
+                    const arrowIcon = document.createElement('i');
+                    arrowIcon.setAttribute('data-lucide', 'chevron-right');
+                    arrowIcon.className = 'model-arrow';
+                    
+                    listItem.appendChild(modelInfoDiv);
+                    listItem.appendChild(arrowIcon);
                     
                     listItem.addEventListener('click', () => {
                         // Send message to background script to open chat tab
@@ -77,6 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
                     modelListElement.appendChild(listItem);
                 });
+                
+                // Initialize Lucide icons after creating all model items
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
             } else {
                 displayError('No models found. Ensure Ollama is running and has models installed.');
             }
