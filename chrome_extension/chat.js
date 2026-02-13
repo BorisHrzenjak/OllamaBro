@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (loadingIndicator) {
         loadingIndicator.style.display = 'none';
     }
-    const clearChatButton = document.getElementById('clearChatButton');
+const clearChatButton = document.getElementById('clearChatButton');
+    const exportChatButton = document.getElementById('exportChatButton');
     const modelSwitcherButton = document.getElementById('modelSwitcherButton');
     const modelSwitcherDropdown = document.getElementById('modelSwitcherDropdown');
     const conversationSidebar = document.getElementById('conversationSidebar');
@@ -196,18 +197,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         URL.revokeObjectURL(url);
     }
 
-    function renderMarkdownWithThinking(text) {
-        if (typeof text !== 'string' || text === null) text = '';
+    async function exportConversation() {
+        const modelData = await loadModelChatState(currentModelName);
+        const messages = getCurrentConversationMessages(modelData);
         
-        const thinkRegex = /<\s*think\s*>([\s\S]*?)<\/\s*think\s*>/gi;
-        let thinkBlocks = [];
+        if (messages.length === 0) {
+            alert('No messages to export.');
+            return;
+        }
         
-        let processedText = text.replace(thinkRegex, (match, content) => {
-            const placeholder = `__THINK_BLOCK_${thinkBlocks.length}__`;
-            thinkBlocks.push(content);
-            return placeholder;
+        const lines = [];
+        lines.push(`# Conversation with ${decodeURIComponent(currentModelName)}`);
+        lines.push(`Exported: ${new Date().toLocaleString()}`);
+        lines.push('');
+        
+        messages.forEach(msg => {
+            const sender = msg.role === 'user' ? '## You' : `## ${decodeURIComponent(currentModelName)}`;
+            lines.push(sender);
+            lines.push('');
+            lines.push(msg.content);
+            lines.push('');
         });
         
+        const markdownContent = lines.join('\n');
+        const filename = generateFilename('md', currentModelName, messages);
+        downloadMessage(markdownContent, filename, 'text/markdown;charset=utf-8');
+    }
+
+    function renderMarkdownWithThinking(text, isStreaming = false) {
+        if (typeof text !== 'string' || text === null) text = '';
+        
+        // Parse think blocks - Deepseek R1 uses <think> tags
+        // Support variations: <think>, <think >, </think>, </think >
+        const thinkRegex = /<\s*think[^>]*>([\s\S]*?)<\/\s*think\s*>/gi;
+        let thinkBlocks = [];
+        
+        // First, extract all think blocks and replace with placeholders
+        let processedText = text.replace(thinkRegex, (match, content) => {
+            const index = thinkBlocks.length;
+            thinkBlocks.push(content.trim());
+            console.log(`[Thinking] Found think block #${index}, length: ${content.length}`);
+            // Use a special span that won't be affected by markdown/DOMPurify
+            return `<span class="thinking-placeholder" data-index="${index}"></span>`;
+        });
+        
+        console.log(`[Thinking] Total think blocks found: ${thinkBlocks.length}`);
+        
+        // Render markdown on the text (now without think blocks)
         let htmlContent;
         if (typeof marked !== 'undefined') {
             htmlContent = marked.parse(processedText, {
@@ -218,29 +254,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             htmlContent = processedText;
         }
         
+        // Sanitize - but keep our thinking-placeholder spans
         if (typeof DOMPurify !== 'undefined') {
-            htmlContent = DOMPurify.sanitize(htmlContent);
+            htmlContent = DOMPurify.sanitize(htmlContent, {
+                ADD_ATTR: ['data-index'],
+                ADD_TAGS: ['span']
+            });
         }
         
         const container = document.createElement('div');
         container.innerHTML = htmlContent;
         
-        thinkBlocks.forEach((content, index) => {
-            const placeholder = `__THINK_BLOCK_${index}__`;
-            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
-            
-            while (walker.nextNode()) {
-                const node = walker.currentNode;
-                if (node.nodeValue.includes(placeholder)) {
-                    const thinkingSpan = document.createElement('span');
-                    thinkingSpan.className = 'thinking-block';
-                    thinkingSpan.textContent = content;
-                    node.parentNode.replaceChild(thinkingSpan, node);
-                    break;
-                }
+        // Replace thinking placeholders with actual thinking boxes
+        const placeholders = container.querySelectorAll('.thinking-placeholder');
+        console.log(`[Thinking] Placeholders found in DOM: ${placeholders.length}`);
+        
+        placeholders.forEach(placeholder => {
+            const index = parseInt(placeholder.getAttribute('data-index'));
+            if (thinkBlocks[index]) {
+                console.log(`[Thinking] Creating box for block #${index}`);
+                const thinkingBox = createThinkingBoxElement(thinkBlocks[index], isStreaming);
+                placeholder.replaceWith(thinkingBox);
+            } else {
+                console.warn(`[Thinking] No content for block #${index}`);
             }
         });
         
+        // Add copy buttons to code blocks
         container.querySelectorAll('pre').forEach(pre => {
             pre.style.position = 'relative';
             const code = pre.querySelector('code');
@@ -262,15 +302,59 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
         
+        // Apply syntax highlighting (skip thinking boxes)
         if (typeof hljs !== 'undefined') {
             container.querySelectorAll('pre code').forEach(block => {
-                hljs.highlightElement(block);
+                // Skip if inside thinking box
+                if (!block.closest('.thinking-content')) {
+                    hljs.highlightElement(block);
+                }
             });
         }
         
         const fragment = document.createDocumentFragment();
         fragment.appendChild(container);
         return fragment;
+    }
+    
+    function createThinkingBoxElement(content, isStreaming = false) {
+        const container = document.createElement('div');
+        container.className = 'thinking-container';
+        
+        const toggle = document.createElement('div');
+        toggle.className = 'thinking-toggle';
+        toggle.innerHTML = `
+            <span class="thinking-icon">🧠</span>
+            <span class="thinking-indicator">${isStreaming ? 'Thinking...' : 'Show thinking'}</span>
+            <span class="thinking-chevron">▶</span>
+        `;
+        
+        const contentDiv = document.createElement('div');
+        contentDiv.className = 'thinking-content';
+        
+        const pre = document.createElement('pre');
+        const code = document.createElement('code');
+        code.textContent = content;
+        pre.appendChild(code);
+        contentDiv.appendChild(pre);
+        
+        // Auto-expand if streaming
+        if (isStreaming) {
+            contentDiv.classList.add('expanded');
+            toggle.classList.add('expanded');
+        }
+        
+        toggle.addEventListener('click', () => {
+            const isExpanded = contentDiv.classList.contains('expanded');
+            contentDiv.classList.toggle('expanded');
+            toggle.classList.toggle('expanded');
+            toggle.querySelector('.thinking-indicator').textContent = isExpanded ? 'Show thinking' : 'Hide thinking';
+        });
+        
+        container.appendChild(toggle);
+        container.appendChild(contentDiv);
+        
+        return container;
     }
 
     // Image processing functions
@@ -583,12 +667,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         return textContentDiv; // Return the element where text is displayed for streaming
     }
 
-    function updateBotMessageInUI(botTextElement, newContentChunk) {
+    function updateBotMessageInUI(botTextElement, newContentChunk, isStreaming = false) {
         const previousRawFullText = botTextElement.dataset.fullMessage || '';
         const currentRawFullText = previousRawFullText + newContentChunk;
         
+        // Debug: Log if we see think tags in the content
+        if (newContentChunk.includes('<think') || newContentChunk.includes('</think>')) {
+            console.log('[Thinking] Received chunk with think tag:', newContentChunk.substring(0, 100));
+        }
+        
         botTextElement.innerHTML = '';
-        const fragment = renderMarkdownWithThinking(currentRawFullText);
+        const fragment = renderMarkdownWithThinking(currentRawFullText, isStreaming);
         botTextElement.appendChild(fragment);
         
         botTextElement.dataset.fullMessage = currentRawFullText;
@@ -827,6 +916,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             let done = false;
 
             console.log('Starting to read stream...');
+            let accumulatedThinking = '';
+            let accumulatedContent = '';
+            let hasThinking = false;
+            
             while (!done) {
                 const { value, done: readerDone } = await reader.read();
                 done = readerDone;
@@ -840,14 +933,40 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const jsonResponse = JSON.parse(jsonStr);
                             console.log('Parsed JSON response:', jsonResponse); // Log parsed object
 
+                            // Handle thinking content (Deepseek R1 style)
+                            if (jsonResponse.message && typeof jsonResponse.message.thinking === 'string') {
+                                accumulatedThinking += jsonResponse.message.thinking;
+                                hasThinking = true;
+                                console.log('Accumulated thinking:', accumulatedThinking.substring(0, 100) + '...');
+                            }
+                            
+                            // Handle regular content
                             if (jsonResponse.message && typeof jsonResponse.message.content === 'string') {
-                                console.log('Extracted text (jsonResponse.message.content):', jsonResponse.message.content);
-                                updateBotMessageInUI(botTextElement, jsonResponse.message.content);
+                                accumulatedContent += jsonResponse.message.content;
+                                console.log('Accumulated content:', accumulatedContent.substring(0, 100) + '...');
+                            }
+                            
+                            // Update UI with combined content
+                            if (jsonResponse.message && (typeof jsonResponse.message.content === 'string' || typeof jsonResponse.message.thinking === 'string')) {
+                                // Combine thinking and content with think tags for display
+                                let displayText = '';
+                                if (hasThinking && accumulatedThinking) {
+                                    displayText += `<think>\n${accumulatedThinking}\n</think>\n\n`;
+                                }
+                                displayText += accumulatedContent;
+                                
+                                botTextElement.innerHTML = '';
+                                // Pass true for isStreaming to auto-expand the thinking box
+                                const fragment = renderMarkdownWithThinking(displayText, true);
+                                botTextElement.appendChild(fragment);
+                                botTextElement.dataset.fullMessage = displayText;
+                                
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
                             } else {
-                                console.log('jsonResponse.message.content is missing, not a string, or message object itself is missing.');
+                                console.log('jsonResponse.message.content/thinking is missing or not a string.');
                                 // It's possible for 'done' messages to have no content, which is fine.
                                 if (!jsonResponse.done) {
-                                     console.warn('Received a non-done chunk without message.content text.');
+                                     console.warn('Received a non-done chunk without message content.');
                                 }
                             }
 
@@ -867,7 +986,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             console.log('Stream reading complete.');
 
-            const finalBotMessageToSave = botTextElement.dataset.fullMessage || botTextElement.textContent; // Fallback to textContent if dataset is somehow not set
+            // Build final message with thinking if present
+            let finalBotMessageToSave = '';
+            if (hasThinking && accumulatedThinking) {
+                finalBotMessageToSave = `<think>\n${accumulatedThinking}\n</think>\n\n${accumulatedContent}`;
+            } else {
+                finalBotMessageToSave = accumulatedContent;
+            }
+            
+            // Update the dataset to ensure consistency
+            botTextElement.dataset.fullMessage = finalBotMessageToSave;
             currentConversation.messages.push({ role: 'assistant', content: finalBotMessageToSave });
             currentConversation.summary = getConversationSummary(currentConversation.messages);
             currentConversation.lastMessageTime = Date.now();
@@ -1110,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessageToOllama(messageInput.value); });
     
     clearChatButton.addEventListener('click', () => clearAllConversationsForModel(currentModelName));
+    exportChatButton.addEventListener('click', exportConversation);
     
     newChatButton.addEventListener('click', () => startNewConversation(currentModelName));
 

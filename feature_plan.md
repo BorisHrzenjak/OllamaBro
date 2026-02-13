@@ -58,7 +58,12 @@
 
 ## Honorable Mentions (Not in Top 3)
 
-- **Code syntax highlighting** - Would help with coding models, but lower impact than the three above
-- **Keyboard shortcuts** (Ctrl+Enter to send, etc.) - Nice to have but not a blocker
+### ✅ Completed
+
 - **Markdown rendering** - Currently displays raw markdown; rendering would improve readability
 - **Export full conversation** - Individual message export exists, but full chat export is missing
+
+### Pending
+
+- **Code syntax highlighting** - Would help with coding models, but lower impact than the three above
+- **Keyboard shortcuts** (Ctrl+Enter to send, etc.) - Nice to have but not a blocker
