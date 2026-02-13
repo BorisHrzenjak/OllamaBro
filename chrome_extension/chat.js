@@ -23,6 +23,27 @@ const clearChatButton = document.getElementById('clearChatButton');
     const collapseSidebarButton = document.getElementById('collapseSidebarButton');
     const conversationList = document.getElementById('conversationList');
     
+    // Settings modal elements
+    const settingsButton = document.getElementById('settingsButton');
+    const settingsModal = document.getElementById('settingsModal');
+    const closeSettingsModalButton = document.getElementById('closeSettingsModal');
+    const systemPromptInput = document.getElementById('systemPromptInput');
+    const saveSystemPromptButton = document.getElementById('saveSystemPromptButton');
+    const clearSystemPromptButton = document.getElementById('clearSystemPromptButton');
+    const systemPromptTokenCount = document.getElementById('systemPromptTokenCount');
+    const contextLimitInput = document.getElementById('contextLimitInput');
+    const contextLimitInfo = document.getElementById('contextLimitInfo');
+    
+    // Clear context modal elements
+    const clearContextModal = document.getElementById('clearContextModal');
+    const closeClearContextModalButton = document.getElementById('closeClearContextModal');
+    const cancelClearContextButton = document.getElementById('cancelClearContextButton');
+    const confirmClearContextButton = document.getElementById('confirmClearContextButton');
+    
+    // Context indicator elements
+    const contextIndicator = document.getElementById('contextIndicator');
+    const contextIndicatorText = document.getElementById('contextIndicatorText');
+    
     // Image upload elements
     const imageButton = document.getElementById('imageButton');
     const imageInput = document.getElementById('imageInput');
@@ -36,16 +57,173 @@ const clearChatButton = document.getElementById('clearChatButton');
     let availableModels = [];
     let currentAbortController = null; // Track current request for aborting
     let selectedImages = []; // Store selected images for sending
+    
+    // Context management constants
+    const DEFAULT_CONTEXT_LIMIT = 4096; // Default context window size
+    const WARNING_THRESHOLD = 0.75; // 75% - yellow
+    const CRITICAL_THRESHOLD = 0.90; // 90% - red
 
-    // Helper function to create Lucide icons
+    // Helper function to create Lucide icons as SVG
     function createLucideIcon(iconName, size = 16) {
-        const icon = document.createElement('i');
-        icon.setAttribute('data-lucide', iconName);
-        icon.style.width = size + 'px';
-        icon.style.height = size + 'px';
-        icon.style.stroke = 'currentColor';
-        icon.style.fill = 'none';
-        return icon;
+        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.setAttribute('width', size);
+        svg.setAttribute('height', size);
+        svg.setAttribute('viewBox', '0 0 24 24');
+        svg.setAttribute('fill', 'none');
+        svg.setAttribute('stroke', 'currentColor');
+        svg.setAttribute('stroke-width', '2');
+        svg.setAttribute('stroke-linecap', 'round');
+        svg.setAttribute('stroke-linejoin', 'round');
+        
+        // Define icon paths
+        const icons = {
+            'copy': '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
+            'file-down': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M12 18v-6"/><path d="M9 15l3 3 3-3"/>',
+            'file-code': '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><polyline points="9 13 11 15 9 17"/><polyline points="15 13 13 15 15 17"/>',
+            'square': '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>',
+            'trash-2': '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>',
+            'brain': '<path d="M9.5 2A2.5 2.5 0 0 1 12 4.5v15a2.5 2.5 0 0 1-4.96.44 2.5 2.5 0 0 1-2.96-3.08 3 3 0 0 1-.34-5.58 2.5 2.5 0 0 1 1.32-4.24 2.5 2.5 0 0 1 1.98-3A2.5 2.5 0 0 1 9.5 2Z"/><path d="M14.5 2A2.5 2.5 0 0 0 12 4.5v15a2.5 2.5 0 0 0 4.96.44 2.5 2.5 0 0 0 2.96-3.08 3 3 0 0 0 .34-5.58 2.5 2.5 0 0 0-1.32-4.24 2.5 2.5 0 0 0-1.98-3A2.5 2.5 0 0 0 14.5 2Z"/>',
+            'chevron-right': '<polyline points="9 18 15 12 9 6"/>',
+            'eye': '<path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/>',
+            'settings': '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+            'database': '<ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5V19A9 3 0 0 0 21 19V5"/><path d="M3 12A9 3 0 0 0 21 12"/>',
+            'x': '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+            'plus': '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+            'trash': '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+            'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+            'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
+            'arrow-right': '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
+            'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+            'clock': '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>',
+            'zap': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+            'activity': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+            'flame': '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
+            'cpu': '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>'
+        };
+        
+        if (icons[iconName]) {
+            svg.innerHTML = icons[iconName];
+        } else {
+            // Fallback to a simple circle if icon not found
+            svg.innerHTML = '<circle cx="12" cy="12" r="10"/>';
+        }
+        
+        return svg;
+    }
+
+    // Token estimation functions
+    function estimateTokens(text) {
+        if (!text || typeof text !== 'string') return 0;
+        // Rough approximation: ~4 characters per token for English text
+        return Math.ceil(text.length / 4);
+    }
+
+    function getConversationTokenCount(messages) {
+        if (!Array.isArray(messages)) return 0;
+        return messages.reduce((total, msg) => {
+            const contentTokens = estimateTokens(msg.content || '');
+            // Add overhead for message structure (role, etc.)
+            return total + contentTokens + 4;
+        }, 0);
+    }
+
+    function formatTokenCount(count) {
+        if (count >= 1000) {
+            return `${(count / 1000).toFixed(1)}k tokens`;
+        }
+        return `${count} tokens`;
+    }
+
+    async function updateContextIndicator(messages, systemPrompt = '', modelData = null) {
+        const messageTokens = getConversationTokenCount(messages);
+        const systemPromptTokens = estimateTokens(systemPrompt);
+        const totalTokens = messageTokens + systemPromptTokens;
+        
+        // Get effective context limit
+        const effectiveLimit = getEffectiveContextLimit(currentModelName, modelData);
+        const isCloud = isCloudModel(currentModelName);
+        const hasOverride = modelData && modelData.contextLimitOverride && modelData.contextLimitOverride > 0;
+        
+        // Update text
+        contextIndicatorText.textContent = formatTokenCount(totalTokens);
+        
+        // Calculate percentage
+        const usagePercent = ((totalTokens / effectiveLimit) * 100).toFixed(1);
+        
+        // Build enhanced tooltip
+        let tooltipText = `📊 Context Usage: ${formatTokenCount(totalTokens)} / ${formatContextLimit(effectiveLimit)} (${usagePercent}%)\n\n`;
+        tooltipText += `Messages: ${formatTokenCount(messageTokens)}\n`;
+        if (systemPromptTokens > 0) {
+            tooltipText += `System prompt: ${formatTokenCount(systemPromptTokens)}\n`;
+        }
+        tooltipText += `\n`;
+        
+        if (isCloud) {
+            tooltipText += `Context window: ${formatContextLimit(effectiveLimit)} (cloud model)\n`;
+            tooltipText += `Context window varies by model. Cloud models typically support\n`;
+            tooltipText += `128K-1M tokens. Check ollama.com/library/${currentModelName} for specifics.\n\n`;
+        } else {
+            tooltipText += `Context window: ${formatContextLimit(effectiveLimit)} (local model)\n`;
+            tooltipText += `Default context window for local models is 4K tokens.\n`;
+            tooltipText += `You can increase this when running Ollama with --ctx-size flag.\n\n`;
+        }
+        
+        if (hasOverride) {
+            tooltipText += `💡 Custom limit set. Visit Settings to change.\n`;
+        } else {
+            tooltipText += `💡 Tip: Click Settings to set a custom context limit.`;
+        }
+        
+        contextIndicator.title = tooltipText;
+        
+        // Update color based on usage
+        const usageRatio = totalTokens / effectiveLimit;
+        contextIndicator.classList.remove('warning', 'critical');
+        
+        if (usageRatio >= CRITICAL_THRESHOLD) {
+            contextIndicator.classList.add('critical');
+        } else if (usageRatio >= WARNING_THRESHOLD) {
+            contextIndicator.classList.add('warning');
+        }
+    }
+
+    // Cloud model detection
+    function isCloudModel(modelName) {
+        if (!modelName || typeof modelName !== 'string') return false;
+        
+        // Pattern 1: .cloud suffix in name
+        if (modelName.includes('.cloud')) return true;
+        
+        // Pattern 2: Check if model has size 0 (cloud models don't occupy local storage)
+        const model = availableModels.find(m => m.name === modelName);
+        if (model && (model.size === 0 || model.size === undefined || model.size === null)) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    // Get effective context limit for current model
+    function getEffectiveContextLimit(modelName, modelData) {
+        // Check for user override
+        if (modelData && modelData.contextLimitOverride && modelData.contextLimitOverride > 0) {
+            return modelData.contextLimitOverride;
+        }
+        
+        // Auto-detect based on model type
+        if (isCloudModel(modelName)) {
+            return CLOUD_CONTEXT_LIMIT; // 131072 (128K)
+        }
+        
+        return DEFAULT_CONTEXT_LIMIT; // 4096 (4K)
+    }
+
+    // Format context limit for display
+    function formatContextLimit(limit) {
+        if (limit >= 1000) {
+            return `${(limit / 1000).toFixed(0)}k`;
+        }
+        return `${limit}`;
     }
 
     function toggleImageUploadUI(show) {
@@ -92,7 +270,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         console.log('[OllamaBro] loadModelChatState - Attempting to load for model:', modelToLoad);
         if (!chrome.storage || !chrome.storage.local) {
             console.warn('Chrome storage API not available.');
-            return { conversations: {}, activeConversationId: null };
+            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null };
         }
         try {
             const key = getModelStorageKey(modelToLoad); // Key generation will also log
@@ -100,6 +278,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             console.log('[OllamaBro] loadModelChatState - Key used:', key, 'Data loaded from storage:', storageResult);
 
             let modelSpecificData = storageResult[key];
+            let needsSave = false;
 
             if (modelSpecificData && typeof modelSpecificData === 'object') {
                 // Data exists and is an object, proceed with checks
@@ -111,25 +290,40 @@ const clearChatButton = document.getElementById('clearChatButton');
                 }
 
                 if (typeof modelSpecificData.conversations !== 'object' || modelSpecificData.conversations === null) {
-                    console.warn(`[OllamaBro] loadModelChatState - 'conversations' property missing or not an object for model ${modelToLoad}. Initializing.`);
                     modelSpecificData.conversations = {};
+                    needsSave = true;
                 }
                 if (typeof modelSpecificData.activeConversationId === 'undefined') {
-                    console.warn(`[OllamaBro] loadModelChatState - 'activeConversationId' property missing for model ${modelToLoad}. Initializing to null.`);
                     modelSpecificData.activeConversationId = null;
+                    needsSave = true;
                 }
+                if (typeof modelSpecificData.systemPrompt === 'undefined') {
+                    modelSpecificData.systemPrompt = '';
+                    needsSave = true;
+                }
+                if (typeof modelSpecificData.contextLimitOverride === 'undefined') {
+                    modelSpecificData.contextLimitOverride = null;
+                    needsSave = true;
+                }
+                
+                // Save back to storage if we initialized any missing fields
+                if (needsSave) {
+                    console.log(`[OllamaBro] loadModelChatState - Migrating old data for ${modelToLoad} with new fields`);
+                    await chrome.storage.local.set({ [key]: modelSpecificData });
+                }
+                
                 return modelSpecificData;
             } else if (modelSpecificData) {
                 // Data exists but is NOT an object (e.g., string, number, boolean due to corruption)
                 console.warn(`[OllamaBro] loadModelChatState - Data for model ${modelToLoad} is not an object:`, modelSpecificData, ". Resetting to default structure.");
-                return { conversations: {}, activeConversationId: null }; // Return default structure
+                return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null }; // Return default structure
             }
             // modelSpecificData is null or undefined (no data for this key)
             console.log(`[OllamaBro] loadModelChatState - No data found for ${modelToLoad}. Returning default structure.`);
-            return { conversations: {}, activeConversationId: null }; // Default if nothing stored
+            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null }; // Default if nothing stored
         } catch (error) {
             console.error('Error loading chat state:', error);
-            return { conversations: {}, activeConversationId: null };
+            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null };
         }
     }
 
@@ -744,17 +938,15 @@ const clearChatButton = document.getElementById('clearChatButton');
         });
         
         messageDiv.appendChild(metadataDiv);
-        
-        // Initialize Lucide icons for metadata
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
     }
 
-    function displayConversationMessages(modelData, conversationId) {
+    async function displayConversationMessages(modelData, conversationId) {
         chatContainer.innerHTML = ''; // Clear current messages
+        let messages = [];
+        
         if (modelData.conversations[conversationId] && modelData.conversations[conversationId].messages) {
-            modelData.conversations[conversationId].messages.forEach(msg => {
+            messages = modelData.conversations[conversationId].messages;
+            messages.forEach(msg => {
                 const textContentDiv = addMessageToChatUI(
                     msg.role === 'user' ? 'You' : currentModelName, 
                     msg.content, 
@@ -772,10 +964,8 @@ const clearChatButton = document.getElementById('clearChatButton');
              addMessageToChatUI(currentModelName, `Hello! Start a new conversation with ${decodeURIComponent(currentModelName)}.`, 'bot-message', modelData);
         }
         
-        // Initialize Lucide icons for dynamically created message action buttons
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
-        }
+         // Update context indicator
+        await updateContextIndicator(messages, modelData.systemPrompt, modelData);
     }
 
     async function startNewConversation(modelForNewChat = currentModelName) {
@@ -881,11 +1071,109 @@ const clearChatButton = document.getElementById('clearChatButton');
                 handleDeleteConversation(modelForSidebar, conv.id);
             });
         });
+    }
+
+    // Settings modal functions
+    function openSettingsModal() {
+        // Load current settings
+        loadModelChatState(currentModelName).then(modelData => {
+            // Load system prompt
+            const prompt = modelData.systemPrompt || '';
+            systemPromptInput.value = prompt;
+            updateSystemPromptTokenCount();
+            
+            // Load context limit
+            const contextLimit = modelData.contextLimitOverride;
+            if (contextLimit && contextLimit > 0) {
+                contextLimitInput.value = contextLimit;
+            } else {
+                contextLimitInput.value = '';
+            }
+            updateContextLimitInfo();
+        });
+        settingsModal.classList.add('active');
+        systemPromptInput.focus();
+    }
+
+    function closeSettingsModal() {
+        settingsModal.classList.remove('active');
+    }
+
+    function updateSystemPromptTokenCount() {
+        const tokens = estimateTokens(systemPromptInput.value);
+        systemPromptTokenCount.textContent = `${tokens} tokens`;
+    }
+
+    function updateContextLimitInfo() {
+        const isCloud = isCloudModel(currentModelName);
+        const autoLimit = isCloud ? formatContextLimit(CLOUD_CONTEXT_LIMIT) : formatContextLimit(DEFAULT_CONTEXT_LIMIT);
+        const modelType = isCloud ? 'cloud' : 'local';
+        contextLimitInfo.textContent = `Auto-detecting: ${autoLimit} (${modelType} model). Set to 0 or leave empty for auto.`;
+    }
+
+    async function saveSystemPrompt() {
+        const newPrompt = systemPromptInput.value.trim();
+        const contextLimitValue = contextLimitInput.value.trim();
         
-        // Initialize Lucide icons for dynamically created elements
-        if (typeof lucide !== 'undefined') {
-            lucide.createIcons();
+        let modelData = await loadModelChatState(currentModelName);
+        modelData.systemPrompt = newPrompt;
+        
+        // Parse and save context limit override
+        const parsedLimit = parseInt(contextLimitValue, 10);
+        if (contextLimitValue && !isNaN(parsedLimit) && parsedLimit > 0) {
+            modelData.contextLimitOverride = parsedLimit;
+        } else {
+            modelData.contextLimitOverride = null; // Use auto-detection
         }
+        
+        await saveModelChatState(currentModelName, modelData);
+        
+        // Update context indicator to reflect new system prompt size
+        const currentMessages = getCurrentConversationMessages(modelData);
+        await updateContextIndicator(currentMessages, newPrompt, modelData);
+        
+        closeSettingsModal();
+        console.log('[OllamaBro] Settings saved for model:', currentModelName);
+    }
+
+    async function clearSystemPrompt() {
+        systemPromptInput.value = '';
+        updateSystemPromptTokenCount();
+        let modelData = await loadModelChatState(currentModelName);
+        modelData.systemPrompt = '';
+        modelData.contextLimitOverride = null; // Also clear context limit override
+        await saveModelChatState(currentModelName, modelData);
+        
+        const currentMessages = getCurrentConversationMessages(modelData);
+        await updateContextIndicator(currentMessages, '', modelData);
+        
+        console.log('[OllamaBro] System prompt cleared for model:', currentModelName);
+    }
+
+    // Clear context modal functions
+    function openClearContextModal() {
+        clearContextModal.classList.add('active');
+    }
+
+    function closeClearContextModal() {
+        clearContextModal.classList.remove('active');
+    }
+
+    async function clearContextKeepingSystemPrompt() {
+        console.log(`Clearing messages while keeping system prompt for model: ${currentModelName}`);
+        let modelData = await loadModelChatState(currentModelName);
+        const systemPrompt = modelData.systemPrompt || '';
+        
+        // Reset to new structure but preserve system prompt
+        modelData = { 
+            conversations: {}, 
+            activeConversationId: null,
+            systemPrompt: systemPrompt
+        };
+        
+        await saveModelChatState(currentModelName, modelData);
+        await startNewConversation(currentModelName);
+        closeClearContextModal();
     }
 
     async function sendMessageToOllama(prompt) {
@@ -940,9 +1228,12 @@ const clearChatButton = document.getElementById('clearChatButton');
         // Create AbortController for this request
         currentAbortController = new AbortController();
         
-        // Show stop button during streaming
+        // Show stop button during streaming and add streaming class
         if (stopButton) {
             stopButton.style.display = 'flex';
+        }
+        if (botMessageDiv) {
+            botMessageDiv.classList.add('streaming');
         }
 
         try {
@@ -964,6 +1255,15 @@ const clearChatButton = document.getElementById('clearChatButton');
                     
                     return apiMessage;
                 });
+
+            // Prepend system prompt if it exists
+            if (modelData.systemPrompt && modelData.systemPrompt.trim()) {
+                apiMessages.unshift({
+                    role: 'system',
+                    content: modelData.systemPrompt.trim()
+                });
+                console.log('[OllamaBro] System prompt prepended to API request');
+            }
 
             const requestBody = {
                 model: currentModelName,
@@ -1055,9 +1355,12 @@ const clearChatButton = document.getElementById('clearChatButton');
                             if (jsonResponse.done) {
                                 console.log('Stream finished by Ollama (jsonResponse.done is true)');
                                 done = true;
-                                // Hide stop button when streaming is complete
+                                // Hide stop button and remove streaming class when streaming is complete
                                 if (stopButton) {
                                     stopButton.style.display = 'none';
+                                }
+                                if (botMessageDiv) {
+                                    botMessageDiv.classList.remove('streaming');
                                 }
                                 
                                 // Capture metrics from final response
@@ -1123,6 +1426,9 @@ const clearChatButton = document.getElementById('clearChatButton');
             currentConversation.messages.push(messageToSave);
             currentConversation.summary = getConversationSummary(currentConversation.messages);
             currentConversation.lastMessageTime = Date.now();
+            
+            // Update context indicator after receiving response
+            await updateContextIndicator(currentConversation.messages, modelData.systemPrompt, modelData);
 
         } catch (error) {
             console.error('Error sending message to Ollama or processing stream:', error);
@@ -1160,6 +1466,11 @@ const clearChatButton = document.getElementById('clearChatButton');
             }
             currentAbortController = null;
             
+            // Remove streaming class from message
+            if (botMessageDiv) {
+                botMessageDiv.classList.remove('streaming');
+            }
+            
             // Always hide the loading indicator when done, with null check
             if (loadingIndicator) {
                 loadingIndicator.style.display = 'none';
@@ -1176,13 +1487,10 @@ const clearChatButton = document.getElementById('clearChatButton');
 
 
     async function clearAllConversationsForModel(modelToClear) {
-        if (!confirm(`Are you sure you want to clear ALL chat history for ${decodeURIComponent(modelToClear)}? This action cannot be undone.`)) {
-            return;
-        }
-        console.log(`Clearing all conversations for model: ${modelToClear}`);
-        let modelData = { conversations: {}, activeConversationId: null };
-        await saveModelChatState(modelToClear, modelData);
-        await startNewConversation(modelToClear); // This will also update UI and sidebar
+        // This function now just opens the clear context modal
+        // The actual clearing is handled by clearContextKeepingSystemPrompt()
+        console.log(`Opening clear context modal for model: ${modelToClear}`);
+        openClearContextModal();
     }
 
     async function switchModel(newModelName) {
@@ -1355,16 +1663,80 @@ const clearChatButton = document.getElementById('clearChatButton');
             conversationSidebar.classList.remove('collapsed');
             collapseSidebarButton.innerHTML = '&#x2190;'; // Left arrow
         }
+        
+        // Initialize Lucide icons for new elements
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
     }
 
     // Event Listeners
     sendButton.addEventListener('click', () => sendMessageToOllama(messageInput.value));
     messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessageToOllama(messageInput.value); });
     
-    clearChatButton.addEventListener('click', () => clearAllConversationsForModel(currentModelName));
+    clearChatButton.addEventListener('click', () => openClearContextModal());
     exportChatButton.addEventListener('click', exportConversation);
     
     newChatButton.addEventListener('click', () => startNewConversation(currentModelName));
+    
+    // Settings modal event listeners
+    if (settingsButton) {
+        settingsButton.addEventListener('click', openSettingsModal);
+    }
+    
+    if (closeSettingsModalButton) {
+        closeSettingsModalButton.addEventListener('click', closeSettingsModal);
+    }
+    
+    if (saveSystemPromptButton) {
+        saveSystemPromptButton.addEventListener('click', saveSystemPrompt);
+    }
+    
+    if (clearSystemPromptButton) {
+        clearSystemPromptButton.addEventListener('click', clearSystemPrompt);
+    }
+    
+    if (systemPromptInput) {
+        systemPromptInput.addEventListener('input', updateSystemPromptTokenCount);
+    }
+    
+    // Clear context modal event listeners
+    if (closeClearContextModalButton) {
+        closeClearContextModalButton.addEventListener('click', closeClearContextModal);
+    }
+    
+    if (cancelClearContextButton) {
+        cancelClearContextButton.addEventListener('click', closeClearContextModal);
+    }
+    
+    if (confirmClearContextButton) {
+        confirmClearContextButton.addEventListener('click', clearContextKeepingSystemPrompt);
+    }
+    
+    // Close modals on backdrop click
+    if (settingsModal) {
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) closeSettingsModal();
+        });
+    }
+    
+    if (clearContextModal) {
+        clearContextModal.addEventListener('click', (e) => {
+            if (e.target === clearContextModal) closeClearContextModal();
+        });
+    }
+    
+    // Keyboard shortcuts for modals
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (settingsModal && settingsModal.classList.contains('active')) {
+                closeSettingsModal();
+            }
+            if (clearContextModal && clearContextModal.classList.contains('active')) {
+                closeClearContextModal();
+            }
+        }
+    });
 
     // Image upload event listeners
     if (imageButton && imageInput) {

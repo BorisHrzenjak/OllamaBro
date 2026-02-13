@@ -656,6 +656,272 @@
             white-space: nowrap;
         }
 
+        /* Context Indicator */
+        .context-indicator {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+            padding: var(--space-sm) var(--space-md);
+            background-color: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            cursor: help;
+            transition: all var(--transition);
+        }
+
+        .context-indicator:hover {
+            background-color: var(--bg-quaternary);
+        }
+
+        .context-indicator.warning {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: var(--warning);
+        }
+
+        .context-indicator.critical {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: var(--error-text);
+        }
+
+        #contextIndicatorIcon {
+            display: flex;
+            align-items: center;
+        }
+
+        #contextIndicatorIcon .lucide {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background-color: rgba(0, 0, 0, 0.8);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: var(--space-xl);
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-content.modal-small {
+            max-width: 400px;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-lg) var(--space-xl);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .modal-header h2 {
+            font-size: var(--font-size-lg);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .modal-close-button {
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            transition: all var(--transition);
+        }
+
+        .modal-close-button:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .modal-close-button .lucide {
+            width: 18px;
+            height: 18px;
+        }
+
+        .modal-body {
+            padding: var(--space-xl);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-lg);
+        }
+
+        .modal-description {
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        #systemPromptInput {
+            width: 100%;
+            padding: var(--space-md);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: var(--font-size-md);
+            line-height: 1.5;
+            resize: vertical;
+            min-height: 120px;
+            outline: none;
+        }
+
+        #systemPromptInput:focus {
+            border-color: var(--accent);
+            background-color: var(--bg-quaternary);
+        }
+
+        #systemPromptInput::placeholder {
+            color: var(--text-muted);
+        }
+
+        .modal-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: var(--space-sm);
+        }
+
+        .token-counter {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: var(--space-md);
+        }
+
+        .modal-button {
+            padding: 10px var(--space-lg);
+            border: none;
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .modal-button.primary {
+            background-color: var(--accent);
+            color: white;
+        }
+
+        .modal-button.primary:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .modal-button.secondary {
+            background-color: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .modal-button.secondary:hover {
+            background-color: var(--bg-quaternary);
+            color: var(--text-primary);
+        }
+
+        .modal-button.danger {
+            background-color: rgba(239, 68, 68, 0.2);
+            color: #fca5a5;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .modal-button.danger:hover {
+            background-color: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Settings Section */
+        .settings-section {
+            margin-bottom: var(--space-xl);
+        }
+
+        .settings-section:last-of-type {
+            margin-bottom: 0;
+        }
+
+        .settings-section-title {
+            font-size: var(--font-size-md);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 var(--space-md) 0;
+        }
+
+        .context-limit-input-group {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            margin-bottom: var(--space-sm);
+        }
+
+        #contextLimitInput {
+            flex: 1;
+            padding: var(--space-md);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: var(--font-size-md);
+            outline: none;
+            transition: all var(--transition);
+        }
+
+        #contextLimitInput:focus {
+            border-color: var(--accent);
+            background-color: var(--bg-quaternary);
+        }
+
+        #contextLimitInput::placeholder {
+            color: var(--text-muted);
+        }
+
+        .context-limit-unit {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+        }
+
+        .context-limit-info {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .settings-footer {
+            margin-top: var(--space-xl);
+            padding-top: var(--space-lg);
+            border-top: 1px solid var(--border);
+        }
+
         /* Message Actions */
         .message-actions {
             display: flex;
@@ -669,15 +935,20 @@
             opacity: 1;
         }
 
+        /* Always show actions when message is streaming (has visible buttons like stop) */
+        .message.streaming .message-actions {
+            opacity: 1;
+        }
+
         .action-button {
             width: 28px;
             height: 28px;
             display: flex;
             align-items: center;
             justify-content: center;
-            background: none;
-            border: none;
-            color: var(--text-muted);
+            background-color: var(--bg-quaternary);
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
             cursor: pointer;
             border-radius: var(--radius-sm);
             transition: all var(--transition);
@@ -686,14 +957,18 @@
         .action-button:hover {
             background-color: var(--bg-tertiary);
             color: var(--text-primary);
+            border-color: var(--text-muted);
         }
 
         .stop-button {
+            background-color: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
             color: #ef4444;
         }
 
         .stop-button:hover {
-            background-color: rgba(239, 68, 68, 0.1);
+            background-color: rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.5);
         }
 
         /* Message Metadata */
@@ -952,6 +1227,10 @@
                     <i data-lucide="plus"></i>
                     New Chat
                 </button>
+                <div id="contextIndicator" class="context-indicator" title="Estimated context usage">
+                    <span id="contextIndicatorIcon"><i data-lucide="database"></i></span>
+                    <span id="contextIndicatorText">0 tokens</span>
+                </div>
             </div>
             <div id="conversationList"></div>
         </div>
@@ -972,6 +1251,9 @@
                 <button id="modelSwitcherButton" class="header-icon-button" title="Switch model">
                     <i data-lucide="chevron-down"></i>
                 </button>
+                <button id="settingsButton" class="header-icon-button" title="System Prompt Settings">
+                    <i data-lucide="settings"></i>
+                </button>
                 <div id="modelSwitcherDropdown"></div>
             </header>
 
@@ -988,6 +1270,66 @@
                 </button>
                 <textarea id="messageInput" placeholder="Message..." rows="1"></textarea>
                 <button id="sendButton">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Prompt Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Settings</h2>
+                <button id="closeSettingsModal" class="modal-close-button">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="settings-section">
+                    <h3 class="settings-section-title">System Prompt</h3>
+                    <p class="modal-description">Set a system prompt to guide the model's behavior. This will be applied to all conversations with this model.</p>
+                    <textarea id="systemPromptInput" placeholder="e.g., You are a helpful code reviewer. Be concise and focus on best practices." rows="5"></textarea>
+                    <div class="token-counter">
+                        <span id="systemPromptTokenCount">0 tokens</span>
+                    </div>
+                </div>
+                
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Context Window</h3>
+                    <p class="modal-description">Override the default context window size. Leave empty or set to 0 to use automatic detection.</p>
+                    <div class="context-limit-input-group">
+                        <input type="number" id="contextLimitInput" placeholder="Auto" min="0" step="1000">
+                        <span class="context-limit-unit">tokens</span>
+                    </div>
+                    <div class="context-limit-info">
+                        <span id="contextLimitInfo">Auto-detecting: 4K (local) or 128K (cloud)</span>
+                    </div>
+                </div>
+                
+                <div class="modal-footer settings-footer">
+                    <div class="modal-actions">
+                        <button id="clearSystemPromptButton" class="modal-button secondary">Clear</button>
+                        <button id="saveSystemPromptButton" class="modal-button primary">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clear Context Confirmation Modal -->
+    <div id="clearContextModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Clear Context</h2>
+                <button id="closeClearContextModal" class="modal-close-button">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Clear all messages while keeping the system prompt? This cannot be undone.</p>
+                <div class="modal-actions">
+                    <button id="cancelClearContextButton" class="modal-button secondary">Cancel</button>
+                    <button id="confirmClearContextButton" class="modal-button danger">Clear Messages</button>
+                </div>
             </div>
         </div>
     </div>
