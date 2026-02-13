@@ -696,6 +696,44 @@
             background-color: rgba(239, 68, 68, 0.1);
         }
 
+        /* Message Metadata */
+        .message-metadata {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
+            padding-top: var(--space-sm);
+            border-top: 1px solid var(--border);
+            font-size: 11px;
+            color: var(--text-muted);
+            opacity: 0;
+            transition: opacity var(--transition);
+        }
+
+        .message:hover .message-metadata {
+            opacity: 1;
+        }
+
+        .metadata-item {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            cursor: help;
+        }
+
+        .metadata-item:hover {
+            color: var(--text-secondary);
+        }
+
+        .metadata-item .lucide {
+            width: 12px;
+            height: 12px;
+        }
+
+        .metadata-divider {
+            color: var(--border);
+        }
+
         /* Scrollbar */
         ::-webkit-scrollbar {
             width: 6px;

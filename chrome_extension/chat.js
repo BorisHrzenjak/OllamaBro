@@ -640,10 +640,15 @@ const clearChatButton = document.getElementById('clearChatButton');
             messageDiv.stopButton = stopButton;
 
             messageDiv.appendChild(actionsDiv);
+
+            // Add metadata display if available
         }
 
         chatContainer.appendChild(messageDiv);
         chatContainer.scrollTop = chatContainer.scrollHeight;
+        
+        // Store reference to messageDiv for later use (e.g., adding metadata)
+        textContentDiv.messageDiv = messageDiv;
         
         return textContentDiv; // Return the element where text is displayed for streaming
     }
@@ -666,17 +671,102 @@ const clearChatButton = document.getElementById('clearChatButton');
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 
+    // Helper function to add metadata to an existing message
+    function addMetadataToMessage(messageDiv, metadata) {
+        if (!metadata || (!metadata.tokens && !metadata.promptTokens)) return;
+        
+        // Check if metadata already exists
+        if (messageDiv.querySelector('.message-metadata')) return;
+        
+        const metadataDiv = document.createElement('div');
+        metadataDiv.className = 'message-metadata';
+        
+        // Format metadata items with titles for tooltips
+        const items = [];
+        
+        if (metadata.tokens) {
+            items.push({ 
+                icon: 'type', 
+                text: `${metadata.tokens}`,
+                title: `Output tokens: ${metadata.tokens} tokens generated in the response`
+            });
+        }
+        
+        if (metadata.promptTokens) {
+            items.push({ 
+                icon: 'message-square', 
+                text: `${metadata.promptTokens}`,
+                title: `Prompt tokens: ${metadata.promptTokens} tokens in the input/prompt`
+            });
+        }
+        
+        if (metadata.thinkingTokens) {
+            items.push({ 
+                icon: 'brain', 
+                text: `${metadata.thinkingTokens}`,
+                title: `Thinking tokens: ~${metadata.thinkingTokens} tokens in the reasoning/thinking section`
+            });
+        }
+        
+        if (metadata.speed !== null && metadata.speed !== undefined && metadata.speed !== '0.0') {
+            items.push({ 
+                icon: 'zap', 
+                text: `${metadata.speed}`,
+                title: `Generation speed: ${metadata.speed} tokens per second`
+            });
+        }
+        
+        if (metadata.duration) {
+            items.push({ 
+                icon: 'clock', 
+                text: `${metadata.duration}s`,
+                title: `Generation time: ${metadata.duration} seconds to generate the response`
+            });
+        }
+        
+        items.forEach((item, index) => {
+            const itemSpan = document.createElement('span');
+            itemSpan.className = 'metadata-item';
+            itemSpan.title = item.title;
+            itemSpan.appendChild(createLucideIcon(item.icon, 12));
+            const textSpan = document.createElement('span');
+            textSpan.textContent = item.text;
+            itemSpan.appendChild(textSpan);
+            metadataDiv.appendChild(itemSpan);
+            
+            // Add divider between items
+            if (index < items.length - 1) {
+                const divider = document.createElement('span');
+                divider.className = 'metadata-divider';
+                divider.textContent = '·';
+                metadataDiv.appendChild(divider);
+            }
+        });
+        
+        messageDiv.appendChild(metadataDiv);
+        
+        // Initialize Lucide icons for metadata
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
     function displayConversationMessages(modelData, conversationId) {
         chatContainer.innerHTML = ''; // Clear current messages
         if (modelData.conversations[conversationId] && modelData.conversations[conversationId].messages) {
             modelData.conversations[conversationId].messages.forEach(msg => {
-                addMessageToChatUI(
+                const textContentDiv = addMessageToChatUI(
                     msg.role === 'user' ? 'You' : currentModelName, 
                     msg.content, 
                     msg.role === 'user' ? 'user-message' : 'bot-message', 
                     modelData,
                     msg.images // Pass images if present
                 );
+                
+                // Add metadata to existing bot messages that have it stored
+                if (msg.role === 'assistant' && msg.metadata && textContentDiv && textContentDiv.messageDiv) {
+                    addMetadataToMessage(textContentDiv.messageDiv, msg.metadata);
+                }
             });
         } else {
              addMessageToChatUI(currentModelName, `Hello! Start a new conversation with ${decodeURIComponent(currentModelName)}.`, 'bot-message', modelData);
@@ -910,6 +1000,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             let accumulatedThinking = '';
             let accumulatedContent = '';
             let hasThinking = false;
+            let messageMetadata = null;
             
             while (!done) {
                 const { value, done: readerDone } = await reader.read();
@@ -968,6 +1059,39 @@ const clearChatButton = document.getElementById('clearChatButton');
                                 if (stopButton) {
                                     stopButton.style.display = 'none';
                                 }
+                                
+                                // Capture metrics from final response
+                                if (jsonResponse.eval_count !== undefined) {
+                                    // Use eval_duration if available, otherwise fall back to total_duration
+                                    const durationNs = jsonResponse.eval_duration || jsonResponse.total_duration;
+                                    const duration = durationNs ? (durationNs / 1e9).toFixed(2) : null;
+                                    // Calculate speed: tokens / seconds (duration is in nanoseconds)
+                                    let speed = null;
+                                    if (durationNs && durationNs > 0 && jsonResponse.eval_count > 0) {
+                                        const durationSeconds = durationNs / 1e9;
+                                        speed = (jsonResponse.eval_count / durationSeconds).toFixed(1);
+                                    }
+                                    
+                                    // Estimate thinking tokens (rough approximation: ~4 chars per token)
+                                    const thinkingTokens = hasThinking && accumulatedThinking 
+                                        ? Math.ceil(accumulatedThinking.length / 4)
+                                        : null;
+                                    
+                                    messageMetadata = {
+                                        tokens: jsonResponse.eval_count,
+                                        promptTokens: jsonResponse.prompt_eval_count,
+                                        thinkingTokens: thinkingTokens,
+                                        speed: speed,
+                                        duration: duration
+                                    };
+                                    console.log('Message metadata captured:', messageMetadata);
+                                    console.log('Raw API values:', {
+                                        eval_count: jsonResponse.eval_count,
+                                        eval_duration: jsonResponse.eval_duration,
+                                        prompt_eval_count: jsonResponse.prompt_eval_count,
+                                        total_duration: jsonResponse.total_duration
+                                    });
+                                }
                             }
                         } catch (e) {
                             console.warn('Failed to parse JSON chunk from stream:', jsonStr, e);
@@ -976,6 +1100,11 @@ const clearChatButton = document.getElementById('clearChatButton');
                 }
             }
             console.log('Stream reading complete.');
+            
+            // Add metadata display to the message
+            if (messageMetadata && botMessageDiv) {
+                addMetadataToMessage(botMessageDiv, messageMetadata);
+            }
 
             // Build final message with thinking if present
             let finalBotMessageToSave = '';
@@ -987,7 +1116,11 @@ const clearChatButton = document.getElementById('clearChatButton');
             
             // Update the dataset to ensure consistency
             botTextElement.dataset.fullMessage = finalBotMessageToSave;
-            currentConversation.messages.push({ role: 'assistant', content: finalBotMessageToSave });
+            const messageToSave = { role: 'assistant', content: finalBotMessageToSave };
+            if (messageMetadata) {
+                messageToSave.metadata = messageMetadata;
+            }
+            currentConversation.messages.push(messageToSave);
             currentConversation.summary = getConversationSummary(currentConversation.messages);
             currentConversation.lastMessageTime = Date.now();
 
