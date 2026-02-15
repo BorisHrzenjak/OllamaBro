@@ -3,18 +3,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
-    
+
     const modelNameDisplay = document.getElementById('modelNameDisplay');
     const chatContainer = document.getElementById('chatContainer');
     const messageInput = document.getElementById('messageInput');
     const sendButton = document.getElementById('sendButton');
     const loadingIndicator = document.getElementById('loadingIndicator');
-    
+
     // Ensure loading indicator is hidden on initialization
     if (loadingIndicator) {
         loadingIndicator.style.display = 'none';
     }
-const clearChatButton = document.getElementById('clearChatButton');
+    const clearChatButton = document.getElementById('clearChatButton');
     const exportChatButton = document.getElementById('exportChatButton');
     const modelSwitcherButton = document.getElementById('modelSwitcherButton');
     const modelSwitcherDropdown = document.getElementById('modelSwitcherDropdown');
@@ -22,7 +22,7 @@ const clearChatButton = document.getElementById('clearChatButton');
     const newChatButton = document.getElementById('newChatButton');
     const collapseSidebarButton = document.getElementById('collapseSidebarButton');
     const conversationList = document.getElementById('conversationList');
-    
+
     // Settings modal elements
     const settingsButton = document.getElementById('settingsButton');
     const settingsModal = document.getElementById('settingsModal');
@@ -33,22 +33,97 @@ const clearChatButton = document.getElementById('clearChatButton');
     const systemPromptTokenCount = document.getElementById('systemPromptTokenCount');
     const contextLimitInput = document.getElementById('contextLimitInput');
     const contextLimitInfo = document.getElementById('contextLimitInfo');
-    
+
     // Clear context modal elements
     const clearContextModal = document.getElementById('clearContextModal');
     const closeClearContextModalButton = document.getElementById('closeClearContextModal');
     const cancelClearContextButton = document.getElementById('cancelClearContextButton');
     const confirmClearContextButton = document.getElementById('confirmClearContextButton');
-    
+
     // Context indicator elements
     const contextIndicator = document.getElementById('contextIndicator');
     const contextIndicatorText = document.getElementById('contextIndicatorText');
-    
+
     // Image upload elements
     const imageButton = document.getElementById('imageButton');
     const imageInput = document.getElementById('imageInput');
     const imagePreviewArea = document.getElementById('imagePreviewArea');
     const dragDropOverlay = document.getElementById('dragDropOverlay');
+    const micButton = document.getElementById('micButton');
+
+    // Speech Recognition Setup
+    let recognition = null;
+    let isListening = false;
+
+    if ('webkitSpeechRecognition' in window) {
+        recognition = new webkitSpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+
+        recognition.onstart = () => {
+            isListening = true;
+            micButton.classList.add('listening');
+            micButton.innerHTML = createLucideIcon('mic-off', 20).outerHTML;
+            micButton.title = "Stop Recording";
+        };
+
+        recognition.onend = () => {
+            isListening = false;
+            micButton.classList.remove('listening');
+            micButton.innerHTML = createLucideIcon('mic', 20).outerHTML;
+            micButton.title = "Voice Input";
+        };
+
+        recognition.onresult = (event) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+
+            // Append final transcript to input
+            if (finalTranscript) {
+                // Add space if input is not empty and doesn't end with whitespace
+                if (messageInput.value && !/\s$/.test(messageInput.value)) {
+                    messageInput.value += ' ';
+                }
+                messageInput.value += finalTranscript;
+                // Trigger input event to resize textarea if needed
+                messageInput.dispatchEvent(new Event('input'));
+            }
+        };
+
+        recognition.onerror = (event) => {
+            console.error('Speech recognition error', event.error);
+            if (event.error === 'not-allowed') {
+                alert('Microphone access denied. Please allow microphone access to use dictation.');
+            }
+            // Stop if error occurs
+            if (isListening) {
+                recognition.stop();
+            }
+        };
+
+        // Toggle recording on click
+        micButton.addEventListener('click', () => {
+            if (isListening) {
+                recognition.stop();
+            } else {
+                recognition.start();
+            }
+        });
+    } else {
+        // Hide button if speech recognition is not supported
+        if (micButton) {
+            micButton.style.display = 'none';
+            console.warn('Web Speech API not supported in this browser.');
+        }
+    }
 
     let currentModelName = '';
     const storageKeyPrefix = 'ollamaBroChat_';
@@ -58,12 +133,12 @@ const clearChatButton = document.getElementById('clearChatButton');
     let availableModels = [];
     let currentAbortController = null; // Track current request for aborting
     let selectedImages = []; // Store selected images for sending
-    
+
     // Context management constants
     const DEFAULT_CONTEXT_LIMIT = 4096; // Default context window size
     const WARNING_THRESHOLD = 0.75; // 75% - yellow
     const CRITICAL_THRESHOLD = 0.90; // 90% - red
-    
+
     // Smart scrolling state
     let isUserScrolledUp = false;
     let scrollThreshold = 100; // pixels from bottom to consider "at bottom"
@@ -88,13 +163,13 @@ const clearChatButton = document.getElementById('clearChatButton');
     function handleScroll() {
         const wasScrolledUp = isUserScrolledUp;
         isUserScrolledUp = !isNearBottom();
-        
+
         // Show/hide scroll to bottom button
         const scrollButton = document.getElementById('scrollToBottomButton');
         if (scrollButton) {
             scrollButton.style.display = isUserScrolledUp ? 'flex' : 'none';
         }
-        
+
         // If user scrolls down to bottom during streaming, resume auto-scroll
         if (wasScrolledUp && !isUserScrolledUp && isStreaming) {
             scrollToBottom(true);
@@ -153,7 +228,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         svg.setAttribute('stroke-width', '2');
         svg.setAttribute('stroke-linecap', 'round');
         svg.setAttribute('stroke-linejoin', 'round');
-        
+
         // Define icon paths
         const icons = {
             'copy': '<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
@@ -177,16 +252,20 @@ const clearChatButton = document.getElementById('clearChatButton');
             'zap': '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
             'activity': '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
             'flame': '<path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>',
-            'cpu': '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>'
+            'cpu': '<rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>',
+            'mic': '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
+            'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/>',
+            'mic': '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
+            'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/>'
         };
-        
+
         if (icons[iconName]) {
             svg.innerHTML = icons[iconName];
         } else {
             // Fallback to a simple circle if icon not found
             svg.innerHTML = '<circle cx="12" cy="12" r="10"/>';
         }
-        
+
         return svg;
     }
 
@@ -217,18 +296,18 @@ const clearChatButton = document.getElementById('clearChatButton');
         const messageTokens = getConversationTokenCount(messages);
         const systemPromptTokens = estimateTokens(systemPrompt);
         const totalTokens = messageTokens + systemPromptTokens;
-        
+
         // Get effective context limit
         const effectiveLimit = getEffectiveContextLimit(currentModelName, modelData);
         const isCloud = isCloudModel(currentModelName);
         const hasOverride = modelData && modelData.contextLimitOverride && modelData.contextLimitOverride > 0;
-        
+
         // Update text
         contextIndicatorText.textContent = formatTokenCount(totalTokens);
-        
+
         // Calculate percentage
         const usagePercent = ((totalTokens / effectiveLimit) * 100).toFixed(1);
-        
+
         // Build enhanced tooltip
         let tooltipText = `📊 Context Usage: ${formatTokenCount(totalTokens)} / ${formatContextLimit(effectiveLimit)} (${usagePercent}%)\n\n`;
         tooltipText += `Messages: ${formatTokenCount(messageTokens)}\n`;
@@ -236,7 +315,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             tooltipText += `System prompt: ${formatTokenCount(systemPromptTokens)}\n`;
         }
         tooltipText += `\n`;
-        
+
         if (isCloud) {
             tooltipText += `Context window: ${formatContextLimit(effectiveLimit)} (cloud model)\n`;
             tooltipText += `Context window varies by model. Cloud models typically support\n`;
@@ -246,19 +325,19 @@ const clearChatButton = document.getElementById('clearChatButton');
             tooltipText += `Default context window for local models is 4K tokens.\n`;
             tooltipText += `You can increase this when running Ollama with --ctx-size flag.\n\n`;
         }
-        
+
         if (hasOverride) {
             tooltipText += `💡 Custom limit set. Visit Settings to change.\n`;
         } else {
             tooltipText += `💡 Tip: Click Settings to set a custom context limit.`;
         }
-        
+
         contextIndicator.title = tooltipText;
-        
+
         // Update color based on usage
         const usageRatio = totalTokens / effectiveLimit;
         contextIndicator.classList.remove('warning', 'critical');
-        
+
         if (usageRatio >= CRITICAL_THRESHOLD) {
             contextIndicator.classList.add('critical');
         } else if (usageRatio >= WARNING_THRESHOLD) {
@@ -269,16 +348,16 @@ const clearChatButton = document.getElementById('clearChatButton');
     // Cloud model detection
     function isCloudModel(modelName) {
         if (!modelName || typeof modelName !== 'string') return false;
-        
+
         // Pattern 1: .cloud suffix in name
         if (modelName.includes('.cloud')) return true;
-        
+
         // Pattern 2: Check if model has size 0 (cloud models don't occupy local storage)
         const model = availableModels.find(m => m.name === modelName);
         if (model && (model.size === 0 || model.size === undefined || model.size === null)) {
             return true;
         }
-        
+
         return false;
     }
 
@@ -288,12 +367,12 @@ const clearChatButton = document.getElementById('clearChatButton');
         if (modelData && modelData.contextLimitOverride && modelData.contextLimitOverride > 0) {
             return modelData.contextLimitOverride;
         }
-        
+
         // Auto-detect based on model type
         if (isCloudModel(modelName)) {
             return CLOUD_CONTEXT_LIMIT; // 131072 (128K)
         }
-        
+
         return DEFAULT_CONTEXT_LIMIT; // 4096 (4K)
     }
 
@@ -314,18 +393,18 @@ const clearChatButton = document.getElementById('clearChatButton');
     function updateModelDisplay(modelName) {
         // Clear previous content
         modelNameDisplay.innerHTML = '';
-        
+
         // Create container for text
         const container = document.createElement('div');
         container.style.display = 'flex';
         container.style.alignItems = 'center';
         container.style.gap = 'var(--spacing-xs)';
-        
+
         // Add model name text
         const textSpan = document.createElement('span');
         textSpan.textContent = `Chatting with: ${decodeURIComponent(modelName)}`;
         container.appendChild(textSpan);
-        
+
         // Add cloud icon for cloud models
         if (modelName.includes('.cloud')) {
             const cloudIcon = document.createElement('span');
@@ -335,7 +414,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             cloudIcon.style.color = '#3b82f6'; // Blue color for cloud icon
             container.appendChild(cloudIcon);
         }
-        
+
         modelNameDisplay.appendChild(container);
     }
 
@@ -384,13 +463,13 @@ const clearChatButton = document.getElementById('clearChatButton');
                     modelSpecificData.contextLimitOverride = null;
                     needsSave = true;
                 }
-                
+
                 // Save back to storage if we initialized any missing fields
                 if (needsSave) {
                     console.log(`[OllamaBro] loadModelChatState - Migrating old data for ${modelToLoad} with new fields`);
                     await chrome.storage.local.set({ [key]: modelSpecificData });
                 }
-                
+
                 return modelSpecificData;
             } else if (modelSpecificData) {
                 // Data exists but is NOT an object (e.g., string, number, boolean due to corruption)
@@ -423,7 +502,7 @@ const clearChatButton = document.getElementById('clearChatButton');
     }
 
     function generateUUID() {
-        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
             var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
             return v.toString(16);
         });
@@ -489,17 +568,17 @@ const clearChatButton = document.getElementById('clearChatButton');
     async function exportConversation() {
         const modelData = await loadModelChatState(currentModelName);
         const messages = getCurrentConversationMessages(modelData);
-        
+
         if (messages.length === 0) {
             alert('No messages to export.');
             return;
         }
-        
+
         const lines = [];
         lines.push(`# Conversation with ${decodeURIComponent(currentModelName)}`);
         lines.push(`Exported: ${new Date().toLocaleString()}`);
         lines.push('');
-        
+
         messages.forEach(msg => {
             const sender = msg.role === 'user' ? '## You' : `## ${decodeURIComponent(currentModelName)}`;
             lines.push(sender);
@@ -507,7 +586,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             lines.push(msg.content);
             lines.push('');
         });
-        
+
         const markdownContent = lines.join('\n');
         const filename = generateFilename('md', currentModelName, messages);
         downloadMessage(markdownContent, filename, 'text/markdown;charset=utf-8');
@@ -515,12 +594,12 @@ const clearChatButton = document.getElementById('clearChatButton');
 
     function renderMarkdownWithThinking(text, isStreaming = false) {
         if (typeof text !== 'string' || text === null) text = '';
-        
+
         // Parse think blocks - Deepseek R1 uses <think> tags
         // Support variations: <think>, <think >, </think>, </think >
         const thinkRegex = /<\s*think[^>]*>([\s\S]*?)<\/\s*think\s*>/gi;
         let thinkBlocks = [];
-        
+
         // First, extract all think blocks and replace with placeholders
         let processedText = text.replace(thinkRegex, (match, content) => {
             const index = thinkBlocks.length;
@@ -529,9 +608,9 @@ const clearChatButton = document.getElementById('clearChatButton');
             // Use a special span that won't be affected by markdown/DOMPurify
             return `<span class="thinking-placeholder" data-index="${index}"></span>`;
         });
-        
+
         console.log(`[Thinking] Total think blocks found: ${thinkBlocks.length}`);
-        
+
         // Render markdown on the text (now without think blocks)
         let htmlContent;
         if (typeof marked !== 'undefined') {
@@ -542,7 +621,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         } else {
             htmlContent = processedText;
         }
-        
+
         // Sanitize - but keep our thinking-placeholder spans
         if (typeof DOMPurify !== 'undefined') {
             htmlContent = DOMPurify.sanitize(htmlContent, {
@@ -550,14 +629,14 @@ const clearChatButton = document.getElementById('clearChatButton');
                 ADD_TAGS: ['span']
             });
         }
-        
+
         const container = document.createElement('div');
         container.innerHTML = htmlContent;
-        
+
         // Replace thinking placeholders with actual thinking boxes
         const placeholders = container.querySelectorAll('.thinking-placeholder');
         console.log(`[Thinking] Placeholders found in DOM: ${placeholders.length}`);
-        
+
         placeholders.forEach(placeholder => {
             const index = parseInt(placeholder.getAttribute('data-index'));
             if (thinkBlocks[index]) {
@@ -568,12 +647,12 @@ const clearChatButton = document.getElementById('clearChatButton');
                 console.warn(`[Thinking] No content for block #${index}`);
             }
         });
-        
+
         // Add copy buttons to code blocks
         container.querySelectorAll('pre').forEach(pre => {
             pre.style.position = 'relative';
             const code = pre.querySelector('code');
-            
+
             if (code) {
                 const copyBtn = document.createElement('button');
                 copyBtn.className = 'code-copy-button';
@@ -590,7 +669,7 @@ const clearChatButton = document.getElementById('clearChatButton');
                 pre.appendChild(copyBtn);
             }
         });
-        
+
         // Apply syntax highlighting (skip thinking boxes)
         if (typeof hljs !== 'undefined') {
             container.querySelectorAll('pre code').forEach(block => {
@@ -600,58 +679,58 @@ const clearChatButton = document.getElementById('clearChatButton');
                 }
             });
         }
-        
+
         const fragment = document.createDocumentFragment();
         fragment.appendChild(container);
         return fragment;
     }
-    
+
     function createThinkingBoxElement(content, isStreaming = false) {
         const container = document.createElement('div');
         container.className = 'thinking-container';
-        
+
         const toggle = document.createElement('div');
         toggle.className = 'thinking-toggle';
-        
+
         const brainIcon = createLucideIcon('brain', 16);
         brainIcon.className = 'thinking-icon';
-        
+
         const indicator = document.createElement('span');
         indicator.className = 'thinking-indicator';
         indicator.textContent = isStreaming ? 'Thinking...' : 'Show thinking';
-        
+
         const chevronIcon = createLucideIcon('chevron-right', 14);
         chevronIcon.className = 'thinking-chevron';
-        
+
         toggle.appendChild(brainIcon);
         toggle.appendChild(indicator);
         toggle.appendChild(chevronIcon);
-        
+
         const contentDiv = document.createElement('div');
         contentDiv.className = 'thinking-content';
-        
+
         const pre = document.createElement('pre');
         const code = document.createElement('code');
         code.textContent = content;
         pre.appendChild(code);
         contentDiv.appendChild(pre);
-        
+
         // Auto-expand if streaming
         if (isStreaming) {
             contentDiv.classList.add('expanded');
             toggle.classList.add('expanded');
         }
-        
+
         toggle.addEventListener('click', () => {
             const isExpanded = contentDiv.classList.contains('expanded');
             contentDiv.classList.toggle('expanded');
             toggle.classList.toggle('expanded');
             indicator.textContent = isExpanded ? 'Show thinking' : 'Hide thinking';
         });
-        
+
         container.appendChild(toggle);
         container.appendChild(contentDiv);
-        
+
         return container;
     }
 
@@ -659,15 +738,15 @@ const clearChatButton = document.getElementById('clearChatButton');
     function validateImageFile(file) {
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
         const maxSize = 20 * 1024 * 1024; // 20MB limit
-        
+
         if (!allowedTypes.includes(file.type)) {
             throw new Error(`Unsupported file type: ${file.type}. Supported types: JPEG, PNG, GIF, WebP`);
         }
-        
+
         if (file.size > maxSize) {
             throw new Error(`File too large: ${(file.size / (1024 * 1024)).toFixed(1)}MB. Maximum size: 20MB`);
         }
-        
+
         return true;
     }
 
@@ -689,7 +768,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             const img = new Image();
-            
+
             img.onload = () => {
                 // Calculate new dimensions while maintaining aspect ratio
                 let { width, height } = img;
@@ -698,15 +777,15 @@ const clearChatButton = document.getElementById('clearChatButton');
                     width *= ratio;
                     height *= ratio;
                 }
-                
+
                 canvas.width = width;
                 canvas.height = height;
-                
+
                 // Draw and compress
                 ctx.drawImage(img, 0, 0, width, height);
                 canvas.toBlob(resolve, file.type, quality);
             };
-            
+
             img.onerror = () => reject(new Error('Failed to load image for compression'));
             img.src = URL.createObjectURL(file);
         });
@@ -715,16 +794,16 @@ const clearChatButton = document.getElementById('clearChatButton');
     async function processImageForUpload(file) {
         try {
             validateImageFile(file);
-            
+
             // Compress if the file is large
             let processedFile = file;
             if (file.size > 2 * 1024 * 1024) { // Compress files larger than 2MB
                 processedFile = await compressImage(file);
             }
-            
+
             const base64 = await fileToBase64(processedFile);
             const previewUrl = URL.createObjectURL(processedFile);
-            
+
             return {
                 base64,
                 previewUrl,
@@ -742,21 +821,21 @@ const clearChatButton = document.getElementById('clearChatButton');
         const previewDiv = document.createElement('div');
         previewDiv.className = 'image-preview';
         previewDiv.dataset.index = index;
-        
+
         const img = document.createElement('img');
         img.src = imageData.previewUrl;
         img.alt = imageData.fileName;
-        
+
         const removeButton = document.createElement('button');
         removeButton.className = 'remove-image';
         removeButton.innerHTML = '×';
         removeButton.title = 'Remove image';
         removeButton.addEventListener('click', () => removeImageFromPreview(index));
-        
+
         previewDiv.appendChild(img);
         previewDiv.appendChild(removeButton);
         imagePreviewArea.appendChild(previewDiv);
-        
+
         updatePreviewAreaVisibility();
     }
 
@@ -765,7 +844,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         if (selectedImages[index] && selectedImages[index].previewUrl) {
             URL.revokeObjectURL(selectedImages[index].previewUrl);
         }
-        
+
         selectedImages.splice(index, 1);
         refreshImagePreview();
     }
@@ -836,7 +915,7 @@ const clearChatButton = document.getElementById('clearChatButton');
 
         // Message text content wrapper
         const textContentDiv = document.createElement('div');
-        textContentDiv.classList.add('message-text-content'); 
+        textContentDiv.classList.add('message-text-content');
         if (messageClass === 'bot-message') {
             const textToParse = (initialText === null || typeof initialText === 'undefined') ? '' : String(initialText);
             const fragment = renderMarkdownWithThinking(textToParse);
@@ -919,26 +998,26 @@ const clearChatButton = document.getElementById('clearChatButton');
 
         chatContainer.appendChild(messageDiv);
         scrollToBottom(true); // Force scroll on new message
-        
+
         // Store reference to messageDiv for later use (e.g., adding metadata)
         textContentDiv.messageDiv = messageDiv;
-        
+
         return textContentDiv; // Return the element where text is displayed for streaming
     }
 
     function updateBotMessageInUI(botTextElement, newContentChunk, streaming = false) {
         const previousRawFullText = botTextElement.dataset.fullMessage || '';
         const currentRawFullText = previousRawFullText + newContentChunk;
-        
+
         // Debug: Log if we see think tags in the content
         if (newContentChunk.includes('<think') || newContentChunk.includes('</think>')) {
             console.log('[Thinking] Received chunk with think tag:', newContentChunk.substring(0, 100));
         }
-        
+
         botTextElement.innerHTML = '';
         const fragment = renderMarkdownWithThinking(currentRawFullText, streaming);
         botTextElement.appendChild(fragment);
-        
+
         botTextElement.dataset.fullMessage = currentRawFullText;
 
         // Only auto-scroll if user hasn't scrolled up
@@ -948,56 +1027,56 @@ const clearChatButton = document.getElementById('clearChatButton');
     // Helper function to add metadata to an existing message
     function addMetadataToMessage(messageDiv, metadata) {
         if (!metadata || (!metadata.tokens && !metadata.promptTokens)) return;
-        
+
         // Check if metadata already exists
         if (messageDiv.querySelector('.message-metadata')) return;
-        
+
         const metadataDiv = document.createElement('div');
         metadataDiv.className = 'message-metadata';
-        
+
         // Format metadata items with titles for tooltips
         const items = [];
-        
+
         if (metadata.tokens) {
-            items.push({ 
-                icon: 'type', 
+            items.push({
+                icon: 'type',
                 text: `${metadata.tokens}`,
                 title: `Output tokens: ${metadata.tokens} tokens generated in the response`
             });
         }
-        
+
         if (metadata.promptTokens) {
-            items.push({ 
-                icon: 'message-square', 
+            items.push({
+                icon: 'message-square',
                 text: `${metadata.promptTokens}`,
                 title: `Prompt tokens: ${metadata.promptTokens} tokens in the input/prompt`
             });
         }
-        
+
         if (metadata.thinkingTokens) {
-            items.push({ 
-                icon: 'brain', 
+            items.push({
+                icon: 'brain',
                 text: `${metadata.thinkingTokens}`,
                 title: `Thinking tokens: ~${metadata.thinkingTokens} tokens in the reasoning/thinking section`
             });
         }
-        
+
         if (metadata.speed !== null && metadata.speed !== undefined && metadata.speed !== '0.0') {
-            items.push({ 
-                icon: 'zap', 
+            items.push({
+                icon: 'zap',
                 text: `${metadata.speed}`,
                 title: `Generation speed: ${metadata.speed} tokens per second`
             });
         }
-        
+
         if (metadata.duration) {
-            items.push({ 
-                icon: 'clock', 
+            items.push({
+                icon: 'clock',
                 text: `${metadata.duration}s`,
                 title: `Generation time: ${metadata.duration} seconds to generate the response`
             });
         }
-        
+
         items.forEach((item, index) => {
             const itemSpan = document.createElement('span');
             itemSpan.className = 'metadata-item';
@@ -1007,7 +1086,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             textSpan.textContent = item.text;
             itemSpan.appendChild(textSpan);
             metadataDiv.appendChild(itemSpan);
-            
+
             // Add divider between items
             if (index < items.length - 1) {
                 const divider = document.createElement('span');
@@ -1016,47 +1095,47 @@ const clearChatButton = document.getElementById('clearChatButton');
                 metadataDiv.appendChild(divider);
             }
         });
-        
+
         messageDiv.appendChild(metadataDiv);
     }
 
     async function displayConversationMessages(modelData, conversationId) {
         chatContainer.innerHTML = ''; // Clear current messages
         let messages = [];
-        
+
         if (modelData.conversations[conversationId] && modelData.conversations[conversationId].messages) {
             messages = modelData.conversations[conversationId].messages;
             messages.forEach(msg => {
                 const textContentDiv = addMessageToChatUI(
-                    msg.role === 'user' ? 'You' : currentModelName, 
-                    msg.content, 
-                    msg.role === 'user' ? 'user-message' : 'bot-message', 
+                    msg.role === 'user' ? 'You' : currentModelName,
+                    msg.content,
+                    msg.role === 'user' ? 'user-message' : 'bot-message',
                     modelData,
                     msg.images // Pass images if present
                 );
-                
+
                 // Add metadata to existing bot messages that have it stored
                 if (msg.role === 'assistant' && msg.metadata && textContentDiv && textContentDiv.messageDiv) {
                     addMetadataToMessage(textContentDiv.messageDiv, msg.metadata);
                 }
             });
         } else {
-             addMessageToChatUI(currentModelName, `Hello! Start a new conversation with ${decodeURIComponent(currentModelName)}.`, 'bot-message', modelData);
+            addMessageToChatUI(currentModelName, `Hello! Start a new conversation with ${decodeURIComponent(currentModelName)}.`, 'bot-message', modelData);
         }
-        
-         // Update context indicator
+
+        // Update context indicator
         await updateContextIndicator(messages, modelData.systemPrompt, modelData);
     }
 
     async function startNewConversation(modelForNewChat = currentModelName) {
         console.log(`Starting new conversation for model: ${modelForNewChat}`);
-        
+
         // Save current draft before switching
         const currentModelData = await loadModelChatState(modelForNewChat);
         if (currentModelData.activeConversationId && messageInput.value.trim()) {
             await saveDraft(currentModelData.activeConversationId, messageInput.value);
         }
-        
+
         let modelData = await loadModelChatState(modelForNewChat);
         const newConversationId = generateUUID();
         modelData.conversations[newConversationId] = {
@@ -1069,7 +1148,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         await saveModelChatState(modelForNewChat, modelData);
         displayConversationMessages(modelData, newConversationId);
         populateConversationSidebar(modelForNewChat, modelData);
-        
+
         // Clear input and draft for new conversation
         messageInput.value = '';
         await clearDraft(newConversationId);
@@ -1079,20 +1158,20 @@ const clearChatButton = document.getElementById('clearChatButton');
 
     async function switchActiveConversation(modelToSwitch, newConversationId) {
         console.log(`Switching to conversation ${newConversationId} for model ${modelToSwitch}`);
-        
+
         // Save current draft before switching
         let currentModelData = await loadModelChatState(modelToSwitch);
         if (currentModelData.activeConversationId && messageInput.value.trim()) {
             await saveDraft(currentModelData.activeConversationId, messageInput.value);
         }
-        
+
         let modelData = await loadModelChatState(modelToSwitch);
         if (modelData.conversations[newConversationId]) {
             modelData.activeConversationId = newConversationId;
             await saveModelChatState(modelToSwitch, modelData);
             displayConversationMessages(modelData, newConversationId);
             populateConversationSidebar(modelToSwitch, modelData); // Refresh sidebar to highlight active
-            
+
             // Load draft for the new conversation
             const draftText = await loadDraft(newConversationId);
             messageInput.value = draftText || '';
@@ -1117,7 +1196,7 @@ const clearChatButton = document.getElementById('clearChatButton');
                 if (remainingConvIds.length > 0) {
                     // Switch to the most recent remaining conversation
                     const sortedRemaining = remainingConvIds.map(id => modelData.conversations[id])
-                                                      .sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+                        .sort((a, b) => b.lastMessageTime - a.lastMessageTime);
                     modelData.activeConversationId = sortedRemaining[0].id;
                     await saveModelChatState(modelOfConversation, modelData);
                     switchActiveConversation(modelOfConversation, modelData.activeConversationId);
@@ -1183,7 +1262,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const prompt = modelData.systemPrompt || '';
             systemPromptInput.value = prompt;
             updateSystemPromptTokenCount();
-            
+
             // Load context limit
             const contextLimit = modelData.contextLimitOverride;
             if (contextLimit && contextLimit > 0) {
@@ -1218,10 +1297,10 @@ const clearChatButton = document.getElementById('clearChatButton');
     async function saveSystemPrompt() {
         const newPrompt = systemPromptInput.value.trim();
         const contextLimitValue = contextLimitInput.value.trim();
-        
+
         let modelData = await loadModelChatState(currentModelName);
         modelData.systemPrompt = newPrompt;
-        
+
         // Parse and save context limit override
         const parsedLimit = parseInt(contextLimitValue, 10);
         if (contextLimitValue && !isNaN(parsedLimit) && parsedLimit > 0) {
@@ -1229,13 +1308,13 @@ const clearChatButton = document.getElementById('clearChatButton');
         } else {
             modelData.contextLimitOverride = null; // Use auto-detection
         }
-        
+
         await saveModelChatState(currentModelName, modelData);
-        
+
         // Update context indicator to reflect new system prompt size
         const currentMessages = getCurrentConversationMessages(modelData);
         await updateContextIndicator(currentMessages, newPrompt, modelData);
-        
+
         closeSettingsModal();
         console.log('[OllamaBro] Settings saved for model:', currentModelName);
     }
@@ -1247,10 +1326,10 @@ const clearChatButton = document.getElementById('clearChatButton');
         modelData.systemPrompt = '';
         modelData.contextLimitOverride = null; // Also clear context limit override
         await saveModelChatState(currentModelName, modelData);
-        
+
         const currentMessages = getCurrentConversationMessages(modelData);
         await updateContextIndicator(currentMessages, '', modelData);
-        
+
         console.log('[OllamaBro] System prompt cleared for model:', currentModelName);
     }
 
@@ -1269,14 +1348,14 @@ const clearChatButton = document.getElementById('clearChatButton');
         console.log(`Clearing messages while keeping system prompt for model: ${currentModelName}`);
         let modelData = await loadModelChatState(currentModelName);
         const systemPrompt = modelData.systemPrompt || '';
-        
+
         // Reset to new structure but preserve system prompt
-        modelData = { 
-            conversations: {}, 
+        modelData = {
+            conversations: {},
             activeConversationId: null,
             systemPrompt: systemPrompt
         };
-        
+
         await saveModelChatState(currentModelName, modelData);
         await startNewConversation(currentModelName);
         closeClearContextModal();
@@ -1331,7 +1410,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         }
         messageInput.disabled = true;
         sendButton.disabled = true;
-        
+
         // Track if content has started arriving for gap-filling loading state
         let contentHasStarted = false;
 
@@ -1341,10 +1420,10 @@ const clearChatButton = document.getElementById('clearChatButton');
 
         // Create AbortController for this request
         currentAbortController = new AbortController();
-        
+
         // Set streaming flag
         isStreaming = true;
-        
+
         // Show stop button during streaming and add streaming class
         if (stopButton) {
             stopButton.style.display = 'flex';
@@ -1355,7 +1434,7 @@ const clearChatButton = document.getElementById('clearChatButton');
 
         try {
             console.log(`Sending to /proxy/api/chat with model: ${currentModelName} for streaming.`);
-            
+
             // Prepare messages for API - convert image data for Ollama format
             const apiMessages = currentConversation.messages
                 .filter(m => m.role === 'user' || m.role === 'assistant')
@@ -1364,12 +1443,12 @@ const clearChatButton = document.getElementById('clearChatButton');
                         role: message.role,
                         content: message.content
                     };
-                    
+
                     // Add images if present (only for user messages)
                     if (message.role === 'user' && message.images && message.images.length > 0) {
                         apiMessage.images = message.images.map(img => img.base64);
                     }
-                    
+
                     return apiMessage;
                 });
 
@@ -1418,7 +1497,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             let accumulatedContent = '';
             let hasThinking = false;
             let messageMetadata = null;
-            
+
             while (!done) {
                 const { value, done: readerDone } = await reader.read();
                 done = readerDone;
@@ -1438,13 +1517,13 @@ const clearChatButton = document.getElementById('clearChatButton');
                                 hasThinking = true;
                                 console.log('Accumulated thinking:', accumulatedThinking.substring(0, 100) + '...');
                             }
-                            
+
                             // Handle regular content
                             if (jsonResponse.message && typeof jsonResponse.message.content === 'string') {
                                 accumulatedContent += jsonResponse.message.content;
                                 console.log('Accumulated content:', accumulatedContent.substring(0, 100) + '...');
                             }
-                            
+
                             // Hide loading indicator when content first starts arriving (gap-filling)
                             if (!contentHasStarted && (accumulatedContent || accumulatedThinking)) {
                                 contentHasStarted = true;
@@ -1452,7 +1531,7 @@ const clearChatButton = document.getElementById('clearChatButton');
                                     loadingIndicator.style.display = 'none';
                                 }
                             }
-                            
+
                             // Update UI with combined content
                             if (jsonResponse.message && (typeof jsonResponse.message.content === 'string' || typeof jsonResponse.message.thinking === 'string')) {
                                 // Combine thinking and content with think tags for display
@@ -1461,19 +1540,19 @@ const clearChatButton = document.getElementById('clearChatButton');
                                     displayText += `<think>\n${accumulatedThinking}\n</think>\n\n`;
                                 }
                                 displayText += accumulatedContent;
-                                
+
                                 botTextElement.innerHTML = '';
                                 // Pass true for isStreaming to auto-expand the thinking box
                                 const fragment = renderMarkdownWithThinking(displayText, true);
                                 botTextElement.appendChild(fragment);
                                 botTextElement.dataset.fullMessage = displayText;
-                                
+
                                 chatContainer.scrollTop = chatContainer.scrollHeight;
                             } else {
                                 console.log('jsonResponse.message.content/thinking is missing or not a string.');
                                 // It's possible for 'done' messages to have no content, which is fine.
                                 if (!jsonResponse.done) {
-                                     console.warn('Received a non-done chunk without message content.');
+                                    console.warn('Received a non-done chunk without message content.');
                                 }
                             }
 
@@ -1487,7 +1566,7 @@ const clearChatButton = document.getElementById('clearChatButton');
                                 if (botMessageDiv) {
                                     botMessageDiv.classList.remove('streaming');
                                 }
-                                
+
                                 // Capture metrics from final response
                                 if (jsonResponse.eval_count !== undefined) {
                                     // Use eval_duration if available, otherwise fall back to total_duration
@@ -1499,12 +1578,12 @@ const clearChatButton = document.getElementById('clearChatButton');
                                         const durationSeconds = durationNs / 1e9;
                                         speed = (jsonResponse.eval_count / durationSeconds).toFixed(1);
                                     }
-                                    
+
                                     // Estimate thinking tokens (rough approximation: ~4 chars per token)
-                                    const thinkingTokens = hasThinking && accumulatedThinking 
+                                    const thinkingTokens = hasThinking && accumulatedThinking
                                         ? Math.ceil(accumulatedThinking.length / 4)
                                         : null;
-                                    
+
                                     messageMetadata = {
                                         tokens: jsonResponse.eval_count,
                                         promptTokens: jsonResponse.prompt_eval_count,
@@ -1528,7 +1607,7 @@ const clearChatButton = document.getElementById('clearChatButton');
                 }
             }
             console.log('Stream reading complete.');
-            
+
             // Add metadata display to the message
             if (messageMetadata && botMessageDiv) {
                 addMetadataToMessage(botMessageDiv, messageMetadata);
@@ -1541,7 +1620,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             } else {
                 finalBotMessageToSave = accumulatedContent;
             }
-            
+
             // Update the dataset to ensure consistency
             botTextElement.dataset.fullMessage = finalBotMessageToSave;
             const messageToSave = { role: 'assistant', content: finalBotMessageToSave };
@@ -1551,24 +1630,24 @@ const clearChatButton = document.getElementById('clearChatButton');
             currentConversation.messages.push(messageToSave);
             currentConversation.summary = getConversationSummary(currentConversation.messages);
             currentConversation.lastMessageTime = Date.now();
-            
+
             // Update context indicator after receiving response
             await updateContextIndicator(currentConversation.messages, modelData.systemPrompt, modelData);
 
         } catch (error) {
             console.error('Error sending message to Ollama or processing stream:', error);
             let errorMessage = 'Error communicating with the model. Please check the proxy server and Ollama status.';
-            
+
             // Handle AbortError specifically
             if (error.name === 'AbortError') {
                 errorMessage = 'Request was stopped by user.';
                 console.log('Request aborted by user');
             } else if (error.message && error.message.includes('Ollama API Error')) {
                 errorMessage = error.message;
-                
+
                 // Handle vision model specific errors
                 if (selectedImages.length > 0 && (
-                    error.message.includes('exit status 2') || 
+                    error.message.includes('exit status 2') ||
                     error.message.includes('runner process has terminated') ||
                     error.message.includes('500')
                 )) {
@@ -1576,29 +1655,29 @@ const clearChatButton = document.getElementById('clearChatButton');
                     console.warn(`[Vision Error] Model ${currentModelName} failed with images:`, error.message);
                 }
             }
-            
+
             updateBotMessageInUI(botTextElement, `\n\n[Error: ${errorMessage}]`);
             // Get the current content from the botTextElement to avoid using undefined variables
             const currentBotContent = botTextElement.dataset.fullMessage || botTextElement.textContent || '';
-            currentConversation.messages.push({ role: 'assistant', content: currentBotContent + `\n\n[Error: ${errorMessage}]` }); 
+            currentConversation.messages.push({ role: 'assistant', content: currentBotContent + `\n\n[Error: ${errorMessage}]` });
             currentConversation.lastMessageTime = Date.now();
         } finally {
             console.log('sendMessageToOllama finally block completed');
-            
+
             // Reset streaming flag
             isStreaming = false;
-            
+
             // Hide stop button and clear abort controller
             if (stopButton) {
                 stopButton.style.display = 'none';
             }
             currentAbortController = null;
-            
+
             // Remove streaming class from message
             if (botMessageDiv) {
                 botMessageDiv.classList.remove('streaming');
             }
-            
+
             // Always hide the loading indicator when done, with null check
             if (loadingIndicator) {
                 loadingIndicator.style.display = 'none';
@@ -1606,9 +1685,9 @@ const clearChatButton = document.getElementById('clearChatButton');
             messageInput.disabled = false;
             sendButton.disabled = false;
             messageInput.focus();
-            
+
             await saveModelChatState(currentModelName, modelData);
-            populateConversationSidebar(currentModelName, modelData); 
+            populateConversationSidebar(currentModelName, modelData);
             console.log('UI unlocked, state saved, sidebar repopulated in finally block.');
         }
     }
@@ -1626,29 +1705,29 @@ const clearChatButton = document.getElementById('clearChatButton');
         if (newModelName === oldModelName) return;
         console.log('[OllamaBro] switchModel - Switching from:', oldModelName, 'to:', newModelName);
         console.log(`Switching model to: ${newModelName}`);
-        
+
         // Save draft for current conversation before switching
         let oldModelData = await loadModelChatState(oldModelName);
         if (oldModelData.activeConversationId && messageInput.value.trim()) {
             await saveDraft(oldModelData.activeConversationId, messageInput.value);
         }
-        
+
         currentModelName = newModelName;
         updateModelDisplay(currentModelName);
-        
+
         // Clear any selected images when switching models
         clearSelectedImages();
-        
+
         // Show image upload UI (users can upload images to any model, API will error if unsupported)
         toggleImageUploadUI(true);
-        
+
         let modelData = await loadModelChatState(currentModelName);
         if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
             await startNewConversation(currentModelName); // Start new if no active or no convs
         } else {
             displayConversationMessages(modelData, modelData.activeConversationId);
             populateConversationSidebar(currentModelName, modelData);
-            
+
             // Load draft for the new conversation
             const draftText = await loadDraft(modelData.activeConversationId);
             messageInput.value = draftText || '';
@@ -1670,7 +1749,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             const data = await response.json();
             // Store full model objects with name and size
             availableModels = data.models ? data.models : [];
-            
+
             return availableModels;
         } catch (error) {
             console.error('Error fetching available models:', error);
@@ -1694,29 +1773,29 @@ const clearChatButton = document.getElementById('clearChatButton');
         models.forEach(model => {
             const modelName = model.name || model; // Support both object and string format
             const modelSize = model.size;
-            
+
             const li = document.createElement('li');
             const a = document.createElement('a');
             a.href = '#';
-            
+
             // Create model name container
             const modelNameContainer = document.createElement('div');
             modelNameContainer.style.display = 'flex';
             modelNameContainer.style.alignItems = 'center';
             modelNameContainer.style.justifyContent = 'space-between';
             modelNameContainer.style.width = '100%';
-            
+
             // Left side: model name
             const modelNameSpan = document.createElement('span');
             modelNameSpan.textContent = modelName;
             modelNameContainer.appendChild(modelNameSpan);
-            
+
             // Right side: cloud icon and size
             const detailsContainer = document.createElement('div');
             detailsContainer.style.display = 'flex';
             detailsContainer.style.alignItems = 'center';
             detailsContainer.style.gap = '8px';
-            
+
             // Add cloud icon for cloud models
             if (modelName.includes('.cloud')) {
                 const cloudIcon = document.createElement('span');
@@ -1726,7 +1805,7 @@ const clearChatButton = document.getElementById('clearChatButton');
                 cloudIcon.style.color = '#3b82f6';
                 detailsContainer.appendChild(cloudIcon);
             }
-            
+
             // Add size display
             if (modelSize) {
                 const sizeSpan = document.createElement('span');
@@ -1737,14 +1816,14 @@ const clearChatButton = document.getElementById('clearChatButton');
                 sizeSpan.style.fontSize = '0.9em';
                 detailsContainer.appendChild(sizeSpan);
             }
-            
+
             if (detailsContainer.children.length > 0) {
                 modelNameContainer.appendChild(detailsContainer);
             }
-            
+
             a.appendChild(modelNameContainer);
             a.dataset.modelName = modelName;
-            
+
             li.classList.add('model-dropdown-item');
             if (modelName === currentModel) {
                 li.classList.add('active-model');
@@ -1787,14 +1866,14 @@ const clearChatButton = document.getElementById('clearChatButton');
         } else {
             displayConversationMessages(modelData, modelData.activeConversationId);
             populateConversationSidebar(currentModelName, modelData);
-            
+
             // Load draft for active conversation
             const draftText = await loadDraft(modelData.activeConversationId);
             if (draftText) {
                 messageInput.value = draftText;
             }
         }
-        
+
         messageInput.disabled = false;
         sendButton.disabled = false;
         messageInput.focus();
@@ -1808,12 +1887,12 @@ const clearChatButton = document.getElementById('clearChatButton');
             conversationSidebar.classList.remove('collapsed');
             collapseSidebarButton.innerHTML = '&#x2190;'; // Left arrow
         }
-        
+
         // Initialize Lucide icons for new elements
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
-        
+
         // Setup scroll detection
         chatContainer.addEventListener('scroll', handleScroll, { passive: true });
     }
@@ -1821,7 +1900,7 @@ const clearChatButton = document.getElementById('clearChatButton');
     // Event Listeners
     sendButton.addEventListener('click', () => sendMessageToOllama(messageInput.value));
     messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessageToOllama(messageInput.value); });
-    
+
     // Save draft as user types (debounced)
     let draftSaveTimeout;
     messageInput.addEventListener('input', () => {
@@ -1833,7 +1912,7 @@ const clearChatButton = document.getElementById('clearChatButton');
             }
         }, 500); // Save 500ms after user stops typing
     });
-    
+
     // Scroll to bottom button
     const scrollToBottomButton = document.getElementById('scrollToBottomButton');
     if (scrollToBottomButton) {
@@ -1843,59 +1922,59 @@ const clearChatButton = document.getElementById('clearChatButton');
             scrollToBottomButton.style.display = 'none';
         });
     }
-    
+
     clearChatButton.addEventListener('click', () => openClearContextModal());
     exportChatButton.addEventListener('click', exportConversation);
-    
+
     newChatButton.addEventListener('click', () => startNewConversation(currentModelName));
-    
+
     // Settings modal event listeners
     if (settingsButton) {
         settingsButton.addEventListener('click', openSettingsModal);
     }
-    
+
     if (closeSettingsModalButton) {
         closeSettingsModalButton.addEventListener('click', closeSettingsModal);
     }
-    
+
     if (saveSystemPromptButton) {
         saveSystemPromptButton.addEventListener('click', saveSystemPrompt);
     }
-    
+
     if (clearSystemPromptButton) {
         clearSystemPromptButton.addEventListener('click', clearSystemPrompt);
     }
-    
+
     if (systemPromptInput) {
         systemPromptInput.addEventListener('input', updateSystemPromptTokenCount);
     }
-    
+
     // Clear context modal event listeners
     if (closeClearContextModalButton) {
         closeClearContextModalButton.addEventListener('click', closeClearContextModal);
     }
-    
+
     if (cancelClearContextButton) {
         cancelClearContextButton.addEventListener('click', closeClearContextModal);
     }
-    
+
     if (confirmClearContextButton) {
         confirmClearContextButton.addEventListener('click', clearContextKeepingSystemPrompt);
     }
-    
+
     // Close modals on backdrop click
     if (settingsModal) {
         settingsModal.addEventListener('click', (e) => {
             if (e.target === settingsModal) closeSettingsModal();
         });
     }
-    
+
     if (clearContextModal) {
         clearContextModal.addEventListener('click', (e) => {
             if (e.target === clearContextModal) closeClearContextModal();
         });
     }
-    
+
     // Keyboard shortcuts for modals
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
@@ -1937,9 +2016,9 @@ const clearChatButton = document.getElementById('clearChatButton');
     document.addEventListener('drop', (e) => {
         e.preventDefault();
         dragDropOverlay.classList.remove('active');
-        
+
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-            const imageFiles = Array.from(e.dataTransfer.files).filter(file => 
+            const imageFiles = Array.from(e.dataTransfer.files).filter(file =>
                 file.type.startsWith('image/')
             );
             if (imageFiles.length > 0) {
@@ -1972,7 +2051,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         await chrome.storage.local.set({ [sidebarStateKey]: isCollapsed ? 'collapsed' : 'expanded' });
     });
 
-    document.addEventListener('visibilitychange', () => { 
+    document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
             // Small delay to ensure the page is fully visible before focusing
             setTimeout(() => messageInput.focus(), 100);

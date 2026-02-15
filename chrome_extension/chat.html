@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -414,7 +415,8 @@
         }
 
         .thinking-content.expanded {
-            max-height: 2000px; /* Arbitrary large value */
+            max-height: 2000px;
+            /* Arbitrary large value */
         }
 
         .thinking-content pre {
@@ -451,12 +453,25 @@
             animation: bounce 1.4s infinite ease-in-out both;
         }
 
-        .loading-indicator span:nth-child(1) { animation-delay: -0.32s; }
-        .loading-indicator span:nth-child(2) { animation-delay: -0.16s; }
+        .loading-indicator span:nth-child(1) {
+            animation-delay: -0.32s;
+        }
+
+        .loading-indicator span:nth-child(2) {
+            animation-delay: -0.16s;
+        }
 
         @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0);
+            }
+
+            40% {
+                transform: scale(1);
+            }
         }
 
         /* Input Area */
@@ -541,6 +556,28 @@
         .input-icon-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+
+        /* Mic Button Active State */
+        .input-icon-button.listening {
+            color: var(--error-text);
+            background-color: var(--error-bg);
+            border-color: var(--error-text);
+            animation: pulse-recording 1.5s infinite;
+        }
+
+        @keyframes pulse-recording {
+            0% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
+            }
+
+            70% {
+                box-shadow: 0 0 0 6px rgba(239, 68, 68, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            }
         }
 
         #imagePreviewArea {
@@ -1094,7 +1131,7 @@
             padding: 0;
         }
 
-        .message-text-content :not(pre) > code {
+        .message-text-content :not(pre)>code {
             background-color: var(--bg-tertiary);
             padding: 2px 6px;
             border-radius: 4px;
@@ -1113,11 +1150,12 @@
             margin-bottom: 0;
         }
 
-        .message-text-content p + p {
+        .message-text-content p+p {
             margin-top: 0.6em;
         }
 
-        .message-text-content ul, .message-text-content ol {
+        .message-text-content ul,
+        .message-text-content ol {
             margin: 0.35em 0;
             padding-left: 1.3em;
         }
@@ -1126,20 +1164,31 @@
             margin: 0.15em 0;
         }
 
-        .message-text-content li > p {
+        .message-text-content li>p {
             margin: 0.15em 0;
         }
 
-        .message-text-content h1, .message-text-content h2,
-        .message-text-content h3, .message-text-content h4,
-        .message-text-content h5, .message-text-content h6 {
+        .message-text-content h1,
+        .message-text-content h2,
+        .message-text-content h3,
+        .message-text-content h4,
+        .message-text-content h5,
+        .message-text-content h6 {
             margin: 0.75em 0 0.5em 0;
             font-weight: 600;
         }
 
-        .message-text-content h1 { font-size: 1.4em; }
-        .message-text-content h2 { font-size: 1.3em; }
-        .message-text-content h3 { font-size: 1.2em; }
+        .message-text-content h1 {
+            font-size: 1.4em;
+        }
+
+        .message-text-content h2 {
+            font-size: 1.3em;
+        }
+
+        .message-text-content h3 {
+            font-size: 1.2em;
+        }
 
         .message-text-content blockquote {
             border-left: 3px solid var(--accent);
@@ -1154,7 +1203,8 @@
             width: 100%;
         }
 
-        .message-text-content th, .message-text-content td {
+        .message-text-content th,
+        .message-text-content td {
             border: 1px solid var(--border);
             padding: var(--space-xs) var(--space-sm);
         }
@@ -1245,6 +1295,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="dragDropOverlay">
         <div class="drop-message">
@@ -1305,6 +1356,9 @@
                 <button id="imageButton" class="input-icon-button" title="Add image" style="display: none;">
                     <i data-lucide="image-plus"></i>
                 </button>
+                <button id="micButton" class="input-icon-button" title="Voice Input">
+                    <i data-lucide="mic"></i>
+                </button>
                 <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
                 <button id="sendButton">Send</button>
             </div>
@@ -1323,16 +1377,20 @@
             <div class="modal-body">
                 <div class="settings-section">
                     <h3 class="settings-section-title">System Prompt</h3>
-                    <p class="modal-description">Set a system prompt to guide the model's behavior. This will be applied to all conversations with this model.</p>
-                    <textarea id="systemPromptInput" placeholder="e.g., You are a helpful code reviewer. Be concise and focus on best practices." rows="5"></textarea>
+                    <p class="modal-description">Set a system prompt to guide the model's behavior. This will be applied
+                        to all conversations with this model.</p>
+                    <textarea id="systemPromptInput"
+                        placeholder="e.g., You are a helpful code reviewer. Be concise and focus on best practices."
+                        rows="5"></textarea>
                     <div class="token-counter">
                         <span id="systemPromptTokenCount">0 tokens</span>
                     </div>
                 </div>
-                
+
                 <div class="settings-section">
                     <h3 class="settings-section-title">Context Window</h3>
-                    <p class="modal-description">Override the default context window size. Leave empty or set to 0 to use automatic detection.</p>
+                    <p class="modal-description">Override the default context window size. Leave empty or set to 0 to
+                        use automatic detection.</p>
                     <div class="context-limit-input-group">
                         <input type="number" id="contextLimitInput" placeholder="Auto" min="0" step="1000">
                         <span class="context-limit-unit">tokens</span>
@@ -1341,7 +1399,7 @@
                         <span id="contextLimitInfo">Auto-detecting: 4K (local) or 128K (cloud)</span>
                     </div>
                 </div>
-                
+
                 <div class="modal-footer settings-footer">
                     <div class="modal-actions">
                         <button id="clearSystemPromptButton" class="modal-button secondary">Clear</button>
@@ -1374,4 +1432,5 @@
     <script src="lib/lucide.min.js"></script>
     <script src="chat.js" defer></script>
 </body>
+
 </html>
