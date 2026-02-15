@@ -68,7 +68,7 @@
             background-color: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
-            overflow: hidden;
+            overflow: auto;
         }
 
         /* App Container */
@@ -305,11 +305,12 @@
         /* Chat Container */
         #chatContainer {
             flex: 1;
-            overflow-y: auto;
             padding: var(--space-lg);
             display: flex;
             flex-direction: column;
             gap: var(--space-md);
+            overflow-y: auto;
+            scroll-behavior: smooth;
         }
 
         /* Messages */
@@ -331,7 +332,7 @@
         }
 
         .user-message {
-            align-self: flex-end;
+            align-self: flex-start;
             background-color: var(--accent);
             color: white;
         }
@@ -1036,6 +1037,38 @@
             font-size: var(--font-size-sm);
         }
 
+        /* Scroll to Bottom Button */
+        #scrollToBottomButton {
+            display: none;
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 44px;
+            height: 44px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: 50%;
+            color: var(--text-secondary);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            transition: all var(--transition);
+            z-index: 100;
+        }
+
+        #scrollToBottomButton:hover {
+            background-color: var(--bg-quaternary);
+            color: var(--text-primary);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+        }
+
+        #scrollToBottomButton .lucide {
+            width: 20px;
+            height: 20px;
+        }
+
         /* Markdown Content Styles */
         .message-text-content {
             overflow-x: auto;
@@ -1261,6 +1294,10 @@
 
             <div id="loadingIndicator">Waiting for response...</div>
 
+            <button id="scrollToBottomButton" title="Scroll to bottom">
+                <i data-lucide="arrow-down"></i>
+            </button>
+
             <div id="imagePreviewArea"></div>
 
             <div id="inputArea">
@@ -1268,7 +1305,7 @@
                 <button id="imageButton" class="input-icon-button" title="Add image" style="display: none;">
                     <i data-lucide="image-plus"></i>
                 </button>
-                <textarea id="messageInput" placeholder="Message..." rows="1"></textarea>
+                <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
                 <button id="sendButton">Send</button>
             </div>
         </div>

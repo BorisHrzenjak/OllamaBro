@@ -53,6 +53,7 @@ const clearChatButton = document.getElementById('clearChatButton');
     let currentModelName = '';
     const storageKeyPrefix = 'ollamaBroChat_';
     const sidebarStateKey = 'ollamaBroSidebarState';
+    const draftsKey = 'ollamaBroDrafts';
     // Store available models as objects with name and size
     let availableModels = [];
     let currentAbortController = null; // Track current request for aborting
@@ -62,6 +63,84 @@ const clearChatButton = document.getElementById('clearChatButton');
     const DEFAULT_CONTEXT_LIMIT = 4096; // Default context window size
     const WARNING_THRESHOLD = 0.75; // 75% - yellow
     const CRITICAL_THRESHOLD = 0.90; // 90% - red
+    
+    // Smart scrolling state
+    let isUserScrolledUp = false;
+    let scrollThreshold = 100; // pixels from bottom to consider "at bottom"
+    let isStreaming = false;
+
+    // Smart scroll functions
+    function isNearBottom() {
+        const scrollPosition = chatContainer.scrollTop + chatContainer.clientHeight;
+        const scrollHeight = chatContainer.scrollHeight;
+        return scrollHeight - scrollPosition <= scrollThreshold;
+    }
+
+    function scrollToBottom(force = false) {
+        if (force || !isUserScrolledUp) {
+            chatContainer.scrollTo({
+                top: chatContainer.scrollHeight,
+                behavior: 'smooth'
+            });
+        }
+    }
+
+    function handleScroll() {
+        const wasScrolledUp = isUserScrolledUp;
+        isUserScrolledUp = !isNearBottom();
+        
+        // Show/hide scroll to bottom button
+        const scrollButton = document.getElementById('scrollToBottomButton');
+        if (scrollButton) {
+            scrollButton.style.display = isUserScrolledUp ? 'flex' : 'none';
+        }
+        
+        // If user scrolls down to bottom during streaming, resume auto-scroll
+        if (wasScrolledUp && !isUserScrolledUp && isStreaming) {
+            scrollToBottom(true);
+        }
+    }
+
+    // Draft persistence functions
+    async function saveDraft(conversationId, text) {
+        if (!chrome.storage || !chrome.storage.local) return;
+        try {
+            const drafts = await chrome.storage.local.get(draftsKey);
+            const draftData = drafts[draftsKey] || {};
+            draftData[conversationId] = {
+                text: text,
+                timestamp: Date.now()
+            };
+            await chrome.storage.local.set({ [draftsKey]: draftData });
+        } catch (error) {
+            console.error('Error saving draft:', error);
+        }
+    }
+
+    async function loadDraft(conversationId) {
+        if (!chrome.storage || !chrome.storage.local) return '';
+        try {
+            const drafts = await chrome.storage.local.get(draftsKey);
+            const draftData = drafts[draftsKey] || {};
+            const draft = draftData[conversationId];
+            return draft ? draft.text : '';
+        } catch (error) {
+            console.error('Error loading draft:', error);
+            return '';
+        }
+    }
+
+    async function clearDraft(conversationId) {
+        if (!chrome.storage || !chrome.storage.local) return;
+        try {
+            const drafts = await chrome.storage.local.get(draftsKey);
+            const draftData = drafts[draftsKey] || {};
+            delete draftData[conversationId];
+            await chrome.storage.local.set({ [draftsKey]: draftData });
+        } catch (error) {
+            console.error('Error clearing draft:', error);
+        }
+    }
 
     // Helper function to create Lucide icons as SVG
     function createLucideIcon(iconName, size = 16) {
@@ -839,7 +918,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         }
 
         chatContainer.appendChild(messageDiv);
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        scrollToBottom(true); // Force scroll on new message
         
         // Store reference to messageDiv for later use (e.g., adding metadata)
         textContentDiv.messageDiv = messageDiv;
@@ -847,7 +926,7 @@ const clearChatButton = document.getElementById('clearChatButton');
         return textContentDiv; // Return the element where text is displayed for streaming
     }
 
-    function updateBotMessageInUI(botTextElement, newContentChunk, isStreaming = false) {
+    function updateBotMessageInUI(botTextElement, newContentChunk, streaming = false) {
         const previousRawFullText = botTextElement.dataset.fullMessage || '';
         const currentRawFullText = previousRawFullText + newContentChunk;
         
@@ -857,12 +936,13 @@ const clearChatButton = document.getElementById('clearChatButton');
         }
         
         botTextElement.innerHTML = '';
-        const fragment = renderMarkdownWithThinking(currentRawFullText, isStreaming);
+        const fragment = renderMarkdownWithThinking(currentRawFullText, streaming);
         botTextElement.appendChild(fragment);
         
         botTextElement.dataset.fullMessage = currentRawFullText;
 
-        chatContainer.scrollTop = chatContainer.scrollHeight;
+        // Only auto-scroll if user hasn't scrolled up
+        scrollToBottom(false);
     }
 
     // Helper function to add metadata to an existing message
@@ -970,6 +1050,13 @@ const clearChatButton = document.getElementById('clearChatButton');
 
     async function startNewConversation(modelForNewChat = currentModelName) {
         console.log(`Starting new conversation for model: ${modelForNewChat}`);
+        
+        // Save current draft before switching
+        const currentModelData = await loadModelChatState(modelForNewChat);
+        if (currentModelData.activeConversationId && messageInput.value.trim()) {
+            await saveDraft(currentModelData.activeConversationId, messageInput.value);
+        }
+        
         let modelData = await loadModelChatState(modelForNewChat);
         const newConversationId = generateUUID();
         modelData.conversations[newConversationId] = {
@@ -982,18 +1069,33 @@ const clearChatButton = document.getElementById('clearChatButton');
         await saveModelChatState(modelForNewChat, modelData);
         displayConversationMessages(modelData, newConversationId);
         populateConversationSidebar(modelForNewChat, modelData);
+        
+        // Clear input and draft for new conversation
+        messageInput.value = '';
+        await clearDraft(newConversationId);
         messageInput.focus();
         return newConversationId;
     }
 
     async function switchActiveConversation(modelToSwitch, newConversationId) {
         console.log(`Switching to conversation ${newConversationId} for model ${modelToSwitch}`);
+        
+        // Save current draft before switching
+        let currentModelData = await loadModelChatState(modelToSwitch);
+        if (currentModelData.activeConversationId && messageInput.value.trim()) {
+            await saveDraft(currentModelData.activeConversationId, messageInput.value);
+        }
+        
         let modelData = await loadModelChatState(modelToSwitch);
         if (modelData.conversations[newConversationId]) {
             modelData.activeConversationId = newConversationId;
             await saveModelChatState(modelToSwitch, modelData);
             displayConversationMessages(modelData, newConversationId);
             populateConversationSidebar(modelToSwitch, modelData); // Refresh sidebar to highlight active
+            
+            // Load draft for the new conversation
+            const draftText = await loadDraft(newConversationId);
+            messageInput.value = draftText || '';
         } else {
             console.warn(`Conversation ${newConversationId} not found for model ${modelToSwitch}. Starting new one.`);
             await startNewConversation(modelToSwitch);
@@ -1097,6 +1199,8 @@ const clearChatButton = document.getElementById('clearChatButton');
 
     function closeSettingsModal() {
         settingsModal.classList.remove('active');
+        // Restore focus to input when modal closes
+        messageInput.focus();
     }
 
     function updateSystemPromptTokenCount() {
@@ -1157,6 +1261,8 @@ const clearChatButton = document.getElementById('clearChatButton');
 
     function closeClearContextModal() {
         clearContextModal.classList.remove('active');
+        // Restore focus to input when modal closes
+        messageInput.focus();
     }
 
     async function clearContextKeepingSystemPrompt() {
@@ -1179,9 +1285,13 @@ const clearChatButton = document.getElementById('clearChatButton');
     async function sendMessageToOllama(prompt) {
         if (!prompt || prompt.trim() === '') return;
 
-
-
+        // Clear draft for current conversation when sending
         let modelData = await loadModelChatState(currentModelName);
+        if (modelData.activeConversationId) {
+            await clearDraft(modelData.activeConversationId);
+        }
+
+        modelData = await loadModelChatState(currentModelName);
         if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
             console.warn('No active or valid conversation found, attempting to start a new one.');
             await startNewConversation(currentModelName);
@@ -1214,12 +1324,16 @@ const clearChatButton = document.getElementById('clearChatButton');
 
         messageInput.value = '';
         clearSelectedImages(); // Clear images after sending
-        // Only show loading indicator when actually sending a request
+        // Show loading indicator - will hide when first content arrives or on error
         if (loadingIndicator) {
             loadingIndicator.style.display = 'block';
+            loadingIndicator.textContent = 'Waiting for response...';
         }
         messageInput.disabled = true;
         sendButton.disabled = true;
+        
+        // Track if content has started arriving for gap-filling loading state
+        let contentHasStarted = false;
 
         const botTextElement = addMessageToChatUI(currentModelName, '', 'bot-message', modelData);
         const botMessageDiv = botTextElement.parentElement;
@@ -1227,6 +1341,9 @@ const clearChatButton = document.getElementById('clearChatButton');
 
         // Create AbortController for this request
         currentAbortController = new AbortController();
+        
+        // Set streaming flag
+        isStreaming = true;
         
         // Show stop button during streaming and add streaming class
         if (stopButton) {
@@ -1326,6 +1443,14 @@ const clearChatButton = document.getElementById('clearChatButton');
                             if (jsonResponse.message && typeof jsonResponse.message.content === 'string') {
                                 accumulatedContent += jsonResponse.message.content;
                                 console.log('Accumulated content:', accumulatedContent.substring(0, 100) + '...');
+                            }
+                            
+                            // Hide loading indicator when content first starts arriving (gap-filling)
+                            if (!contentHasStarted && (accumulatedContent || accumulatedThinking)) {
+                                contentHasStarted = true;
+                                if (loadingIndicator) {
+                                    loadingIndicator.style.display = 'none';
+                                }
                             }
                             
                             // Update UI with combined content
@@ -1460,6 +1585,9 @@ const clearChatButton = document.getElementById('clearChatButton');
         } finally {
             console.log('sendMessageToOllama finally block completed');
             
+            // Reset streaming flag
+            isStreaming = false;
+            
             // Hide stop button and clear abort controller
             if (stopButton) {
                 stopButton.style.display = 'none';
@@ -1498,6 +1626,13 @@ const clearChatButton = document.getElementById('clearChatButton');
         if (newModelName === oldModelName) return;
         console.log('[OllamaBro] switchModel - Switching from:', oldModelName, 'to:', newModelName);
         console.log(`Switching model to: ${newModelName}`);
+        
+        // Save draft for current conversation before switching
+        let oldModelData = await loadModelChatState(oldModelName);
+        if (oldModelData.activeConversationId && messageInput.value.trim()) {
+            await saveDraft(oldModelData.activeConversationId, messageInput.value);
+        }
+        
         currentModelName = newModelName;
         updateModelDisplay(currentModelName);
         
@@ -1513,6 +1648,10 @@ const clearChatButton = document.getElementById('clearChatButton');
         } else {
             displayConversationMessages(modelData, modelData.activeConversationId);
             populateConversationSidebar(currentModelName, modelData);
+            
+            // Load draft for the new conversation
+            const draftText = await loadDraft(modelData.activeConversationId);
+            messageInput.value = draftText || '';
         }
         messageInput.disabled = false;
         sendButton.disabled = false;
@@ -1648,6 +1787,12 @@ const clearChatButton = document.getElementById('clearChatButton');
         } else {
             displayConversationMessages(modelData, modelData.activeConversationId);
             populateConversationSidebar(currentModelName, modelData);
+            
+            // Load draft for active conversation
+            const draftText = await loadDraft(modelData.activeConversationId);
+            if (draftText) {
+                messageInput.value = draftText;
+            }
         }
         
         messageInput.disabled = false;
@@ -1668,11 +1813,36 @@ const clearChatButton = document.getElementById('clearChatButton');
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
+        
+        // Setup scroll detection
+        chatContainer.addEventListener('scroll', handleScroll, { passive: true });
     }
 
     // Event Listeners
     sendButton.addEventListener('click', () => sendMessageToOllama(messageInput.value));
     messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessageToOllama(messageInput.value); });
+    
+    // Save draft as user types (debounced)
+    let draftSaveTimeout;
+    messageInput.addEventListener('input', () => {
+        clearTimeout(draftSaveTimeout);
+        draftSaveTimeout = setTimeout(async () => {
+            const modelData = await loadModelChatState(currentModelName);
+            if (modelData.activeConversationId && messageInput.value.trim()) {
+                await saveDraft(modelData.activeConversationId, messageInput.value);
+            }
+        }, 500); // Save 500ms after user stops typing
+    });
+    
+    // Scroll to bottom button
+    const scrollToBottomButton = document.getElementById('scrollToBottomButton');
+    if (scrollToBottomButton) {
+        scrollToBottomButton.addEventListener('click', () => {
+            scrollToBottom(true);
+            isUserScrolledUp = false;
+            scrollToBottomButton.style.display = 'none';
+        });
+    }
     
     clearChatButton.addEventListener('click', () => openClearContextModal());
     exportChatButton.addEventListener('click', exportConversation);
@@ -1802,7 +1972,12 @@ const clearChatButton = document.getElementById('clearChatButton');
         await chrome.storage.local.set({ [sidebarStateKey]: isCollapsed ? 'collapsed' : 'expanded' });
     });
 
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') messageInput.focus(); });
+    document.addEventListener('visibilitychange', () => { 
+        if (document.visibilityState === 'visible') {
+            // Small delay to ensure the page is fully visible before focusing
+            setTimeout(() => messageInput.focus(), 100);
+        }
+    });
 
     init();
 

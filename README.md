@@ -19,6 +19,38 @@ OllamaBro is a Chrome extension that provides a convenient interface to interact
 - **Usability**:
     - Auto-focus on the input field for a seamless chat experience.
 
+## UX Improvements
+
+We've implemented several professional UX patterns to make your chat experience smooth and polished:
+
+### Smart Auto-Scrolling
+The chat intelligently manages scrolling during streaming responses:
+- **Auto-scroll to bottom** while the model is generating text (if you're already at the bottom)
+- **Pause auto-scroll** when you manually scroll up to read previous messages
+- **Resume auto-scroll** when you scroll back down to the bottom
+- **Scroll-to-bottom button** appears when you've scrolled up during streaming
+- Smooth scrolling animations for a polished feel
+
+### Input Draft Persistence
+Never lose your work-in-progress:
+- **Auto-saves** what you type in the input field (debounced, saves 500ms after you stop typing)
+- **Per-conversation drafts** - each conversation remembers its own unsent text
+- **Automatic restore** when you switch back to a conversation
+- **Draft cleared** when you send the message
+- Perfect for when you need to check another conversation mid-thought
+
+### Gap-Filling Loading State
+No more flashing or jarring transitions:
+- Shows "Waiting for response..." immediately when you send a message
+- **Stays visible** during the initial delay before the first token arrives
+- **Hides automatically** when the model starts responding
+- Prevents the empty-content flash that happens with basic loading indicators
+
+### Consistent Visual Design
+- User messages aligned on the **left** (same side as AI responses) for natural reading flow
+- User message bubbles use the **same accent color** as the Send button for visual consistency
+- Clean, minimal design that keeps focus on the conversation
+
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
