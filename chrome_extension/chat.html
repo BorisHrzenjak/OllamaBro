@@ -960,6 +960,35 @@
             border-top: 1px solid var(--border);
         }
 
+        .settings-select {
+            flex: 1;
+            padding: var(--space-md);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: var(--font-size-md);
+            outline: none;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .settings-select:focus {
+            border-color: var(--accent);
+            background-color: var(--bg-quaternary);
+        }
+
+        .settings-select option {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .settings-select optgroup {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
         /* Message Actions */
         .message-actions {
             display: flex;
@@ -1007,6 +1036,13 @@
         .stop-button:hover {
             background-color: rgba(239, 68, 68, 0.25);
             border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        /* TTS Button */
+        .tts-button.speaking {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            color: white;
         }
 
         /* Message Metadata */
@@ -1397,6 +1433,19 @@
                     </div>
                     <div class="context-limit-info">
                         <span id="contextLimitInfo">Auto-detecting: 4K (local) or 128K (cloud)</span>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3 class="settings-section-title">Text-to-Speech</h3>
+                    <p class="modal-description">Choose a voice for reading AI responses aloud.</p>
+                    <div class="context-limit-input-group">
+                        <select id="ttsVoiceSelect" class="settings-select">
+                            <option value="">Loading voices...</option>
+                        </select>
+                    </div>
+                    <div class="context-limit-info">
+                        <span id="ttsStatusText">Click speaker icon on any response to hear it</span>
                     </div>
                 </div>
 

@@ -245,6 +245,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             'plus': '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
             'trash': '<polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
             'download': '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
+            'audio-lines': '<path d="M2 10v4"/><path d="M6 6v12"/><path d="M10 3v18"/><path d="M14 6v12"/><path d="M18 10v4"/><path d="M22 10v4"/>',
+            'volume-x': '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>',
             'arrow-left': '<line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/>',
             'arrow-right': '<line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>',
             'message-square': '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
@@ -988,6 +990,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             actionsDiv.appendChild(stopButton);
 
+            // TTS Button
+            const ttsButton = document.createElement('button');
+            ttsButton.classList.add('action-button', 'tts-button');
+            ttsButton.title = 'Read aloud';
+            ttsButton.appendChild(createLucideIcon('audio-lines', 16));
+
+            ttsButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                speakText(textContentDiv, ttsButton);
+            });
+            actionsDiv.appendChild(ttsButton);
+
             // Store reference to stop button for later use
             messageDiv.stopButton = stopButton;
 
@@ -1272,6 +1286,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             updateContextLimitInfo();
         });
+        
+        // Load TTS settings
+        loadTTSSettings();
+        
         settingsModal.classList.add('active');
         systemPromptInput.focus();
     }
@@ -1314,6 +1332,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Update context indicator to reflect new system prompt size
         const currentMessages = getCurrentConversationMessages(modelData);
         await updateContextIndicator(currentMessages, newPrompt, modelData);
+
+        // Save TTS settings
+        await saveTTSSettings();
 
         closeSettingsModal();
         console.log('[OllamaBro] Settings saved for model:', currentModelName);
@@ -2057,6 +2078,214 @@ document.addEventListener('DOMContentLoaded', async () => {
             setTimeout(() => messageInput.focus(), 100);
         }
     });
+
+    // TTS State using Web Speech API
+    let ttsUtterance = null;
+    let isSpeaking = false;
+    let availableVoices = [];
+
+    // Load available voices
+    function loadVoices() {
+        availableVoices = speechSynthesis.getVoices();
+    }
+
+    // Load voices immediately and on change
+    if (speechSynthesis.onvoiceschanged !== undefined) {
+        speechSynthesis.onvoiceschanged = loadVoices;
+    }
+
+    // Get selected voice from settings
+    async function getSelectedVoice() {
+        const settings = await chrome.storage.local.get('ttsSettings');
+        const voiceId = settings.ttsSettings?.voice || 'Google US English';
+        return voiceId;
+    }
+
+    // Speak text using Web Speech API
+    async function speakText(textContentDiv, buttonElement) {
+        // If already speaking, stop and return (toggle behavior)
+        if (isSpeaking) {
+            stopSpeaking();
+            return;
+        }
+
+        // Get text, excluding thinking blocks
+        const rawText = textContentDiv.dataset.fullMessage || textContentDiv.textContent || '';
+        // Strip think tags and their content (match <think>, </think>, <thought>, </thought>)
+        const cleanText = rawText
+            .replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '')
+            .replace(/<thought[^>]*>[\s\S]*?<\/thought>/gi, '')
+            .trim();
+
+        if (!cleanText) {
+            console.log('[TTS] No text to speak');
+            return;
+        }
+
+        try {
+            // Update button to show speaking state
+            if (buttonElement) {
+                buttonElement.innerHTML = '';
+                buttonElement.appendChild(createLucideIcon('volume-x', 16));
+                buttonElement.title = 'Stop';
+                buttonElement.classList.add('speaking');
+            }
+
+            // Ensure voices are loaded
+            if (availableVoices.length === 0) {
+                loadVoices();
+                // Wait a bit for voices to load
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+
+            const voiceId = await getSelectedVoice();
+            const selectedVoice = availableVoices.find(v => v.voiceURI === voiceId) || availableVoices[0];
+
+            console.log(`[TTS] Speaking with voice: ${selectedVoice?.name || 'default'}`);
+
+            // Create utterance with already cleaned text
+            ttsUtterance = new SpeechSynthesisUtterance(cleanText);
+            
+            if (selectedVoice) {
+                ttsUtterance.voice = selectedVoice;
+            }
+            
+            ttsUtterance.rate = 1.0;
+            ttsUtterance.pitch = 1.0;
+
+            ttsUtterance.onstart = () => {
+                isSpeaking = true;
+                console.log('[TTS] Started speaking');
+            };
+
+            ttsUtterance.onend = () => {
+                console.log('[TTS] Finished speaking');
+                isSpeaking = false;
+                resetTTSButton(buttonElement);
+            };
+
+            ttsUtterance.onerror = (event) => {
+                // Ignore interrupted errors - they're expected when stopping playback
+                if (event.error === 'interrupted') {
+                    console.log('[TTS] Speech interrupted');
+                } else {
+                    console.error('[TTS] Speech error:', event.error);
+                }
+                isSpeaking = false;
+                resetTTSButton(buttonElement);
+            };
+
+            isSpeaking = true;
+            speechSynthesis.speak(ttsUtterance);
+
+        } catch (error) {
+            console.error('[TTS] Error speaking text:', error);
+            isSpeaking = false;
+            resetTTSButton(buttonElement);
+        }
+    }
+
+    // Reset TTS button to default state
+    function resetTTSButton(buttonElement) {
+        if (buttonElement) {
+            buttonElement.innerHTML = '';
+            buttonElement.appendChild(createLucideIcon('audio-lines', 16));
+            buttonElement.title = 'Read aloud';
+            buttonElement.classList.remove('speaking');
+        }
+    }
+
+    // Stop current speech
+    function stopSpeaking() {
+        isSpeaking = false;
+        
+        if (speechSynthesis.speaking) {
+            speechSynthesis.cancel();
+        }
+        
+        ttsUtterance = null;
+        
+        // Reset all TTS buttons
+        document.querySelectorAll('.tts-button.speaking').forEach(btn => {
+            resetTTSButton(btn);
+        });
+    }
+
+    // Load TTS settings from storage
+    async function loadTTSSettings() {
+        const settings = await chrome.storage.local.get('ttsSettings');
+        const ttsSettings = settings.ttsSettings || { voice: 'Google US English' };
+        
+        const voiceSelect = document.getElementById('ttsVoiceSelect');
+        if (voiceSelect) {
+            voiceSelect.value = ttsSettings.voice || 'Google US English';
+            // If voices aren't loaded yet, set up listener
+            if (availableVoices.length === 0) {
+                setTimeout(() => {
+                    loadVoices();
+                    populateVoiceSelect(voiceSelect);
+                }, 500);
+            } else {
+                populateVoiceSelect(voiceSelect);
+            }
+        }
+        
+        return ttsSettings;
+    }
+
+    // Populate voice select with available voices
+    function populateVoiceSelect(voiceSelect) {
+        if (!voiceSelect || availableVoices.length === 0) return;
+        
+        // Store current selection
+        const currentValue = voiceSelect.value;
+        
+        // Clear existing options
+        voiceSelect.innerHTML = '';
+        
+        // Group voices by language
+        const voicesByLang = {};
+        availableVoices.forEach(voice => {
+            const lang = voice.lang.split('-')[0];
+            if (!voicesByLang[lang]) {
+                voicesByLang[lang] = [];
+            }
+            voicesByLang[lang].push(voice);
+        });
+        
+        // Add options grouped by language
+        Object.keys(voicesByLang).sort().forEach(lang => {
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = lang.toUpperCase();
+            
+            voicesByLang[lang].forEach(voice => {
+                const option = document.createElement('option');
+                option.value = voice.voiceURI;
+                option.textContent = voice.name;
+                optgroup.appendChild(option);
+            });
+            
+            voiceSelect.appendChild(optgroup);
+        });
+        
+        // Restore selection
+        if (currentValue) {
+            voiceSelect.value = currentValue;
+        }
+    }
+
+    // Save TTS settings
+    async function saveTTSSettings() {
+        const voiceSelect = document.getElementById('ttsVoiceSelect');
+        if (!voiceSelect) return;
+        
+        const ttsSettings = {
+            voice: voiceSelect.value
+        };
+        
+        await chrome.storage.local.set({ ttsSettings });
+        console.log('[TTS] Settings saved:', ttsSettings);
+    }
 
     init();
 
