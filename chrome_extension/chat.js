@@ -1919,9 +1919,49 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatContainer.addEventListener('scroll', handleScroll, { passive: true });
     }
 
+    // Message history navigation (session-only, terminal-style)
+    const messageHistory = [];
+    let historyIndex = -1;
+    let historyDraft = '';
+
+    function pushToHistory(text) {
+        if (!text.trim()) return;
+        if (messageHistory[messageHistory.length - 1] === text) return; // no duplicates
+        messageHistory.push(text);
+        if (messageHistory.length > 50) messageHistory.shift();
+        historyIndex = -1;
+    }
+
+    messageInput.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
+        if (messageHistory.length === 0) return;
+        e.preventDefault();
+
+        if (e.key === 'ArrowUp') {
+            if (historyIndex === -1) {
+                historyDraft = messageInput.value; // save current draft on first navigation
+                historyIndex = messageHistory.length - 1;
+            } else if (historyIndex > 0) {
+                historyIndex--;
+            }
+            messageInput.value = messageHistory[historyIndex];
+        } else { // ArrowDown
+            if (historyIndex === -1) return;
+            if (historyIndex < messageHistory.length - 1) {
+                historyIndex++;
+                messageInput.value = messageHistory[historyIndex];
+            } else {
+                historyIndex = -1;
+                messageInput.value = historyDraft;
+            }
+        }
+        // Move cursor to end
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+    });
+
     // Event Listeners
-    sendButton.addEventListener('click', () => sendMessageToOllama(messageInput.value));
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') sendMessageToOllama(messageInput.value); });
+    sendButton.addEventListener('click', () => { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); });
+    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); } });
 
     // Save draft as user types (debounced)
     let draftSaveTimeout;
