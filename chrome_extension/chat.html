@@ -1421,6 +1421,57 @@
             width: 20px;
             height: 20px;
         }
+
+        /* Keyboard Shortcuts Modal */
+        .shortcuts-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .shortcut-item:last-child {
+            border-bottom: none;
+        }
+
+        .shortcut-desc {
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+        }
+
+        .shortcut-keys {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        kbd {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 7px;
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-bottom-width: 2px;
+            border-radius: var(--radius-sm);
+            font-family: inherit;
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            min-width: 24px;
+        }
+
+        .shortcut-separator {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            padding: 0 2px;
+        }
     </style>
 </head>
 
@@ -1559,6 +1610,50 @@
                     <div class="modal-actions">
                         <button id="clearSystemPromptButton" class="modal-button secondary">Clear</button>
                         <button id="saveSystemPromptButton" class="modal-button primary">Save</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="shortcutsModal" class="modal">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Keyboard Shortcuts</h2>
+                <button id="closeShortcutsModal" class="modal-close-button">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="shortcuts-list">
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">Send message</span>
+                        <div class="shortcut-keys"><kbd>Enter</kbd><span class="shortcut-separator">/</span><kbd>Ctrl</kbd><kbd>Enter</kbd></div>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">New chat</span>
+                        <div class="shortcut-keys"><kbd>Alt</kbd><kbd>N</kbd></div>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">Delete current conversation</span>
+                        <div class="shortcut-keys"><kbd>Ctrl</kbd><kbd>D</kbd></div>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">Read last response aloud</span>
+                        <div class="shortcut-keys"><kbd>Ctrl</kbd><kbd>R</kbd></div>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">Abort generation</span>
+                        <div class="shortcut-keys"><kbd>Esc</kbd></div>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">Browse message history</span>
+                        <div class="shortcut-keys"><kbd>↑</kbd><span class="shortcut-separator">/</span><kbd>↓</kbd></div>
+                    </div>
+                    <div class="shortcut-item">
+                        <span class="shortcut-desc">Show this panel</span>
+                        <div class="shortcut-keys"><kbd>Shift</kbd><kbd>?</kbd></div>
                     </div>
                 </div>
             </div>

@@ -5,7 +5,7 @@
 **1. Message Editing + Regeneration**
 Allow editing any past user message to "branch" the conversation from that point, discarding everything after. Also add a "Regenerate" button on the last AI response. The abort controller infrastructure is already there.
 
-**2. Prompt History Navigation**
+**2. Prompt History Navigation** (IMPLEMENTED)
 Press `↑`/`↓` in the input box to cycle through previously sent messages, like a terminal. Already have draft persistence — prompt history is a natural extension.
 
 **3. Auto-naming Conversations**

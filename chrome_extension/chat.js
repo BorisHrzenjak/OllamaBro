@@ -36,6 +36,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Clear context modal elements
     const clearContextModal = document.getElementById('clearContextModal');
+
+    // Keyboard shortcuts modal elements
+    const shortcutsModal = document.getElementById('shortcutsModal');
+    const closeShortcutsModalButton = document.getElementById('closeShortcutsModal');
     const closeClearContextModalButton = document.getElementById('closeClearContextModal');
     const cancelClearContextButton = document.getElementById('cancelClearContextButton');
     const confirmClearContextButton = document.getElementById('confirmClearContextButton');
@@ -1366,6 +1370,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageInput.focus();
     }
 
+    function openShortcutsModal() {
+        shortcutsModal.classList.add('active');
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function closeShortcutsModal() {
+        shortcutsModal.classList.remove('active');
+        messageInput.focus();
+    }
+
     async function clearContextKeepingSystemPrompt() {
         console.log(`Clearing messages while keeping system prompt for model: ${currentModelName}`);
         let modelData = await loadModelChatState(currentModelName);
@@ -1919,10 +1933,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         chatContainer.addEventListener('scroll', handleScroll, { passive: true });
     }
 
-    // Message history navigation (session-only, terminal-style)
+    // Message history navigation (persistent via chrome.storage.local)
+    const MESSAGE_HISTORY_KEY = 'inputMessageHistory';
     const messageHistory = [];
     let historyIndex = -1;
     let historyDraft = '';
+
+    // Load persisted history on startup
+    chrome.storage.local.get(MESSAGE_HISTORY_KEY, (result) => {
+        const saved = result[MESSAGE_HISTORY_KEY];
+        if (Array.isArray(saved)) messageHistory.push(...saved);
+    });
 
     function pushToHistory(text) {
         if (!text.trim()) return;
@@ -1930,9 +1951,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageHistory.push(text);
         if (messageHistory.length > 50) messageHistory.shift();
         historyIndex = -1;
+        chrome.storage.local.set({ [MESSAGE_HISTORY_KEY]: messageHistory });
     }
 
     messageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            e.preventDefault();
+            pushToHistory(messageInput.value);
+            sendMessageToOllama(messageInput.value);
+            return;
+        }
         if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
         if (messageHistory.length === 0) return;
         e.preventDefault();
@@ -2037,17 +2065,76 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Keyboard shortcuts for modals
+    // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+        const inInput = document.activeElement === messageInput || document.activeElement === systemPromptInput;
+        const anyModalOpen = (settingsModal && settingsModal.classList.contains('active')) ||
+                             (clearContextModal && clearContextModal.classList.contains('active')) ||
+                             (shortcutsModal && shortcutsModal.classList.contains('active'));
+
+        // Escape: close modals or abort generation
         if (e.key === 'Escape') {
-            if (settingsModal && settingsModal.classList.contains('active')) {
-                closeSettingsModal();
+            if (settingsModal && settingsModal.classList.contains('active')) { closeSettingsModal(); return; }
+            if (clearContextModal && clearContextModal.classList.contains('active')) { closeClearContextModal(); return; }
+            if (shortcutsModal && shortcutsModal.classList.contains('active')) { closeShortcutsModal(); return; }
+            if (isStreaming && currentAbortController) {
+                currentAbortController.abort();
             }
-            if (clearContextModal && clearContextModal.classList.contains('active')) {
-                closeClearContextModal();
+            return;
+        }
+
+        // Shift+? — show shortcuts panel (only when not typing in the message input)
+        if (e.key === '?' && e.shiftKey && !e.ctrlKey && !e.metaKey && !inInput) {
+            e.preventDefault();
+            shortcutsModal && shortcutsModal.classList.contains('active') ? closeShortcutsModal() : openShortcutsModal();
+            return;
+        }
+
+        // Don't fire Ctrl shortcuts when a modal is open or user is in system prompt textarea
+        if (anyModalOpen || document.activeElement === systemPromptInput) return;
+
+        // Alt+N — new chat (Ctrl+N is reserved by Chrome for new window)
+        if (e.key.toLowerCase() === 'n' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            startNewConversation(currentModelName);
+        }
+
+        if (e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            switch (e.key.toLowerCase()) {
+                case 'd': {
+                    e.preventDefault();
+                    (async () => {
+                        const modelData = await loadModelChatState(currentModelName);
+                        if (modelData.activeConversationId) {
+                            handleDeleteConversation(currentModelName, modelData.activeConversationId);
+                        }
+                    })();
+                    break;
+                }
+                case 'r': {
+                    e.preventDefault();
+                    const botMessages = chatContainer.querySelectorAll('.bot-message');
+                    const lastBot = botMessages[botMessages.length - 1];
+                    if (lastBot) {
+                        const ttsBtn = lastBot.querySelector('.tts-button');
+                        const textDiv = lastBot.querySelector('.message-text-content');
+                        if (ttsBtn && textDiv) speakText(textDiv, ttsBtn);
+                    }
+                    break;
+                }
             }
         }
     });
+
+    // Shortcuts modal event listeners
+    if (closeShortcutsModalButton) {
+        closeShortcutsModalButton.addEventListener('click', closeShortcutsModal);
+    }
+    if (shortcutsModal) {
+        shortcutsModal.addEventListener('click', (e) => {
+            if (e.target === shortcutsModal) closeShortcutsModal();
+        });
+    }
 
     // Image upload event listeners
     if (imageButton && imageInput) {
