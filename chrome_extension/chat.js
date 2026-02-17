@@ -1296,6 +1296,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function closeSettingsModal() {
         settingsModal.classList.remove('active');
+        stopKokoroStatusPoll();
         // Restore focus to input when modal closes
         messageInput.focus();
     }
@@ -2079,42 +2080,64 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // TTS State using Web Speech API
+    // ===== TTS State =====
+    // Web Speech API state
     let ttsUtterance = null;
     let isSpeaking = false;
     let availableVoices = [];
 
-    // Load available voices
-    function loadVoices() {
+    // Kokoro TTS state
+    let kokoroAbortController = null;
+    let kokoroAudioContext = null;
+    let kokoroSources = [];
+    let kokoroVoicesCache = null;
+
+    const PROXY_BASE = 'http://localhost:3000';
+
+    // Load available Web Speech voices
+    function loadWebSpeechVoices() {
         availableVoices = speechSynthesis.getVoices();
     }
 
-    // Load voices immediately and on change
     if (speechSynthesis.onvoiceschanged !== undefined) {
-        speechSynthesis.onvoiceschanged = loadVoices;
+        speechSynthesis.onvoiceschanged = loadWebSpeechVoices;
     }
 
-    // Get selected voice from settings
-    async function getSelectedVoice() {
+    // Get current TTS settings from storage
+    async function getTTSSettings() {
         const settings = await chrome.storage.local.get('ttsSettings');
-        const voiceId = settings.ttsSettings?.voice || 'Google US English';
-        return voiceId;
+        return settings.ttsSettings || { engine: 'webSpeech', voice: 'Google US English' };
     }
 
-    // Speak text using Web Speech API
+    // ===== Main speak/stop dispatch =====
+
     async function speakText(textContentDiv, buttonElement) {
-        // If already speaking, stop and return (toggle behavior)
         if (isSpeaking) {
             stopSpeaking();
             return;
         }
 
-        // Get text, excluding thinking blocks
         const rawText = textContentDiv.dataset.fullMessage || textContentDiv.textContent || '';
-        // Strip think tags and their content (match <think>, </think>, <thought>, </thought>)
         const cleanText = rawText
+            // Strip thinking tags
             .replace(/<think[^>]*>[\s\S]*?<\/think>/gi, '')
             .replace(/<thought[^>]*>[\s\S]*?<\/thought>/gi, '')
+            // Strip markdown formatting
+            .replace(/```[\s\S]*?```/g, ' code block ')      // fenced code blocks
+            .replace(/`([^`]+)`/g, '$1')                      // inline code
+            .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')         // images
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')          // links → keep text
+            .replace(/^#{1,6}\s+/gm, '')                      // headings
+            .replace(/(\*\*\*|___)(.*?)\1/g, '$2')            // bold+italic
+            .replace(/(\*\*|__)(.*?)\1/g, '$2')               // bold
+            .replace(/(\*|_)(.*?)\1/g, '$2')                  // italic
+            .replace(/~~(.*?)~~/g, '$1')                      // strikethrough
+            .replace(/^\s*[-*+]\s+/gm, '')                    // unordered list markers
+            .replace(/^\s*\d+\.\s+/gm, '')                    // ordered list markers
+            .replace(/^\s*>\s?/gm, '')                        // blockquotes
+            .replace(/^---+$/gm, '')                          // horizontal rules
+            .replace(/\|/g, ' ')                              // table pipes
+            .replace(/\n{3,}/g, '\n\n')                       // collapse extra newlines
             .trim();
 
         if (!cleanText) {
@@ -2122,34 +2145,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        try {
-            // Update button to show speaking state
-            if (buttonElement) {
-                buttonElement.innerHTML = '';
-                buttonElement.appendChild(createLucideIcon('volume-x', 16));
-                buttonElement.title = 'Stop';
-                buttonElement.classList.add('speaking');
-            }
+        const settings = await getTTSSettings();
 
-            // Ensure voices are loaded
+        if (settings.engine === 'kokoro') {
+            await speakWithKokoro(cleanText, settings.voice, buttonElement);
+        } else {
+            await speakWithWebSpeech(cleanText, settings.voice, buttonElement);
+        }
+    }
+
+    function stopSpeaking() {
+        isSpeaking = false;
+
+        // Stop Web Speech
+        if (speechSynthesis.speaking) {
+            speechSynthesis.cancel();
+        }
+        ttsUtterance = null;
+
+        // Stop Kokoro
+        stopKokoroSpeech();
+
+        // Reset all TTS buttons
+        document.querySelectorAll('.tts-button.speaking, .tts-button.loading').forEach(btn => {
+            resetTTSButton(btn);
+        });
+    }
+
+    // ===== Web Speech API =====
+
+    async function speakWithWebSpeech(text, voiceId, buttonElement) {
+        try {
+            setTTSButtonState(buttonElement, 'speaking');
+
             if (availableVoices.length === 0) {
-                loadVoices();
-                // Wait a bit for voices to load
+                loadWebSpeechVoices();
                 await new Promise(resolve => setTimeout(resolve, 100));
             }
 
-            const voiceId = await getSelectedVoice();
             const selectedVoice = availableVoices.find(v => v.voiceURI === voiceId) || availableVoices[0];
+            console.log(`[TTS] Web Speech with voice: ${selectedVoice?.name || 'default'}`);
 
-            console.log(`[TTS] Speaking with voice: ${selectedVoice?.name || 'default'}`);
-
-            // Create utterance with already cleaned text
-            ttsUtterance = new SpeechSynthesisUtterance(cleanText);
-            
-            if (selectedVoice) {
-                ttsUtterance.voice = selectedVoice;
-            }
-            
+            ttsUtterance = new SpeechSynthesisUtterance(text);
+            if (selectedVoice) ttsUtterance.voice = selectedVoice;
             ttsUtterance.rate = 1.0;
             ttsUtterance.pitch = 1.0;
 
@@ -2165,7 +2203,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             ttsUtterance.onerror = (event) => {
-                // Ignore interrupted errors - they're expected when stopping playback
                 if (event.error === 'interrupted') {
                     console.log('[TTS] Speech interrupted');
                 } else {
@@ -2177,7 +2214,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             isSpeaking = true;
             speechSynthesis.speak(ttsUtterance);
-
         } catch (error) {
             console.error('[TTS] Error speaking text:', error);
             isSpeaking = false;
@@ -2185,106 +2221,462 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Reset TTS button to default state
-    function resetTTSButton(buttonElement) {
-        if (buttonElement) {
-            buttonElement.innerHTML = '';
-            buttonElement.appendChild(createLucideIcon('audio-lines', 16));
-            buttonElement.title = 'Read aloud';
-            buttonElement.classList.remove('speaking');
+    // ===== Kokoro TTS =====
+
+    async function speakWithKokoro(text, voice, buttonElement) {
+        try {
+            setTTSButtonState(buttonElement, 'loading');
+            isSpeaking = true;
+
+            kokoroAbortController = new AbortController();
+            const response = await fetch(`${PROXY_BASE}/api/tts/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ text, voice: voice || undefined }),
+                signal: kokoroAbortController.signal
+            });
+
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                if (response.status === 503) {
+                    console.log('[TTS] Kokoro model is loading, retrying in 3s...');
+                    setTTSButtonState(buttonElement, 'loading');
+                    await new Promise(r => setTimeout(r, 3000));
+                    if (!isSpeaking) return;
+                    return speakWithKokoro(text, voice, buttonElement);
+                }
+                throw new Error(errData.error || `Server error ${response.status}`);
+            }
+
+            const sampleRate = parseInt(response.headers.get('X-Sample-Rate')) || 24000;
+            kokoroAudioContext = new AudioContext({ sampleRate });
+            let scheduledTime = kokoroAudioContext.currentTime;
+
+            setTTSButtonState(buttonElement, 'speaking');
+
+            const reader = response.body.getReader();
+            let leftover = new Uint8Array(0);
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                // Combine leftover bytes with new data
+                const combined = new Uint8Array(leftover.length + value.length);
+                combined.set(leftover);
+                combined.set(value, leftover.length);
+
+                // Align to 4-byte float32 boundary
+                const usableBytes = combined.length - (combined.length % 4);
+                if (usableBytes === 0) {
+                    leftover = combined;
+                    continue;
+                }
+
+                leftover = combined.slice(usableBytes);
+                const float32 = new Float32Array(combined.buffer.slice(combined.byteOffset, combined.byteOffset + usableBytes));
+
+                // Create AudioBuffer and schedule playback
+                const audioBuffer = kokoroAudioContext.createBuffer(1, float32.length, sampleRate);
+                audioBuffer.getChannelData(0).set(float32);
+
+                const source = kokoroAudioContext.createBufferSource();
+                source.buffer = audioBuffer;
+                source.connect(kokoroAudioContext.destination);
+
+                // Schedule seamlessly after previous chunk
+                const startTime = Math.max(scheduledTime, kokoroAudioContext.currentTime);
+                source.start(startTime);
+                scheduledTime = startTime + audioBuffer.duration;
+
+                kokoroSources.push(source);
+                source.onended = () => {
+                    const idx = kokoroSources.indexOf(source);
+                    if (idx !== -1) kokoroSources.splice(idx, 1);
+                };
+            }
+
+            // Wait for all audio to finish playing
+            const remainingTime = scheduledTime - kokoroAudioContext.currentTime;
+            if (remainingTime > 0) {
+                await new Promise(resolve => setTimeout(resolve, remainingTime * 1000 + 100));
+            }
+
+            isSpeaking = false;
+            resetTTSButton(buttonElement);
+            cleanupKokoroAudio();
+
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('[TTS] Kokoro playback aborted');
+            } else {
+                console.error('[TTS] Kokoro error:', error);
+            }
+            isSpeaking = false;
+            resetTTSButton(buttonElement);
+            cleanupKokoroAudio();
         }
     }
 
-    // Stop current speech
-    function stopSpeaking() {
-        isSpeaking = false;
-        
-        if (speechSynthesis.speaking) {
-            speechSynthesis.cancel();
+    function stopKokoroSpeech() {
+        if (kokoroAbortController) {
+            kokoroAbortController.abort();
+            kokoroAbortController = null;
         }
-        
-        ttsUtterance = null;
-        
-        // Reset all TTS buttons
-        document.querySelectorAll('.tts-button.speaking').forEach(btn => {
-            resetTTSButton(btn);
+        kokoroSources.forEach(source => {
+            try { source.stop(); } catch (e) { /* already stopped */ }
         });
+        kokoroSources = [];
+        cleanupKokoroAudio();
     }
 
-    // Load TTS settings from storage
+    function cleanupKokoroAudio() {
+        if (kokoroAudioContext && kokoroAudioContext.state !== 'closed') {
+            kokoroAudioContext.close().catch(() => {});
+            kokoroAudioContext = null;
+        }
+    }
+
+    // ===== TTS Button States =====
+
+    function setTTSButtonState(buttonElement, state) {
+        if (!buttonElement) return;
+        buttonElement.innerHTML = '';
+        buttonElement.classList.remove('speaking', 'loading');
+
+        if (state === 'speaking') {
+            buttonElement.appendChild(createLucideIcon('volume-x', 16));
+            buttonElement.title = 'Stop';
+            buttonElement.classList.add('speaking');
+        } else if (state === 'loading') {
+            buttonElement.appendChild(createLucideIcon('loader', 16));
+            buttonElement.title = 'Loading...';
+            buttonElement.classList.add('loading');
+        }
+    }
+
+    function resetTTSButton(buttonElement) {
+        if (!buttonElement) return;
+        buttonElement.innerHTML = '';
+        buttonElement.appendChild(createLucideIcon('audio-lines', 16));
+        buttonElement.title = 'Read aloud';
+        buttonElement.classList.remove('speaking', 'loading');
+    }
+
+    // ===== TTS Settings =====
+
+    let kokoroStatusPollTimer = null;
+
     async function loadTTSSettings() {
         const settings = await chrome.storage.local.get('ttsSettings');
-        const ttsSettings = settings.ttsSettings || { voice: 'Google US English' };
-        
+        const ttsSettings = settings.ttsSettings || { engine: 'webSpeech', voice: 'Google US English' };
+
+        // Set engine radio
+        const engineRadio = document.querySelector(`input[name="ttsEngine"][value="${ttsSettings.engine}"]`);
+        if (engineRadio) engineRadio.checked = true;
+
+        // Populate voices for the selected engine
         const voiceSelect = document.getElementById('ttsVoiceSelect');
-        if (voiceSelect) {
-            voiceSelect.value = ttsSettings.voice || 'Google US English';
-            // If voices aren't loaded yet, set up listener
-            if (availableVoices.length === 0) {
-                setTimeout(() => {
-                    loadVoices();
-                    populateVoiceSelect(voiceSelect);
-                }, 500);
-            } else {
-                populateVoiceSelect(voiceSelect);
-            }
+        await populateVoicesForEngine(ttsSettings.engine, voiceSelect, ttsSettings.voice);
+
+        // Show/hide Kokoro status and trigger model load if Kokoro is active
+        updateKokoroStatusVisibility(ttsSettings.engine);
+        if (ttsSettings.engine === 'kokoro') {
+            triggerKokoroModelLoad();
         }
-        
+
+        // Listen for engine toggle changes
+        document.querySelectorAll('input[name="ttsEngine"]').forEach(radio => {
+            radio.addEventListener('change', async (e) => {
+                const engine = e.target.value;
+                const select = document.getElementById('ttsVoiceSelect');
+                const statusText = document.getElementById('ttsStatusText');
+                await populateVoicesForEngine(engine, select);
+
+                updateKokoroStatusVisibility(engine);
+
+                if (engine === 'kokoro') {
+                    if (statusText) statusText.textContent = 'Kokoro TTS runs on the proxy server';
+                    triggerKokoroModelLoad();
+                } else {
+                    stopKokoroStatusPoll();
+                    if (statusText) statusText.textContent = 'Click speaker icon on any response to hear it';
+                }
+            });
+        });
+
         return ttsSettings;
     }
 
-    // Populate voice select with available voices
-    function populateVoiceSelect(voiceSelect) {
-        if (!voiceSelect || availableVoices.length === 0) return;
-        
-        // Store current selection
-        const currentValue = voiceSelect.value;
-        
-        // Clear existing options
+    function updateKokoroStatusVisibility(engine) {
+        const statusEl = document.getElementById('kokoroModelStatus');
+        if (statusEl) {
+            statusEl.style.display = engine === 'kokoro' ? 'flex' : 'none';
+        }
+    }
+
+    async function triggerKokoroModelLoad() {
+        const statusEl = document.getElementById('kokoroModelStatus');
+        const labelEl = document.getElementById('kokoroStatusLabel');
+        if (!statusEl || !labelEl) return;
+
+        // First, try to reach the proxy server directly
+        try {
+            const loadRes = await fetch(`${PROXY_BASE}/api/tts/load`, { method: 'POST' });
+            if (loadRes.status === 404) {
+                // Server is running but old code — need restart
+                setKokoroStatusUI('loading', 'Restarting proxy server...');
+                await requestProxyControl('restart');
+                return;
+            }
+            if (!loadRes.ok) throw new Error(`Server error ${loadRes.status}`);
+            const loadData = await loadRes.json();
+
+            if (loadData.status === 'ready') {
+                setKokoroStatusUI('ready', 'Model ready');
+                return;
+            }
+
+            setKokoroStatusUI('loading', 'Downloading model (~86 MB)...');
+            startKokoroStatusPoll();
+            return;
+        } catch (err) {
+            // Server not reachable — try to auto-start via native messaging
+            console.log('[TTS] Proxy not reachable, attempting auto-start...');
+        }
+
+        await requestProxyControl('start');
+    }
+
+    async function requestProxyControl(command) {
+        setKokoroStatusUI('loading', command === 'restart' ? 'Restarting proxy server...' : 'Starting proxy server...');
+
+        try {
+            const response = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage(
+                    { action: 'proxyControl', command },
+                    (resp) => {
+                        if (chrome.runtime.lastError) {
+                            reject(new Error(chrome.runtime.lastError.message));
+                        } else {
+                            resolve(resp);
+                        }
+                    }
+                );
+            });
+
+            if (response.needsSetup) {
+                setKokoroStatusUI('error', 'One-time setup needed: run install-native-host.bat from the project folder');
+                return;
+            }
+
+            if (response.status === 'started' || response.status === 'restarted' || response.status === 'already_running') {
+                // Server is up — now trigger Kokoro model load
+                setKokoroStatusUI('loading', 'Proxy server running. Loading Kokoro model...');
+                // Wait a moment then try to trigger model load
+                await new Promise(r => setTimeout(r, 1000));
+                try {
+                    const loadRes = await fetch(`${PROXY_BASE}/api/tts/load`, { method: 'POST' });
+                    if (loadRes.ok) {
+                        const data = await loadRes.json();
+                        if (data.status === 'ready') {
+                            setKokoroStatusUI('ready', 'Model ready');
+                            return;
+                        }
+                    }
+                } catch (e) { /* will poll */ }
+                setKokoroStatusUI('loading', 'Downloading model (~86 MB)...');
+                startKokoroStatusPoll();
+            } else if (response.status === 'start_failed' || response.status === 'restart_failed') {
+                setKokoroStatusUI('error', 'Failed to start proxy server. Check that Node.js is installed.');
+            } else if (response.error) {
+                setKokoroStatusUI('error', response.error);
+            }
+        } catch (err) {
+            console.error('[TTS] Native messaging failed:', err);
+            setKokoroStatusUI('error', 'One-time setup needed: run install-native-host.bat from the project folder');
+        }
+    }
+
+    function setKokoroStatusUI(status, label) {
+        const statusEl = document.getElementById('kokoroModelStatus');
+        const labelEl = document.getElementById('kokoroStatusLabel');
+        if (!statusEl || !labelEl) return;
+
+        statusEl.className = 'kokoro-model-status status-' + status;
+        statusEl.style.display = 'flex';
+        labelEl.textContent = label;
+    }
+
+    function startKokoroStatusPoll() {
+        stopKokoroStatusPoll();
+        let failCount = 0;
+        kokoroStatusPollTimer = setInterval(async () => {
+            try {
+                const res = await fetch(`${PROXY_BASE}/api/tts/status`);
+                if (res.status === 404) {
+                    // Server running old code without TTS endpoints
+                    failCount++;
+                    if (failCount >= 3) {
+                        setKokoroStatusUI('error', 'Proxy server outdated. Stop it and run: cd proxy_server && npm start');
+                        stopKokoroStatusPoll();
+                    }
+                    return;
+                }
+                if (!res.ok) return;
+                failCount = 0;
+                const data = await res.json();
+
+                if (data.status === 'ready') {
+                    setKokoroStatusUI('ready', 'Model ready');
+                    stopKokoroStatusPoll();
+                } else if (data.status === 'error') {
+                    setKokoroStatusUI('error', 'Model failed to load: ' + (data.error || 'unknown error'));
+                    stopKokoroStatusPoll();
+                } else {
+                    setKokoroStatusUI('loading', 'Downloading model (~86 MB)...');
+                }
+            } catch (err) {
+                failCount++;
+                if (failCount >= 5) {
+                    setKokoroStatusUI('error', 'Lost connection to proxy server');
+                    stopKokoroStatusPoll();
+                }
+            }
+        }, 2000);
+    }
+
+    function stopKokoroStatusPoll() {
+        if (kokoroStatusPollTimer) {
+            clearInterval(kokoroStatusPollTimer);
+            kokoroStatusPollTimer = null;
+        }
+    }
+
+    async function populateVoicesForEngine(engine, voiceSelect, selectedVoice) {
+        if (!voiceSelect) return;
+
+        if (engine === 'kokoro') {
+            await populateKokoroVoices(voiceSelect, selectedVoice);
+        } else {
+            populateWebSpeechVoices(voiceSelect, selectedVoice);
+        }
+    }
+
+    function populateWebSpeechVoices(voiceSelect, selectedVoice) {
+        if (!voiceSelect) return;
+
+        if (availableVoices.length === 0) {
+            loadWebSpeechVoices();
+            if (availableVoices.length === 0) {
+                setTimeout(() => {
+                    loadWebSpeechVoices();
+                    populateWebSpeechVoices(voiceSelect, selectedVoice);
+                }, 500);
+                return;
+            }
+        }
+
         voiceSelect.innerHTML = '';
-        
-        // Group voices by language
+
         const voicesByLang = {};
         availableVoices.forEach(voice => {
             const lang = voice.lang.split('-')[0];
-            if (!voicesByLang[lang]) {
-                voicesByLang[lang] = [];
-            }
+            if (!voicesByLang[lang]) voicesByLang[lang] = [];
             voicesByLang[lang].push(voice);
         });
-        
-        // Add options grouped by language
+
         Object.keys(voicesByLang).sort().forEach(lang => {
             const optgroup = document.createElement('optgroup');
             optgroup.label = lang.toUpperCase();
-            
             voicesByLang[lang].forEach(voice => {
                 const option = document.createElement('option');
                 option.value = voice.voiceURI;
                 option.textContent = voice.name;
                 optgroup.appendChild(option);
             });
-            
             voiceSelect.appendChild(optgroup);
         });
-        
-        // Restore selection
-        if (currentValue) {
-            voiceSelect.value = currentValue;
+
+        if (selectedVoice) voiceSelect.value = selectedVoice;
+    }
+
+    async function populateKokoroVoices(voiceSelect, selectedVoice) {
+        if (!voiceSelect) return;
+        voiceSelect.innerHTML = '<option value="">Loading Kokoro voices...</option>';
+
+        try {
+            if (!kokoroVoicesCache) {
+                const response = await fetch(`${PROXY_BASE}/api/tts/voices`);
+                if (response.status === 503) {
+                    voiceSelect.innerHTML = '<option value="">Model loading, please wait...</option>';
+                    setTimeout(() => populateKokoroVoices(voiceSelect, selectedVoice), 4000);
+                    return;
+                }
+                if (!response.ok) throw new Error('Failed to fetch voices');
+                const data = await response.json();
+                kokoroVoicesCache = data.voices || [];
+            }
+
+            voiceSelect.innerHTML = '';
+
+            if (kokoroVoicesCache.length === 0) {
+                voiceSelect.innerHTML = '<option value="">No voices available</option>';
+                return;
+            }
+
+            // Group voices by language
+            const byLang = {};
+            kokoroVoicesCache.forEach(v => {
+                const lang = v.language || 'unknown';
+                if (!byLang[lang]) byLang[lang] = [];
+                byLang[lang].push(v);
+            });
+
+            const langLabels = { 'en-us': 'American English', 'en-gb': 'British English' };
+
+            Object.entries(byLang).forEach(([lang, voices]) => {
+                const optgroup = document.createElement('optgroup');
+                optgroup.label = langLabels[lang] || lang.toUpperCase();
+                voices.forEach(v => {
+                    const option = document.createElement('option');
+                    option.value = v.id;
+                    const genderIcon = v.gender === 'Female' ? '\u2640' : '\u2642';
+                    option.textContent = `${v.name} ${genderIcon}${v.grade ? ' [' + v.grade + ']' : ''}`;
+                    optgroup.appendChild(option);
+                });
+                voiceSelect.appendChild(optgroup);
+            });
+
+            if (selectedVoice) voiceSelect.value = selectedVoice;
+            if (!voiceSelect.value && voiceSelect.options.length > 0) {
+                voiceSelect.selectedIndex = 0;
+            }
+        } catch (error) {
+            console.error('[TTS] Error fetching Kokoro voices:', error);
+            voiceSelect.innerHTML = '<option value="">Could not load voices (is proxy server running?)</option>';
         }
     }
 
-    // Save TTS settings
     async function saveTTSSettings() {
         const voiceSelect = document.getElementById('ttsVoiceSelect');
+        const engineRadio = document.querySelector('input[name="ttsEngine"]:checked');
         if (!voiceSelect) return;
-        
+
         const ttsSettings = {
+            engine: engineRadio ? engineRadio.value : 'webSpeech',
             voice: voiceSelect.value
         };
-        
+
         await chrome.storage.local.set({ ttsSettings });
         console.log('[TTS] Settings saved:', ttsSettings);
+
+        // If Kokoro was selected, ensure model is pre-loaded
+        if (ttsSettings.engine === 'kokoro') {
+            triggerKokoroModelLoad();
+        }
+
+        stopKokoroStatusPoll();
     }
 
     init();

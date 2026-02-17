@@ -1,187 +1,96 @@
-# 🚀 OllamaBro Feature Upgrade Roadmap
+# Feature Proposals for OllamaBro
 
-## Current Strengths ✅
-- ✅ Multi-model support with smart capability detection  
-- ✅ Vision model support with image upload  
-- ✅ Conversation management and history  
-- ✅ Real-time streaming responses  
-- ✅ Message actions (copy, download)  
-- ✅ Thinking block parsing  
-- ✅ Modern dark UI with ChatGPT-like design
-- ✅ Enhanced model capability detection system
-- ✅ Drag & drop image support
-- ✅ Model capability icons (vision/reasoning)
+## High Impact / Quick Wins
 
-## Recommended New Features
+**1. Message Editing + Regeneration**
+Allow editing any past user message to "branch" the conversation from that point, discarding everything after. Also add a "Regenerate" button on the last AI response. The abort controller infrastructure is already there.
 
-### 🎨 **Enhanced User Experience**
+**2. Prompt History Navigation**
+Press `↑`/`↓` in the input box to cycle through previously sent messages, like a terminal. Already have draft persistence — prompt history is a natural extension.
 
-#### 1. **Message Formatting & Syntax Highlighting**
-- **Markdown rendering** for bot responses (bold, italic, lists, headers)
-- **Code syntax highlighting** with language detection and copy-to-clipboard for code blocks
-- **Math equation rendering** (LaTeX/MathJax support)
-- **Better table formatting** with proper styling
-- **Mermaid diagram support** for flowcharts and diagrams
+**3. Auto-naming Conversations**
+After the first exchange, silently ask the model (short, non-streaming call) to generate a 4-6 word title for the conversation. Replace "New Conversation" in the sidebar. Could also do heuristic naming from the first user message.
 
-#### 2. **Advanced Message Management**
-- **Message editing** - Allow users to edit their sent messages
-- **Message regeneration** - Re-generate bot responses with different parameters
-- **Message branching** - Fork conversations from any point
-- **Message search** within conversations with highlighting
-- **Bulk conversation operations** - Delete, export, archive multiple conversations
+**4. Context Menu Integration**
+Add a Chrome context menu item: **"Ask OllamaBro about this"** — right-clicking selected text on any webpage opens the chat with that text pre-quoted as context. Uses `chrome.contextMenus` API.
 
-### 🔧 **Chat Functionality Enhancements**
-
-#### 3. **Smart Input Features**
-- **Auto-complete/suggestions** based on conversation context and model capabilities
-- **Message templates library** - Pre-defined prompts for common tasks
-- **Quick prompts** - Buttons for frequent operations (explain, summarize, translate)
-- **Voice input support** - Speech-to-text with microphone button
-- **Multi-line input with preview** - Show formatted preview before sending
-- **Input history** - Arrow keys to navigate through previous inputs
-
-#### 4. **Advanced Model Features**
-- **Model comparison mode** - Side-by-side responses from different models
-- **Model performance metrics** - Response time, token count, efficiency stats
-- **Custom model parameters** - Adjustable temperature, top-p, max tokens, etc.
-- **Model warmup indicator** - Show when model is loading/ready
-- **Model recommendations** - Suggest best model for specific tasks
-- **Model benchmarking** - Compare models on standardized tasks
-
-### 📊 **Productivity & Organization**
-
-#### 5. **Enhanced Conversation Management**
-- **Conversation folders and tags** - Organize chats by project, topic, etc.
-- **Conversation templates** - Start new chats with predefined context
-- **Conversation sharing** - Export as shareable links or QR codes
-- **Conversation analytics** - Word count, response times, model usage stats
-- **Conversation bookmarks** - Mark important messages for quick access
-- **Conversation summaries** - Auto-generated summaries of long conversations
-
-#### 6. **Data & Export Features**
-- **Full conversation backup/restore** - Complete data portability
-- **Export as PDF** with proper formatting and styling
-- **Integration with note-taking apps** (Notion, Obsidian, etc.)
-- **Conversation statistics dashboard** - Usage patterns, favorite models
-- **Scheduled exports** - Automatic backups to cloud storage
-- **Import from other chat platforms** - ChatGPT, Claude, etc.
-
-### 🎯 **Specialized Features**
-
-#### 7. **Developer-Focused Enhancements**
-- **Code execution environment** - Run code snippets in sandboxed containers
-- **Git integration** - Generate commit messages, review code
-- **API request builder/tester** - Test APIs with model-generated requests
-- **Documentation generator** - Auto-generate docs from code
-- **Code review assistant** - Analyze code quality and suggest improvements
-- **Terminal integration** - Execute commands with model assistance
-
-#### 8. **Advanced Vision Features**
-- **Image editing tools** - Built-in crop, resize, annotate, filters
-- **Batch image processing** - Process multiple images at once
-- **Image comparison mode** - Side-by-side image analysis
-- **Screen capture integration** - Built-in screenshot tool
-- **OCR capabilities** - Extract text from images
-- **Image generation** - Integration with DALL-E style models
-
-### 🔒 **Privacy & Security**
-
-#### 9. **Privacy Controls**
-- **Conversation encryption** - End-to-end encryption for sensitive chats
-- **Data retention policies** - Auto-delete old conversations
-- **Private mode** - No history saving for sensitive sessions
-- **Local data export** - Complete data ownership
-- **Anonymous mode** - Strip identifying information
-- **Secure sharing** - Password-protected conversation shares
-
-### 🎪 **UI/UX Improvements**
-
-#### 10. **Interface Enhancements**
-- **Customizable themes** - Light mode, custom colors, fonts
-- **Layout options** - Compact, comfortable, spacious modes
-- **Keyboard shortcuts** - Power user navigation and actions
-- **Split-screen mode** - Multiple conversations simultaneously
-- **Zoom controls** - Better accessibility for different screen sizes
-- **Mobile-responsive design** - Optimized mobile experience
-- **Floating chat widget** - Overlay on any webpage
-
-### 🔌 **Integration & Extensibility**
-
-#### 11. **External Integrations**
-- **Browser integration** - Right-click context menus, page summarization
-- **Calendar integration** - Schedule model interactions, reminders
-- **Email integration** - Draft emails with AI assistance
-- **Social media integration** - Generate posts, analyze content
-- **File system integration** - Process local files and documents
-- **Cloud storage integration** - Direct access to Google Drive, Dropbox
-
-#### 12. **Plugin System**
-- **Custom plugins** - Third-party extensions
-- **API for developers** - Build custom integrations
-- **Model plugins** - Support for additional model providers
-- **UI plugins** - Custom themes and layouts
-- **Workflow automation** - Zapier-like integrations
-
-## Implementation Priority
-
-### 🥇 **Phase 1: High Impact, Medium Effort (2-4 weeks)**
-1. **Markdown rendering with syntax highlighting** - Immediate UX improvement
-2. **Message editing and regeneration** - Core functionality enhancement
-3. **Conversation search functionality** - Essential for productivity
-4. **Custom model parameters** - Power user feature
-5. **Quick prompts library** - Boost user efficiency
-
-### 🥈 **Phase 2: Medium Impact, Medium Effort (1-2 months)**
-1. **Voice input support** - Accessibility and convenience
-2. **Model comparison mode** - Unique differentiating feature
-3. **Enhanced export formats (PDF)** - Professional use cases
-4. **Conversation folders/tags** - Organization for power users
-5. **Performance metrics dashboard** - Data-driven insights
-
-### 🥉 **Phase 3: High Impact, High Effort (2-6 months)**
-1. **Code execution environment** - Developer-focused killer feature
-2. **Advanced image editing tools** - Enhanced vision capabilities
-3. **Plugin system architecture** - Long-term extensibility
-4. **Real-time collaboration** - Multi-user features
-5. **Mobile app development** - Platform expansion
-
-### 🏆 **Phase 4: Advanced Features (6+ months)**
-1. **AI-powered conversation analysis** - Smart insights
-2. **Custom model fine-tuning interface** - Advanced ML features
-3. **Enterprise features** - Team management, SSO, audit logs
-4. **API marketplace** - Third-party integrations
-5. **Advanced automation workflows** - No-code AI automation
-
-## Technical Considerations
-
-### Architecture
-- **Client-side first** - Most features can be implemented in the extension
-- **Proxy server enhancements** - Some features may require backend changes
-- **Performance optimization** - Handle large conversation histories efficiently
-- **Backward compatibility** - Maintain existing data formats
-- **Security** - Implement features with privacy and security in mind
-
-### Development Guidelines
-- **Modular design** - Features should be independent and toggleable
-- **Progressive enhancement** - Core functionality always available
-- **Accessibility** - Follow WCAG guidelines for all new features
-- **Testing** - Comprehensive test coverage for critical features
-- **Documentation** - User guides and developer documentation
-
-### Technology Stack Considerations
-- **Markdown parser** - Consider marked.js or remark
-- **Syntax highlighting** - Prism.js or highlight.js
-- **Math rendering** - KaTeX or MathJax
-- **Code execution** - Consider WebAssembly or cloud sandboxes
-- **Voice input** - Web Speech API
-- **PDF generation** - jsPDF or Puppeteer
-
-## User Feedback Integration
-- **Feature request system** - In-app feedback collection
-- **Beta testing program** - Early access to new features
-- **Usage analytics** - Understand feature adoption
-- **A/B testing** - Optimize feature implementations
+**5. Summarize Current Tab**
+A button (or context menu option) that injects the current page's `document.body.innerText` as context and asks the model to summarize it. Very powerful for local privacy-preserving summarization.
 
 ---
 
-*This roadmap is a living document that should be updated based on user feedback, technical constraints, and changing priorities.*
+## Model Management
+
+**6. Model Parameter Controls**
+Expose `temperature`, `top_p`, `top_k`, `seed`, `repeat_penalty`, and `num_predict` sliders/inputs in the settings modal per-conversation. The proxy already forwards to Ollama — just need to pass these in the request body.
+
+**7. Persona / System Prompt Presets**
+Save named system prompts (e.g., "Code Reviewer", "Translator", "ELI5") as presets. One-click to apply. Stored in `chrome.storage.local`.
+
+**8. Model Comparison Mode**
+Send the same message to 2+ models simultaneously and display responses side-by-side. Great for evaluating local models. Would open multiple streaming connections in parallel.
+
+**9. Ollama Model Manager**
+A panel showing locally installed models (`/api/tags`) with size, and a pull interface (`/api/pull`) to download new ones — with a progress stream. Lets users manage Ollama without touching the terminal.
+
+---
+
+## Conversation Organization
+
+**10. Conversation Search**
+A search bar in the sidebar that filters conversations by title or searches through message content stored in `chrome.storage.local`. Already have the data structure — needs a search UI.
+
+**11. Conversation Pinning & Tagging**
+Pin important conversations to the top of the sidebar. Optionally add color tags or emoji labels to organize chats by topic.
+
+**12. Export Formats**
+Extend exports to: **Markdown** (with code blocks preserved), **JSON** (full structure with metadata), and a clean **plain text** transcript. Add a "Copy as Markdown" button per message.
+
+---
+
+## Input Experience
+
+**13. Slash Command Prompts**
+Type `/` in the input to get a popup of saved prompt templates. e.g., `/translate`, `/summarize`, `/fix-code`. Saves common workflows.
+
+**14. Clipboard Context Button**
+A small button (or keyboard shortcut) that pastes clipboard content wrapped in a context block — useful for quickly asking about code snippets or error messages.
+
+**15. Token Counter While Typing**
+Show an estimated token count below the input box as the user types (using a rough `chars/4` approximation or a lightweight tokenizer). Helps manage context awareness proactively.
+
+---
+
+## Notification & Background
+
+**16. Background Processing + Notifications**
+Send a message, close the tab, and get a Chrome notification when the response completes. Uses `chrome.notifications` API and the service worker in `background.js`. Big UX win for slow local models.
+
+**17. Server Status Indicator**
+A persistent indicator showing whether the proxy server and Ollama are reachable (green/yellow/red dot in the header). Polls `/api/tags` periodically. Reduces confusion when things break silently.
+
+---
+
+## Accessibility & Polish
+
+**18. Keyboard Shortcuts Panel**
+A `?` button or `Shift+?` shortcut showing all available keyboard shortcuts. Also add shortcuts for: `Ctrl+N` (new chat), `Ctrl+K` (search conversations), `Ctrl+Enter` (send), `Esc` (abort generation).
+
+**19. Theme System**
+Add a light mode and 1-2 accent color options in settings. The CSS already uses custom properties (`--bg-primary`, `--accent`, etc.), making this straightforward to implement.
+
+**20. Font Size Preference**
+A small A-/A+ control in settings. Saves to `chrome.storage.local`. Applies via a CSS custom property override on `--font-size-md`.
+
+---
+
+## Most Impactful to Implement First
+
+| Priority | Feature | Effort |
+|---|---|---|
+| 1 | Message editing + regeneration | Medium |
+| 2 | Context menu / page summarize | Low |
+| 3 | Auto-naming conversations | Low |
+| 4 | Model parameter controls | Low |
+| 5 | Background processing + notifications | Medium |
+| 6 | Server status indicator | Low |

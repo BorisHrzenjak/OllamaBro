@@ -40,8 +40,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
         return true; // For async response
     }
-    // If the message is not handled, you might want to return false or nothing.
-    // For unhandled messages, not returning true is fine.
+    // Proxy server management via Native Messaging
+    if (message.action === 'proxyControl') {
+        const NM_HOST = 'com.ollamabro.proxy';
+        chrome.runtime.sendNativeMessage(
+            NM_HOST,
+            { action: message.command || 'start' },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    console.error('Native messaging error:', chrome.runtime.lastError.message);
+                    sendResponse({
+                        status: 'error',
+                        error: chrome.runtime.lastError.message,
+                        needsSetup: true
+                    });
+                } else {
+                    console.log('Native messaging response:', response);
+                    sendResponse(response || { status: 'no_response' });
+                }
+            }
+        );
+        return true;
+    }
 });
 
 // Optional: Log when the extension is installed or updated

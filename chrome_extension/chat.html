@@ -809,6 +809,7 @@
             display: flex;
             flex-direction: column;
             gap: var(--space-lg);
+            overflow-y: auto;
         }
 
         .modal-description {
@@ -1043,6 +1044,97 @@
             background-color: var(--accent);
             border-color: var(--accent);
             color: white;
+        }
+
+        .tts-button.loading {
+            opacity: 0.6;
+            animation: pulse-loading 1.5s infinite;
+        }
+
+        @keyframes pulse-loading {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        /* TTS Engine Toggle */
+        .tts-engine-toggle {
+            display: flex;
+            gap: 0;
+            margin-bottom: var(--space-md);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+        }
+
+        .tts-engine-option {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: var(--space-xs);
+            padding: var(--space-sm) var(--space-md);
+            font-size: var(--font-size-sm);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all var(--transition);
+            background-color: var(--bg-tertiary);
+            border-right: 1px solid var(--border);
+        }
+
+        .tts-engine-option:last-child {
+            border-right: none;
+        }
+
+        .tts-engine-option:hover {
+            background-color: var(--bg-quaternary);
+            color: var(--text-primary);
+        }
+
+        .tts-engine-option input[type="radio"] {
+            display: none;
+        }
+
+        .tts-engine-option:has(input:checked) {
+            background-color: var(--accent-subtle);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        /* Kokoro Model Status */
+        .kokoro-model-status {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-top: var(--space-md);
+            padding: var(--space-sm) var(--space-md);
+            border-radius: var(--radius-md);
+            font-size: var(--font-size-xs);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+        }
+
+        .kokoro-status-icon {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .kokoro-model-status.status-ready .kokoro-status-icon {
+            background-color: var(--success);
+        }
+
+        .kokoro-model-status.status-loading .kokoro-status-icon {
+            background-color: var(--warning);
+            animation: pulse-loading 1s infinite;
+        }
+
+        .kokoro-model-status.status-error .kokoro-status-icon {
+            background-color: var(--error-text);
+        }
+
+        .kokoro-model-status.status-not_loaded .kokoro-status-icon {
+            background-color: var(--text-muted);
         }
 
         /* Message Metadata */
@@ -1438,7 +1530,17 @@
 
                 <div class="settings-section">
                     <h3 class="settings-section-title">Text-to-Speech</h3>
-                    <p class="modal-description">Choose a voice for reading AI responses aloud.</p>
+                    <p class="modal-description">Choose an engine and voice for reading AI responses aloud.</p>
+                    <div class="tts-engine-toggle">
+                        <label class="tts-engine-option">
+                            <input type="radio" name="ttsEngine" value="webSpeech" checked>
+                            Browser
+                        </label>
+                        <label class="tts-engine-option">
+                            <input type="radio" name="ttsEngine" value="kokoro">
+                            Kokoro
+                        </label>
+                    </div>
                     <div class="context-limit-input-group">
                         <select id="ttsVoiceSelect" class="settings-select">
                             <option value="">Loading voices...</option>
@@ -1446,6 +1548,10 @@
                     </div>
                     <div class="context-limit-info">
                         <span id="ttsStatusText">Click speaker icon on any response to hear it</span>
+                    </div>
+                    <div id="kokoroModelStatus" class="kokoro-model-status" style="display: none;">
+                        <span id="kokoroStatusIcon" class="kokoro-status-icon"></span>
+                        <span id="kokoroStatusLabel">Checking model...</span>
                     </div>
                 </div>
 

@@ -1,0 +1,9 @@
+{
+  "name": "com.ollamabro.proxy",
+  "description": "OllamaBro Proxy Server Manager",
+  "path": "C:\\Users\\Boris\\Documents\\Code\\OllamaBar\\proxy_server\\native-host.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://gkpfpdekobmonacdgjgbfehilnloaacm/"
+  ]
+}

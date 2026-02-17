@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(node -e:*)",
+      "Bash(node:*)",
+      "mcp__MCP_DOCKER__brave_web_search",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }
