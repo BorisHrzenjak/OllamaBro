@@ -1472,6 +1472,17 @@
             color: var(--text-muted);
             padding: 0 2px;
         }
+
+        #openShortcutsFromSettings {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+        }
+
+        #openShortcutsFromSettings .lucide {
+            width: 15px;
+            height: 15px;
+        }
     </style>
 </head>
 
@@ -1607,6 +1618,10 @@
                 </div>
 
                 <div class="modal-footer settings-footer">
+                    <button id="openShortcutsFromSettings" class="modal-button secondary" title="View keyboard shortcuts (Alt+H)">
+                        <i data-lucide="keyboard"></i>
+                        Shortcuts
+                    </button>
                     <div class="modal-actions">
                         <button id="clearSystemPromptButton" class="modal-button secondary">Clear</button>
                         <button id="saveSystemPromptButton" class="modal-button primary">Save</button>
@@ -1653,7 +1668,7 @@
                     </div>
                     <div class="shortcut-item">
                         <span class="shortcut-desc">Show this panel</span>
-                        <div class="shortcut-keys"><kbd>Shift</kbd><kbd>?</kbd></div>
+                        <div class="shortcut-keys"><kbd>Alt</kbd><kbd>H</kbd></div>
                     </div>
                 </div>
             </div>

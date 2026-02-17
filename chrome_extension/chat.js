@@ -2083,8 +2083,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // Shift+? — show shortcuts panel (only when not typing in the message input)
-        if (e.key === '?' && e.shiftKey && !e.ctrlKey && !e.metaKey && !inInput) {
+        // Alt+H — show shortcuts panel
+        if (e.key.toLowerCase() === 'h' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
             e.preventDefault();
             shortcutsModal && shortcutsModal.classList.contains('active') ? closeShortcutsModal() : openShortcutsModal();
             return;
@@ -2133,6 +2133,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (shortcutsModal) {
         shortcutsModal.addEventListener('click', (e) => {
             if (e.target === shortcutsModal) closeShortcutsModal();
+        });
+    }
+    const openShortcutsFromSettings = document.getElementById('openShortcutsFromSettings');
+    if (openShortcutsFromSettings) {
+        openShortcutsFromSettings.addEventListener('click', () => {
+            closeSettingsModal();
+            openShortcutsModal();
         });
     }
 
