@@ -1485,6 +1485,17 @@
         }
 
         /* Persona Presets — Collapsible Section */
+        .collapsible-section {
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-md);
+            transition: border-color var(--transition);
+        }
+
+        .collapsible-section:has(#personaSectionToggle.expanded) {
+            border-color: var(--text-muted);
+        }
+
         .settings-section-toggle {
             display: flex;
             align-items: center;
@@ -1822,7 +1833,7 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div class="settings-section">
+                <div class="settings-section collapsible-section">
                     <button class="settings-section-toggle" id="personaSectionToggle">
                         Persona Presets
                         <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
