@@ -2,124 +2,129 @@
 
 ![image](https://github.com/user-attachments/assets/58803a45-c3b4-4edf-8035-131f66751247)
 
-
-OllamaBro is a Chrome extension that provides a convenient interface to interact with your local Ollama models. It allows you to quickly switch between models, manage multiple conversations, and chat directly from your browser.
+OllamaBro is a Chrome extension that provides a full-featured chat interface for your local Ollama models — directly in the browser, no cloud required.
 
 ## Features
 
-- **Model Management**: View and switch between all your available Ollama models directly from the extension popup.
-- **Multi-Conversation Chat**:
-    - Chat with your models in a dedicated browser tab.
-    - Keep multiple conversations organized per model.
-    - A collapsible sidebar lists all your conversations for easy navigation.
-- **Persistent History**: Your chat history is saved locally, so you can pick up where you left off.
-- **Message Actions**: Easily copy messages or download conversations as `.txt` or `.md` files.
-- **Modern UI**: A clean, dark-themed, and responsive user interface.
-- **Real-time Responses**: See the model's response stream in as it's generated.
-- **Usability**:
-    - Auto-focus on the input field for a seamless chat experience.
+### Model Management
+- Switch between all available Ollama models from the extension popup
+- **Model capability indicators** next to every model name:
+  - 👁️ Green eye icon — vision-capable models (LLaVA, Llama 3.2-Vision, Gemma3, etc.)
+  - 🧠 Purple brain icon — reasoning-optimised models (Qwen2.5, DeepSeek, CodeLlama, etc.)
+- Smart capability detection via Ollama API (`/api/show`), template analysis, and architecture inspection, with caching to avoid repeated calls
 
-## UX Improvements
+### Chat Interface
+- Dedicated browser tab chat window with a collapsible conversation sidebar
+- Multiple independent conversations per model, each with its own history
+- **Streaming responses** with a stop-generation button
+- **Markdown rendering** with syntax highlighting (via Highlight.js) and per-block copy buttons
+- **`<think>` tag support** — reasoning traces rendered in a collapsible "thinking" block
+- **Message actions** (appear on hover): copy, regenerate, text-to-speech
+- **Message metadata** (appear on hover): token count, generation speed, timing
 
-We've implemented several professional UX patterns to make your chat experience smooth and polished:
+### Multimodal / Vision
+- Image upload UI appears automatically for vision-capable models
+- Drag-and-drop images anywhere in the chat window
+- Multiple images per message (JPEG, PNG, GIF, WebP up to 20 MB)
+- Image preview before sending with individual removal
+- Auto-compression for oversized images
+- Images stored in conversation history and displayed inline
 
-### Smart Auto-Scrolling
-The chat intelligently manages scrolling during streaming responses:
-- **Auto-scroll to bottom** while the model is generating text (if you're already at the bottom)
-- **Pause auto-scroll** when you manually scroll up to read previous messages
-- **Resume auto-scroll** when you scroll back down to the bottom
-- **Scroll-to-bottom button** appears when you've scrolled up during streaming
-- Smooth scrolling animations for a polished feel
+### Voice
+- **Voice input** — dictate messages with the microphone button (Web Speech API), with animated recording indicator
+- **Text-to-speech** — read any AI response aloud:
+  - *Browser engine* — uses the system's built-in Web Speech API with voice selection
+  - *Kokoro engine* — local neural TTS with model status indicator and voice selection
+- `Ctrl+R` to read the last response without touching the mouse
 
-### Input Draft Persistence
-Never lose your work-in-progress:
-- **Auto-saves** what you type in the input field (debounced, saves 500ms after you stop typing)
-- **Per-conversation drafts** - each conversation remembers its own unsent text
-- **Automatic restore** when you switch back to a conversation
-- **Draft cleared** when you send the message
-- Perfect for when you need to check another conversation mid-thought
+### System Prompt & Persona Presets
+- Per-model system prompt, saved and restored automatically
+- **Persona presets** — save, name, edit, and one-click apply reusable system prompts
+- Live token counter on the system prompt textarea
 
-### Gap-Filling Loading State
-No more flashing or jarring transitions:
-- Shows "Waiting for response..." immediately when you send a message
-- **Stays visible** during the initial delay before the first token arrives
-- **Hides automatically** when the model starts responding
-- Prevents the empty-content flash that happens with basic loading indicators
+### Model Parameters
+- Adjust generation parameters per model without leaving the chat:
+  - Temperature, Top P, Top K, Repeat Penalty, Max Tokens, Seed
+- Sliders and numeric inputs stay in sync
+- Reset to defaults button
+- Quick access via the **⊟ parameters button** in the chat header (opens directly to the parameters section)
 
-### Consistent Visual Design
-- User messages aligned on the **left** (same side as AI responses) for natural reading flow
-- User message bubbles use the **same accent color** as the Send button for visual consistency
-- Clean, minimal design that keeps focus on the conversation
+### Context Window
+- Visual context usage indicator in the sidebar (tokens used / limit)
+- Warning and critical states as the context fills
+- Override the context window size per model, or let it auto-detect
+
+### UX & Polish
+- **Smart auto-scrolling** — follows new tokens automatically; pauses when you scroll up; scroll-to-bottom button reappears during streaming
+- **Input draft persistence** — unsent text is saved per conversation and restored when you return
+- **Prompt history navigation** — press ↑/↓ in the input to cycle through previously sent messages
+- **Export conversation** as Markdown with the download button in the header
+- **Keyboard shortcuts**:
+
+| Action | Shortcut |
+|---|---|
+| Send message | `Enter` / `Ctrl+Enter` |
+| New chat | `Alt+N` |
+| Delete current conversation | `Ctrl+D` |
+| Read last response aloud | `Ctrl+R` |
+| Abort generation | `Esc` |
+| Browse message history | `↑` / `↓` |
+| Show shortcuts panel | `Alt+H` |
 
 ## Prerequisites
 
-Before you begin, ensure you have the following installed:
-- [Ollama](https://ollama.com/) running locally.
-- [Node.js](https://nodejs.org/) (which includes npm).
+- [Ollama](https://ollama.com/) running locally on port 11434
+- [Node.js](https://nodejs.org/) (includes npm)
+- Google Chrome
 
-## Setup and Installation
+## Setup
 
-The extension consists of two main parts: a local proxy server to handle CORS requests to Ollama, and the Chrome extension itself.
+### 1. Proxy Server
 
-### 1. The Proxy Server
+The proxy server handles CORS between the extension and the Ollama API.
 
-The proxy server is necessary to bypass Cross-Origin Resource Sharing (CORS) restrictions when the extension communicates with the local Ollama API.
+```bash
+cd proxy_server
+npm install
+npm start
+```
 
-#### Manual Setup & Execution
+The server runs on `http://localhost:3000`. Keep it running while using the extension.
 
-1.  Navigate to the `proxy_server` directory:
-    ```bash
-    cd path/to/OllamaBro/proxy_server
-    ```
-2.  Install the dependencies:
-    ```bash
-    npm install
-    ```
-3.  Start the server:
-    ```bash
-    npm start
-    ```
-    The server will start on `http://localhost:3000`. You need to keep this terminal window open while using the extension.
+#### Kokoro TTS — Native Messaging Host (one-time setup)
 
-#### Automatic Startup with PM2 (Recommended)
+Kokoro TTS uses a native messaging host so the extension can start the proxy server automatically. Run this once from the project root:
 
-To avoid having to manually start the server every time, you can use PM2, a process manager for Node.js applications.
+```
+install-native-host.bat
+```
 
-1.  **Install PM2 globally**:
-    ```bash
-    npm install pm2 -g
-    ```
-2.  **Navigate to the proxy server directory**:
-    ```bash
-    cd path/to/OllamaBro/proxy_server
-    ```
-3.  **Start the server with PM2**:
-    ```bash
-    pm2 start server.js --name ollama-proxy
-    ```
-4.  **Enable PM2 to start on system boot**:
-    ```bash
-    pm2 startup
-    ```
-    This command will generate another command that you need to run. It may require administrator privileges.
-5.  **Save the current process list**:
-    ```bash
-    pm2 save
-    ```
-    Now, the proxy server will automatically start whenever you restart your system.
+This writes a manifest file to `proxy_server/` and adds the required registry entry under `HKCU` (no administrator rights needed). If you ever move the project folder, re-run the script to update the paths.
 
-You can manage the process with these commands:
-- `pm2 list`: List all running processes.
-- `pm2 logs ollama-proxy`: View logs for the proxy.
-- `pm2 stop ollama-proxy`: Stop the proxy.
-- `pm2 restart ollama-proxy`: Restart the proxy.
-- `pm2 delete ollama-proxy`: Remove the proxy from PM2's list.
+#### Auto-start with PM2 (recommended)
 
-### 2. The Chrome Extension
+```bash
+npm install pm2 -g
+cd proxy_server
+pm2 start server.js --name ollama-proxy
+pm2 startup   # follow the printed instructions
+pm2 save
+```
 
-1.  Open Google Chrome and navigate to `chrome://extensions`.
-2.  Enable **Developer mode** using the toggle in the top-right corner.
-3.  Click the **Load unpacked** button.
-4.  Select the `chrome_extension` folder from the project directory.
+Useful PM2 commands:
 
-The OllamaBro icon should now appear in your Chrome toolbar. Click it to see your available models and start chatting!
+```bash
+pm2 list
+pm2 logs ollama-proxy
+pm2 stop ollama-proxy
+pm2 restart ollama-proxy
+pm2 delete ollama-proxy
+```
+
+### 2. Chrome Extension
+
+1. Open Chrome and go to `chrome://extensions`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** and select the `chrome_extension/` folder
+
+The OllamaBro icon will appear in the toolbar. Click it to pick a model and start chatting.
