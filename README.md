@@ -79,9 +79,37 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 
 ## Setup
 
-### 1. Proxy Server
+### Quick setup (recommended)
 
-The proxy server handles CORS between the extension and the Ollama API.
+Run the one-time setup script from the project root:
+
+```
+setup.bat
+```
+
+This single script will:
+1. Install proxy server npm dependencies
+2. Install PM2 globally (if not already present) and start the proxy server as a managed background process that survives reboots
+3. Register the native messaging host required by Kokoro TTS
+
+> **Note:** If you ever move the project folder, re-run `setup.bat` to update the paths.
+
+### Load the Chrome Extension
+
+1. Open Chrome and go to `chrome://extensions`
+2. Enable **Developer mode** (top-right toggle)
+3. Click **Load unpacked** and select the `chrome_extension/` folder
+
+The OllamaBro icon will appear in the toolbar. Click it to pick a model and start chatting.
+
+---
+
+### Manual setup (advanced)
+
+<details>
+<summary>Expand for manual steps</summary>
+
+#### Proxy server
 
 ```bash
 cd proxy_server
@@ -89,19 +117,9 @@ npm install
 npm start
 ```
 
-The server runs on `http://localhost:3000`. Keep it running while using the extension.
+The server runs on `http://localhost:3000`. Keep the terminal open while using the extension.
 
-#### Kokoro TTS — Native Messaging Host (one-time setup)
-
-Kokoro TTS uses a native messaging host so the extension can start the proxy server automatically. Run this once from the project root:
-
-```
-install-native-host.bat
-```
-
-This writes a manifest file to `proxy_server/` and adds the required registry entry under `HKCU` (no administrator rights needed). If you ever move the project folder, re-run the script to update the paths.
-
-#### Auto-start with PM2 (recommended)
+#### Auto-start with PM2
 
 ```bash
 npm install pm2 -g
@@ -121,10 +139,12 @@ pm2 restart ollama-proxy
 pm2 delete ollama-proxy
 ```
 
-### 2. Chrome Extension
+#### Kokoro TTS — Native Messaging Host
 
-1. Open Chrome and go to `chrome://extensions`
-2. Enable **Developer mode** (top-right toggle)
-3. Click **Load unpacked** and select the `chrome_extension/` folder
+```
+install-native-host.bat
+```
 
-The OllamaBro icon will appear in the toolbar. Click it to pick a model and start chatting.
+Writes a manifest to `proxy_server/` and adds a registry entry under `HKCU` (no administrator rights needed).
+
+</details>
