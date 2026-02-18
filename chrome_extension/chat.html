@@ -1731,6 +1731,126 @@
             gap: var(--space-sm);
         }
 
+        /* Model Parameter Controls */
+        .param-rows {
+            display: flex;
+            flex-direction: column;
+            margin: var(--space-md) 0 var(--space-md) 0;
+        }
+
+        .param-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-md);
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .param-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .param-label-group {
+            flex: 0 0 130px;
+        }
+
+        .param-label {
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--text-primary);
+            display: block;
+        }
+
+        .param-hint {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            display: block;
+            margin-top: 2px;
+        }
+
+        .param-control-group {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .param-slider {
+            flex: 1;
+            height: 4px;
+            appearance: none;
+            -webkit-appearance: none;
+            background: var(--bg-quaternary);
+            border-radius: 2px;
+            outline: none;
+            cursor: pointer;
+            accent-color: var(--accent);
+        }
+
+        .param-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+        }
+
+        .param-number {
+            width: 68px;
+            padding: var(--space-xs) var(--space-sm);
+            background-color: var(--bg-quaternary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: var(--font-size-sm);
+            outline: none;
+            text-align: right;
+            transition: border-color var(--transition);
+            -moz-appearance: textfield;
+        }
+
+        .param-number:focus {
+            border-color: var(--accent);
+        }
+
+        .param-number::-webkit-outer-spin-button,
+        .param-number::-webkit-inner-spin-button {
+            opacity: 0.4;
+        }
+
+        .param-number-solo {
+            width: 90px;
+            margin-left: auto;
+        }
+
+        .param-reset-button {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: 6px var(--space-md);
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .param-reset-button:hover {
+            border-color: rgba(239, 68, 68, 0.4);
+            color: var(--error-text);
+            background-color: var(--error-bg);
+        }
+
+        .param-reset-button .lucide {
+            width: 13px;
+            height: 13px;
+        }
+
         /* Active Persona Badge */
         .persona-badge {
             display: inline-flex;
@@ -1855,55 +1975,139 @@
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3 class="settings-section-title">System Prompt</h3>
-                    <p class="modal-description">Set a system prompt to guide the model's behavior. This will be applied
-                        to all conversations with this model.</p>
-                    <textarea id="systemPromptInput"
-                        placeholder="e.g., You are a helpful code reviewer. Be concise and focus on best practices."
-                        rows="5"></textarea>
-                    <div class="token-counter">
-                        <span id="systemPromptTokenCount">0 tokens</span>
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="systemPromptSectionToggle">
+                        System Prompt
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="systemPromptSectionBody" class="settings-section-body">
+                        <p class="modal-description">Set a system prompt to guide the model's behavior. This will be applied
+                            to all conversations with this model.</p>
+                        <textarea id="systemPromptInput"
+                            placeholder="e.g., You are a helpful code reviewer. Be concise and focus on best practices."
+                            rows="5"></textarea>
+                        <div class="token-counter">
+                            <span id="systemPromptTokenCount">0 tokens</span>
+                        </div>
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3 class="settings-section-title">Context Window</h3>
-                    <p class="modal-description">Override the default context window size. Leave empty or set to 0 to
-                        use automatic detection.</p>
-                    <div class="context-limit-input-group">
-                        <input type="number" id="contextLimitInput" placeholder="Auto" min="0" step="1000">
-                        <span class="context-limit-unit">tokens</span>
-                    </div>
-                    <div class="context-limit-info">
-                        <span id="contextLimitInfo">Auto-detecting: 4K (local) or 128K (cloud)</span>
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="paramSectionToggle">
+                        Model Parameters
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="paramSectionBody" class="settings-section-body">
+                        <div class="param-rows">
+                            <div class="param-row">
+                                <div class="param-label-group">
+                                    <span class="param-label">Temperature</span>
+                                    <span class="param-hint">Randomness (0=focused, 2=creative)</span>
+                                </div>
+                                <div class="param-control-group">
+                                    <input type="range" class="param-slider" id="paramTemperatureSlider" min="0" max="2" step="0.05">
+                                    <input type="number" class="param-number" id="paramTemperature" min="0" max="2" step="0.05" placeholder="0.8">
+                                </div>
+                            </div>
+                            <div class="param-row">
+                                <div class="param-label-group">
+                                    <span class="param-label">Top P</span>
+                                    <span class="param-hint">Nucleus sampling threshold</span>
+                                </div>
+                                <div class="param-control-group">
+                                    <input type="range" class="param-slider" id="paramTopPSlider" min="0" max="1" step="0.05">
+                                    <input type="number" class="param-number" id="paramTopP" min="0" max="1" step="0.05" placeholder="0.9">
+                                </div>
+                            </div>
+                            <div class="param-row">
+                                <div class="param-label-group">
+                                    <span class="param-label">Top K</span>
+                                    <span class="param-hint">Token pool size (0=disabled)</span>
+                                </div>
+                                <div class="param-control-group">
+                                    <input type="range" class="param-slider" id="paramTopKSlider" min="0" max="200" step="1">
+                                    <input type="number" class="param-number" id="paramTopK" min="0" max="200" step="1" placeholder="40">
+                                </div>
+                            </div>
+                            <div class="param-row">
+                                <div class="param-label-group">
+                                    <span class="param-label">Repeat Penalty</span>
+                                    <span class="param-hint">Penalise repeated tokens</span>
+                                </div>
+                                <div class="param-control-group">
+                                    <input type="range" class="param-slider" id="paramRepeatPenaltySlider" min="0" max="2" step="0.05">
+                                    <input type="number" class="param-number" id="paramRepeatPenalty" min="0" max="2" step="0.05" placeholder="1.1">
+                                </div>
+                            </div>
+                            <div class="param-row">
+                                <div class="param-label-group">
+                                    <span class="param-label">Max Tokens</span>
+                                    <span class="param-hint">Tokens to generate (-1=unlimited)</span>
+                                </div>
+                                <input type="number" class="param-number param-number-solo" id="paramNumPredict" min="-1" max="8192" step="1" placeholder="-1">
+                            </div>
+                            <div class="param-row">
+                                <div class="param-label-group">
+                                    <span class="param-label">Seed</span>
+                                    <span class="param-hint">Fixed seed (blank=random)</span>
+                                </div>
+                                <input type="number" class="param-number param-number-solo" id="paramSeed" min="0" step="1" placeholder="random">
+                            </div>
+                        </div>
+                        <button id="paramResetButton" class="param-reset-button">
+                            <i data-lucide="rotate-ccw"></i>
+                            Reset to defaults
+                        </button>
                     </div>
                 </div>
 
-                <div class="settings-section">
-                    <h3 class="settings-section-title">Text-to-Speech</h3>
-                    <p class="modal-description">Choose an engine and voice for reading AI responses aloud.</p>
-                    <div class="tts-engine-toggle">
-                        <label class="tts-engine-option">
-                            <input type="radio" name="ttsEngine" value="webSpeech" checked>
-                            Browser
-                        </label>
-                        <label class="tts-engine-option">
-                            <input type="radio" name="ttsEngine" value="kokoro">
-                            Kokoro
-                        </label>
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="contextWindowSectionToggle">
+                        Context Window
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="contextWindowSectionBody" class="settings-section-body">
+                        <p class="modal-description">Override the default context window size. Leave empty or set to 0 to
+                            use automatic detection.</p>
+                        <div class="context-limit-input-group">
+                            <input type="number" id="contextLimitInput" placeholder="Auto" min="0" step="1000">
+                            <span class="context-limit-unit">tokens</span>
+                        </div>
+                        <div class="context-limit-info">
+                            <span id="contextLimitInfo">Auto-detecting: 4K (local) or 128K (cloud)</span>
+                        </div>
                     </div>
-                    <div class="context-limit-input-group">
-                        <select id="ttsVoiceSelect" class="settings-select">
-                            <option value="">Loading voices...</option>
-                        </select>
-                    </div>
-                    <div class="context-limit-info">
-                        <span id="ttsStatusText">Click speaker icon on any response to hear it</span>
-                    </div>
-                    <div id="kokoroModelStatus" class="kokoro-model-status" style="display: none;">
-                        <span id="kokoroStatusIcon" class="kokoro-status-icon"></span>
-                        <span id="kokoroStatusLabel">Checking model...</span>
+                </div>
+
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="ttsSectionToggle">
+                        Text-to-Speech
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="ttsSectionBody" class="settings-section-body">
+                        <p class="modal-description">Choose an engine and voice for reading AI responses aloud.</p>
+                        <div class="tts-engine-toggle">
+                            <label class="tts-engine-option">
+                                <input type="radio" name="ttsEngine" value="webSpeech" checked>
+                                Browser
+                            </label>
+                            <label class="tts-engine-option">
+                                <input type="radio" name="ttsEngine" value="kokoro">
+                                Kokoro
+                            </label>
+                        </div>
+                        <div class="context-limit-input-group">
+                            <select id="ttsVoiceSelect" class="settings-select">
+                                <option value="">Loading voices...</option>
+                            </select>
+                        </div>
+                        <div class="context-limit-info">
+                            <span id="ttsStatusText">Click speaker icon on any response to hear it</span>
+                        </div>
+                        <div id="kokoroModelStatus" class="kokoro-model-status" style="display: none;">
+                            <span id="kokoroStatusIcon" class="kokoro-status-icon"></span>
+                            <span id="kokoroStatusLabel">Checking model...</span>
+                        </div>
                     </div>
                 </div>
 

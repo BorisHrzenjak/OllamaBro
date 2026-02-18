@@ -460,7 +460,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.log('[OllamaBro] loadModelChatState - Attempting to load for model:', modelToLoad);
         if (!chrome.storage || !chrome.storage.local) {
             console.warn('Chrome storage API not available.');
-            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null };
+            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null, params: null };
         }
         try {
             const key = getModelStorageKey(modelToLoad); // Key generation will also log
@@ -495,6 +495,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     modelSpecificData.contextLimitOverride = null;
                     needsSave = true;
                 }
+                if (typeof modelSpecificData.params === 'undefined') {
+                    modelSpecificData.params = null;
+                    needsSave = true;
+                }
 
                 // Save back to storage if we initialized any missing fields
                 if (needsSave) {
@@ -506,14 +510,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else if (modelSpecificData) {
                 // Data exists but is NOT an object (e.g., string, number, boolean due to corruption)
                 console.warn(`[OllamaBro] loadModelChatState - Data for model ${modelToLoad} is not an object:`, modelSpecificData, ". Resetting to default structure.");
-                return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null }; // Return default structure
+                return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null, params: null }; // Return default structure
             }
             // modelSpecificData is null or undefined (no data for this key)
             console.log(`[OllamaBro] loadModelChatState - No data found for ${modelToLoad}. Returning default structure.`);
-            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null }; // Default if nothing stored
+            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null, params: null }; // Default if nothing stored
         } catch (error) {
             console.error('Error loading chat state:', error);
-            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null };
+            return { conversations: {}, activeConversationId: null, systemPrompt: '', contextLimitOverride: null, params: null };
         }
     }
 
@@ -1298,6 +1302,100 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // --- Model Parameter Functions ---
+
+    function setupParamSync(sliderId, numberId, defaultVal) {
+        const slider = document.getElementById(sliderId);
+        const number = document.getElementById(numberId);
+        if (!slider || !number) return;
+        slider.addEventListener('input', () => {
+            number.value = slider.value;
+        });
+        number.addEventListener('input', () => {
+            if (number.value === '') {
+                slider.value = defaultVal;
+            } else {
+                const val = parseFloat(number.value);
+                if (!isNaN(val)) {
+                    slider.value = Math.min(parseFloat(slider.max), Math.max(parseFloat(slider.min), val));
+                }
+            }
+        });
+    }
+
+    function loadParamInputs(params) {
+        const p = params || {};
+        const setSliderAndNumber = (sliderId, numberId, val, defaultVal) => {
+            const slider = document.getElementById(sliderId);
+            const number = document.getElementById(numberId);
+            if (slider) slider.value = (val != null) ? val : defaultVal;
+            if (number) number.value = (val != null) ? val : '';
+        };
+        setSliderAndNumber('paramTemperatureSlider', 'paramTemperature', p.temperature ?? null, 0.8);
+        setSliderAndNumber('paramTopPSlider', 'paramTopP', p.top_p ?? null, 0.9);
+        setSliderAndNumber('paramTopKSlider', 'paramTopK', p.top_k ?? null, 40);
+        setSliderAndNumber('paramRepeatPenaltySlider', 'paramRepeatPenalty', p.repeat_penalty ?? null, 1.1);
+        const numPredict = document.getElementById('paramNumPredict');
+        if (numPredict) numPredict.value = (p.num_predict != null) ? p.num_predict : '';
+        const seed = document.getElementById('paramSeed');
+        if (seed) seed.value = (p.seed != null) ? p.seed : '';
+    }
+
+    function collectParams() {
+        const getFloat = (id) => {
+            const el = document.getElementById(id);
+            if (!el || el.value === '') return null;
+            const v = parseFloat(el.value);
+            return isNaN(v) ? null : v;
+        };
+        const getInt = (id) => {
+            const el = document.getElementById(id);
+            if (!el || el.value === '') return null;
+            const v = parseInt(el.value, 10);
+            return isNaN(v) ? null : v;
+        };
+        const params = {};
+        const temperature = getFloat('paramTemperature');
+        const top_p = getFloat('paramTopP');
+        const top_k = getInt('paramTopK');
+        const repeat_penalty = getFloat('paramRepeatPenalty');
+        const num_predict = getInt('paramNumPredict');
+        const seed = getInt('paramSeed');
+        if (temperature != null) params.temperature = temperature;
+        if (top_p != null) params.top_p = top_p;
+        if (top_k != null) params.top_k = top_k;
+        if (repeat_penalty != null) params.repeat_penalty = repeat_penalty;
+        if (num_predict != null) params.num_predict = num_predict;
+        if (seed != null && seed !== 0) params.seed = seed;
+        return Object.keys(params).length > 0 ? params : null;
+    }
+
+    function resetParamInputs() {
+        ['paramTemperature', 'paramTopP', 'paramTopK', 'paramRepeatPenalty', 'paramNumPredict', 'paramSeed'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        const sliderDefaults = { paramTemperatureSlider: 0.8, paramTopPSlider: 0.9, paramTopKSlider: 40, paramRepeatPenaltySlider: 1.1 };
+        for (const [id, def] of Object.entries(sliderDefaults)) {
+            const el = document.getElementById(id);
+            if (el) el.value = def;
+        }
+    }
+
+    function toggleSection(toggleId, bodyId) {
+        const toggle = document.getElementById(toggleId);
+        const body = document.getElementById(bodyId);
+        if (!toggle || !body) return;
+        const isExpanded = body.classList.contains('expanded');
+        body.classList.toggle('expanded', !isExpanded);
+        toggle.classList.toggle('expanded', !isExpanded);
+        if (!isExpanded && typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function toggleParamSection() {
+        toggleSection('paramSectionToggle', 'paramSectionBody');
+    }
+
     // Settings modal functions
     function openSettingsModal() {
         // Load current settings
@@ -1315,6 +1413,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 contextLimitInput.value = '';
             }
             updateContextLimitInfo();
+
+            // Load model params (always populate so inputs are ready when section expands)
+            loadParamInputs(modelData.params);
         });
 
         // Refresh persona presets only if section is already expanded
@@ -1332,7 +1433,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         loadTTSSettings();
 
         settingsModal.classList.add('active');
-        systemPromptInput.focus();
     }
 
     function closeSettingsModal() {
@@ -1368,6 +1468,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         } else {
             modelData.contextLimitOverride = null; // Use auto-detection
         }
+
+        // Collect and save model params
+        modelData.params = collectParams();
 
         await saveModelChatState(currentModelName, modelData);
 
@@ -1673,11 +1776,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         let modelData = await loadModelChatState(currentModelName);
         const systemPrompt = modelData.systemPrompt || '';
 
-        // Reset to new structure but preserve system prompt
+        // Reset conversations but preserve all settings
         modelData = {
             conversations: {},
             activeConversationId: null,
-            systemPrompt: systemPrompt
+            systemPrompt: systemPrompt,
+            contextLimitOverride: modelData.contextLimitOverride || null,
+            params: modelData.params || null
         };
 
         await saveModelChatState(currentModelName, modelData);
@@ -1790,6 +1895,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages: apiMessages,
                 stream: true
             };
+
+            // Attach non-null model params as Ollama options
+            const p = modelData.params || {};
+            const options = {};
+            if (p.temperature != null) options.temperature = p.temperature;
+            if (p.top_p != null) options.top_p = p.top_p;
+            if (p.top_k != null) options.top_k = p.top_k;
+            if (p.repeat_penalty != null) options.repeat_penalty = p.repeat_penalty;
+            if (p.num_predict != null) options.num_predict = p.num_predict;
+            if (p.seed != null && p.seed !== 0) options.seed = p.seed;
+            if (Object.keys(options).length > 0) requestBody.options = options;
 
             console.log('Request body for Ollama:', JSON.stringify(requestBody, null, 2));
 
@@ -2325,6 +2441,39 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (systemPromptInput) {
         systemPromptInput.addEventListener('input', updateSystemPromptTokenCount);
+    }
+
+    // Model parameter event listeners
+    const paramSectionToggle = document.getElementById('paramSectionToggle');
+    if (paramSectionToggle) {
+        paramSectionToggle.addEventListener('click', toggleParamSection);
+    }
+
+    const paramResetButton = document.getElementById('paramResetButton');
+    if (paramResetButton) {
+        paramResetButton.addEventListener('click', resetParamInputs);
+    }
+
+    // Set up bidirectional slider ↔ number sync
+    setupParamSync('paramTemperatureSlider', 'paramTemperature', 0.8);
+    setupParamSync('paramTopPSlider', 'paramTopP', 0.9);
+    setupParamSync('paramTopKSlider', 'paramTopK', 40);
+    setupParamSync('paramRepeatPenaltySlider', 'paramRepeatPenalty', 1.1);
+
+    // Collapsible section toggles for System Prompt, Context Window, TTS
+    const systemPromptSectionToggle = document.getElementById('systemPromptSectionToggle');
+    if (systemPromptSectionToggle) {
+        systemPromptSectionToggle.addEventListener('click', () => toggleSection('systemPromptSectionToggle', 'systemPromptSectionBody'));
+    }
+
+    const contextWindowSectionToggle = document.getElementById('contextWindowSectionToggle');
+    if (contextWindowSectionToggle) {
+        contextWindowSectionToggle.addEventListener('click', () => toggleSection('contextWindowSectionToggle', 'contextWindowSectionBody'));
+    }
+
+    const ttsSectionToggle = document.getElementById('ttsSectionToggle');
+    if (ttsSectionToggle) {
+        ttsSectionToggle.addEventListener('click', () => toggleSection('ttsSectionToggle', 'ttsSectionBody'));
     }
 
     // Persona preset event listeners
