@@ -1851,6 +1851,245 @@
             height: 13px;
         }
 
+        /* Sidebar Footer */
+        #sidebarFooter {
+            padding: var(--space-md);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .sidebar-footer-button {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            padding: 10px var(--space-md);
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-secondary);
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+
+        .sidebar-footer-button:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+
+        .sidebar-footer-button .lucide {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+        }
+
+        /* Dashboard Modal */
+        .dashboard-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .dashboard-stats-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: var(--space-md);
+            margin-bottom: var(--space-lg);
+        }
+
+        .stat-card {
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-xs);
+        }
+
+        .stat-card-header {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            margin-bottom: var(--space-xs);
+        }
+
+        .stat-card-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: var(--radius-sm);
+            flex-shrink: 0;
+        }
+
+        .stat-card-icon .lucide {
+            width: 15px;
+            height: 15px;
+        }
+
+        .stat-card-icon.blue { background-color: rgba(59,130,246,0.15); color: #3b82f6; }
+        .stat-card-icon.purple { background-color: rgba(139,92,246,0.15); color: #a78bfa; }
+        .stat-card-icon.green { background-color: rgba(34,197,94,0.15); color: #22c55e; }
+        .stat-card-icon.amber { background-color: rgba(245,158,11,0.15); color: #f59e0b; }
+        .stat-card-icon.pink { background-color: rgba(236,72,153,0.15); color: #ec4899; }
+        .stat-card-icon.cyan { background-color: rgba(6,182,212,0.15); color: #06b6d4; }
+        .stat-card-icon.red { background-color: rgba(239,68,68,0.15); color: #ef4444; }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+            letter-spacing: -0.02em;
+        }
+
+        .stat-label {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .stat-sublabel {
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .dashboard-section-title {
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-sm);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dashboard-section {
+            margin-bottom: var(--space-xl);
+        }
+
+        .dashboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: var(--font-size-sm);
+        }
+
+        .dashboard-table th {
+            text-align: left;
+            padding: var(--space-sm) var(--space-md);
+            background-color: var(--bg-tertiary);
+            color: var(--text-muted);
+            font-weight: 500;
+            font-size: var(--font-size-xs);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dashboard-table th:not(:first-child) {
+            text-align: right;
+        }
+
+        .dashboard-table td {
+            padding: var(--space-sm) var(--space-md);
+            color: var(--text-secondary);
+            border-bottom: 1px solid var(--border-subtle);
+            vertical-align: middle;
+        }
+
+        .dashboard-table td:not(:first-child) {
+            text-align: right;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .dashboard-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .dashboard-table tr:hover td {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .model-name-cell {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .model-rank {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            min-width: 18px;
+        }
+
+        .local-cloud-split {
+            display: flex;
+            align-items: center;
+            gap: var(--space-lg);
+        }
+
+        .split-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            flex: 1;
+        }
+
+        .split-value {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+
+        .split-label {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .split-divider {
+            width: 1px;
+            height: 36px;
+            background-color: var(--border);
+            flex-shrink: 0;
+        }
+
+        .dashboard-empty {
+            text-align: center;
+            padding: var(--space-2xl);
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+        }
+
+        .dashboard-loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+            gap: var(--space-sm);
+        }
+
+        #dashboardModal .modal-content {
+            max-width: 780px;
+        }
+
         /* Active Persona Badge */
         .persona-badge {
             display: inline-flex;
@@ -1894,6 +2133,12 @@
                 </div>
             </div>
             <div id="conversationList"></div>
+            <div id="sidebarFooter">
+                <button id="dashboardButton" class="sidebar-footer-button" title="Usage Dashboard">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                    <span>Dashboard</span>
+                </button>
+            </div>
         </div>
 
         <div id="mainChatArea">
@@ -2187,6 +2432,25 @@
                     <button id="cancelClearContextButton" class="modal-button secondary">Cancel</button>
                     <button id="confirmClearContextButton" class="modal-button danger">Clear Messages</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Dashboard Modal -->
+    <div id="dashboardModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Usage Dashboard</h2>
+                <button id="closeDashboardModal" class="modal-close-button">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="dashboardModalBody">
+                <div class="dashboard-loading" id="dashboardLoading">
+                    <i data-lucide="loader"></i>
+                    Loading stats...
+                </div>
+                <div id="dashboardContent" style="display:none;"></div>
             </div>
         </div>
     </div>

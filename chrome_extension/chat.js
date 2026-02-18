@@ -381,8 +381,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function isCloudModel(modelName) {
         if (!modelName || typeof modelName !== 'string') return false;
 
-        // Pattern 1: .cloud suffix in name
-        if (modelName.includes('.cloud')) return true;
+        // Pattern 1: :cloud or .cloud tag in name (Ollama cloud models use :cloud)
+        if (modelName.includes(':cloud') || modelName.includes('.cloud')) return true;
 
         // Pattern 2: Check if model has size 0 (cloud models don't occupy local storage)
         const model = availableModels.find(m => m.name === modelName);
@@ -2550,6 +2550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (settingsModal && settingsModal.classList.contains('active')) { closeSettingsModal(); return; }
             if (clearContextModal && clearContextModal.classList.contains('active')) { closeClearContextModal(); return; }
             if (shortcutsModal && shortcutsModal.classList.contains('active')) { closeShortcutsModal(); return; }
+            if (dashboardModal && dashboardModal.classList.contains('active')) { closeDashboardModal(); return; }
             if (isStreaming && currentAbortController) {
                 currentAbortController.abort();
             }
@@ -3284,6 +3285,353 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         stopKokoroStatusPoll();
+    }
+
+    // ─── Dashboard ────────────────────────────────────────────────────────────
+
+    function dashFmt(n) {
+        if (n === null || n === undefined || isNaN(n)) return '—';
+        if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B';
+        if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+        return n.toLocaleString();
+    }
+
+    async function computeDashboardStats() {
+        // Ensure available models are loaded — fetchAvailableModels caches after first call
+        await fetchAvailableModels();
+
+        const allStorage = await chrome.storage.local.get(null);
+        const stats = {
+            totalTokens: 0,
+            totalPromptTokens: 0,
+            totalConversations: 0,
+            totalUserMessages: 0,
+            totalBotMessages: 0,
+            totalImages: 0,
+            speedSamples: [],
+            modelStats: {},   // storageKey → { displayName, isCloud, installed, conversations, messages, tokens, speedSamples }
+            dayActivity: {},  // 'YYYY-MM-DD' → message count
+            longestConvMessages: 0,
+            longestConvModel: '—',
+        };
+
+        // Build reverse-lookup without calling getModelStorageKey (avoids console spam)
+        const sanitize = name => `${storageKeyPrefix}${name.replace(/[^a-zA-Z0-9_.-]/g, '_')}`;
+        const knownKeyToName = {};
+        const installedKeys = new Set();
+        for (const m of availableModels) {
+            const k = sanitize(m.name);
+            knownKeyToName[k] = m.name;
+            installedKeys.add(k);
+        }
+
+        for (const [key, data] of Object.entries(allStorage)) {
+            if (!key.startsWith(storageKeyPrefix)) continue;
+            if (!data || typeof data !== 'object' || !data.conversations) continue;
+
+            const displayName = knownKeyToName[key] || key.slice(storageKeyPrefix.length);
+            const installed = installedKeys.has(key);
+            // Use isCloudModel with the real display name now that availableModels is populated
+            const cloud = isCloudModel(displayName);
+
+            if (!stats.modelStats[key]) {
+                stats.modelStats[key] = {
+                    displayName,
+                    isCloud: cloud,
+                    installed,
+                    conversations: 0,
+                    messages: 0,
+                    tokens: 0,
+                    speedSamples: [],
+                };
+            }
+            const ms = stats.modelStats[key];
+
+            for (const conv of Object.values(data.conversations)) {
+                const msgs = conv.messages || [];
+                if (msgs.length === 0) continue;
+
+                stats.totalConversations++;
+                ms.conversations++;
+
+                let convMsgCount = 0;
+                for (const msg of msgs) {
+                    stats.totalBotMessages += msg.role === 'assistant' ? 1 : 0;
+                    ms.messages++;
+                    convMsgCount++;
+
+                    if (msg.role === 'user') {
+                        stats.totalUserMessages++;
+                        if (msg.images && msg.images.length > 0) {
+                            stats.totalImages += msg.images.length;
+                        }
+                    }
+
+                    if (msg.role === 'assistant' && msg.metadata) {
+                        if (msg.metadata.tokens) {
+                            stats.totalTokens += msg.metadata.tokens;
+                            ms.tokens += msg.metadata.tokens;
+                        }
+                        if (msg.metadata.promptTokens) {
+                            stats.totalPromptTokens += msg.metadata.promptTokens;
+                        }
+                        const spd = parseFloat(msg.metadata.speed);
+                        if (!isNaN(spd) && spd > 0) {
+                            stats.speedSamples.push(spd);
+                            ms.speedSamples.push(spd);
+                        }
+                    }
+                }
+
+                if (convMsgCount > stats.longestConvMessages) {
+                    stats.longestConvMessages = convMsgCount;
+                    stats.longestConvModel = displayName;
+                }
+
+                if (conv.lastMessageTime) {
+                    const day = new Date(conv.lastMessageTime).toISOString().split('T')[0];
+                    stats.dayActivity[day] = (stats.dayActivity[day] || 0) + convMsgCount;
+                }
+            }
+        }
+
+        // Most active day
+        let mostActiveDay = '—', mostActiveDayCount = 0;
+        for (const [day, count] of Object.entries(stats.dayActivity)) {
+            if (count > mostActiveDayCount) { mostActiveDayCount = count; mostActiveDay = day; }
+        }
+        stats.mostActiveDay = mostActiveDay;
+        stats.mostActiveDayCount = mostActiveDayCount;
+
+        // Average speed
+        stats.avgSpeed = stats.speedSamples.length
+            ? (stats.speedSamples.reduce((a, b) => a + b, 0) / stats.speedSamples.length).toFixed(1)
+            : null;
+
+        // Most used model (by total messages)
+        let topModel = '—', topModelMessages = 0;
+        for (const ms of Object.values(stats.modelStats)) {
+            if (ms.messages > topModelMessages) { topModelMessages = ms.messages; topModel = ms.displayName; }
+        }
+        stats.topModel = topModel;
+        stats.topModelMessages = topModelMessages;
+
+        // Local / cloud counts — based on currently installed models, not storage history
+        stats.localModels = availableModels.filter(m => !isCloudModel(m.name)).length;
+        stats.cloudModels = availableModels.filter(m => isCloudModel(m.name)).length;
+
+        return stats;
+    }
+
+    function renderDashboard(stats) {
+        const content = document.getElementById('dashboardContent');
+        if (!content) return;
+
+        const hasData = stats.totalConversations > 0;
+
+        if (!hasData) {
+            content.innerHTML = `<div class="dashboard-empty">
+                No chat history yet. Start a conversation to see your stats here.
+            </div>`;
+            content.style.display = '';
+            document.getElementById('dashboardLoading').style.display = 'none';
+            if (typeof lucide !== 'undefined') lucide.createIcons({ el: content });
+            return;
+        }
+
+        // Sort: installed first (by messages), then archived (by messages)
+        const sortedModels = Object.values(stats.modelStats).sort((a, b) => {
+            if (a.installed !== b.installed) return a.installed ? -1 : 1;
+            return b.messages - a.messages;
+        });
+
+        const cloudSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="#3b82f6" viewBox="0 0 16 16" title="Cloud model"><path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"/></svg>`;
+
+        const modelRows = sortedModels.map((m, i) => {
+            const avgSpd = m.speedSamples.length
+                ? (m.speedSamples.reduce((a, b) => a + b, 0) / m.speedSamples.length).toFixed(1) + ' t/s'
+                : '—';
+            const cloudBadge = m.isCloud ? cloudSvg : '';
+            const archivedBadge = !m.installed
+                ? `<span style="font-size:10px;padding:1px 5px;background:rgba(115,115,115,0.15);color:var(--text-muted);border-radius:3px;margin-left:4px;">archived</span>`
+                : '';
+            const rowStyle = !m.installed ? 'opacity:0.55;' : '';
+            return `<tr style="${rowStyle}">
+                <td><div class="model-name-cell"><span class="model-rank">${i + 1}</span>${m.displayName}${cloudBadge}${archivedBadge}</div></td>
+                <td>${m.conversations}</td>
+                <td>${dashFmt(m.messages)}</td>
+                <td>${m.tokens > 0 ? dashFmt(m.tokens) : '—'}</td>
+                <td>${avgSpd}</td>
+            </tr>`;
+        }).join('');
+
+        content.innerHTML = `
+            <div class="dashboard-section">
+                <div class="dashboard-stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon blue"><i data-lucide="zap"></i></div>
+                        </div>
+                        <div class="stat-value">${dashFmt(stats.totalTokens)}</div>
+                        <div class="stat-label">Tokens Generated</div>
+                        <div class="stat-sublabel">${dashFmt(stats.totalPromptTokens)} prompt tokens</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon purple"><i data-lucide="message-square"></i></div>
+                        </div>
+                        <div class="stat-value">${dashFmt(stats.totalUserMessages)}</div>
+                        <div class="stat-label">Messages Sent</div>
+                        <div class="stat-sublabel">${dashFmt(stats.totalBotMessages)} responses</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon green"><i data-lucide="folder-open"></i></div>
+                        </div>
+                        <div class="stat-value">${dashFmt(stats.totalConversations)}</div>
+                        <div class="stat-label">Conversations</div>
+                        <div class="stat-sublabel">${sortedModels.filter(m => m.installed).length} installed · ${sortedModels.filter(m => !m.installed).length} archived</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon amber"><i data-lucide="gauge"></i></div>
+                        </div>
+                        <div class="stat-value">${stats.avgSpeed !== null ? stats.avgSpeed : '—'}</div>
+                        <div class="stat-label">Avg Speed</div>
+                        <div class="stat-sublabel">tokens / second</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <div class="dashboard-stats-grid-3">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon cyan"><i data-lucide="trophy"></i></div>
+                        </div>
+                        <div class="stat-value" style="font-size:1rem;word-break:break-word;">${stats.topModel}</div>
+                        <div class="stat-label">Most Used Model</div>
+                        <div class="stat-sublabel">${dashFmt(stats.topModelMessages)} messages</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon pink"><i data-lucide="image"></i></div>
+                        </div>
+                        <div class="stat-value">${dashFmt(stats.totalImages)}</div>
+                        <div class="stat-label">Images Sent</div>
+                        <div class="stat-sublabel">across all conversations</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon blue"><i data-lucide="server"></i></div>
+                        </div>
+                        <div class="local-cloud-split" style="margin-top:var(--space-xs);">
+                            <div class="split-item">
+                                <div class="split-value">${stats.localModels}</div>
+                                <div class="split-label">Local</div>
+                            </div>
+                            <div class="split-divider"></div>
+                            <div class="split-item">
+                                <div class="split-value">${stats.cloudModels}</div>
+                                <div class="split-label">Cloud</div>
+                            </div>
+                        </div>
+                        <div class="stat-label" style="margin-top:var(--space-sm);">Models by Type</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="dashboard-section">
+                <div class="dashboard-stats-grid-3">
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon amber"><i data-lucide="calendar"></i></div>
+                        </div>
+                        <div class="stat-value" style="font-size:1rem;">${stats.mostActiveDay}</div>
+                        <div class="stat-label">Most Active Day</div>
+                        <div class="stat-sublabel">${stats.mostActiveDayCount > 0 ? dashFmt(stats.mostActiveDayCount) + ' messages' : '—'}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon green"><i data-lucide="messages-square"></i></div>
+                        </div>
+                        <div class="stat-value">${stats.longestConvMessages}</div>
+                        <div class="stat-label">Longest Conversation</div>
+                        <div class="stat-sublabel" style="word-break:break-word;">${stats.longestConvModel}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-card-header">
+                            <div class="stat-card-icon red"><i data-lucide="brain"></i></div>
+                        </div>
+                        <div class="stat-value">${dashFmt(stats.totalTokens + stats.totalPromptTokens)}</div>
+                        <div class="stat-label">Total Tokens Processed</div>
+                        <div class="stat-sublabel">input + output combined</div>
+                    </div>
+                </div>
+            </div>
+
+            ${sortedModels.length > 0 ? `
+            <div class="dashboard-section">
+                <div class="dashboard-section-title">Model Breakdown</div>
+                <table class="dashboard-table">
+                    <thead>
+                        <tr>
+                            <th>Model</th>
+                            <th>Convs</th>
+                            <th>Messages</th>
+                            <th>Tokens</th>
+                            <th>Avg Speed</th>
+                        </tr>
+                    </thead>
+                    <tbody>${modelRows}</tbody>
+                </table>
+            </div>` : ''}
+        `;
+
+        document.getElementById('dashboardLoading').style.display = 'none';
+        content.style.display = '';
+        if (typeof lucide !== 'undefined') lucide.createIcons({ el: content });
+    }
+
+    async function openDashboardModal() {
+        const modal = document.getElementById('dashboardModal');
+        const content = document.getElementById('dashboardContent');
+        const loading = document.getElementById('dashboardLoading');
+        if (!modal) return;
+
+        // Reset to loading state
+        if (content) content.style.display = 'none';
+        if (loading) loading.style.display = 'flex';
+        modal.classList.add('active');
+        if (typeof lucide !== 'undefined') lucide.createIcons({ el: loading });
+
+        const stats = await computeDashboardStats();
+        renderDashboard(stats);
+    }
+
+    function closeDashboardModal() {
+        const modal = document.getElementById('dashboardModal');
+        if (modal) modal.classList.remove('active');
+        messageInput.focus();
+    }
+
+    // Dashboard event listeners
+    const dashboardButton = document.getElementById('dashboardButton');
+    if (dashboardButton) {
+        dashboardButton.addEventListener('click', openDashboardModal);
+    }
+
+    const closeDashboardModalButton = document.getElementById('closeDashboardModal');
+    if (closeDashboardModalButton) {
+        closeDashboardModalButton.addEventListener('click', closeDashboardModal);
+    }
+
+    const dashboardModal = document.getElementById('dashboardModal');
+    if (dashboardModal) {
+        dashboardModal.addEventListener('click', (e) => {
+            if (e.target === dashboardModal) closeDashboardModal();
+        });
     }
 
     init();
