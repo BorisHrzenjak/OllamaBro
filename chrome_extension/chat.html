@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- Markdown & Syntax Highlighting -->
-    <link rel="stylesheet" href="lib/atom-one-dark.min.css">
+    <link id="hljs-theme" rel="stylesheet" href="lib/atom-one-dark.min.css">
     <script src="lib/marked.min.js"></script>
     <script src="lib/highlight.min.js"></script>
     <script src="lib/dompurify.min.js"></script>
@@ -54,6 +54,181 @@
 
             /* Transitions */
             --transition: 150ms ease;
+        }
+
+        /* ── Dracula Theme ── */
+        [data-theme="dracula"] {
+            --bg-primary: #1e1f29;
+            --bg-secondary: #282a36;
+            --bg-tertiary: #373844;
+            --bg-quaternary: #44475a;
+            --text-primary: #f8f8f2;
+            --text-secondary: #8b9dc3;
+            --text-muted: #6272a4;
+            --accent: #bd93f9;
+            --accent-hover: #a97ef7;
+            --accent-subtle: rgba(189, 147, 249, 0.12);
+            --border: #44475a;
+            --border-subtle: #373844;
+            --error-bg: rgba(255, 85, 85, 0.12);
+            --error-text: #ff5555;
+            --success: #50fa7b;
+            --warning: #ffb86c;
+        }
+
+        /* ── Tokyo Night Theme ── */
+        [data-theme="tokyo-night"] {
+            --bg-primary: #13141f;
+            --bg-secondary: #1a1b2e;
+            --bg-tertiary: #1e2030;
+            --bg-quaternary: #292e42;
+            --text-primary: #c0caf5;
+            --text-secondary: #a9b1d6;
+            --text-muted: #565f89;
+            --accent: #7aa2f7;
+            --accent-hover: #6a91e7;
+            --accent-subtle: rgba(122, 162, 247, 0.12);
+            --border: #292e42;
+            --border-subtle: #1e2030;
+            --error-bg: rgba(247, 118, 142, 0.12);
+            --error-text: #f7768e;
+            --success: #9ece6a;
+            --warning: #e0af68;
+        }
+
+        /* ── GitHub Light Theme ── */
+        [data-theme="github-light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-tertiary: #eaeef2;
+            --bg-quaternary: #d8dee4;
+            --text-primary: #1f2328;
+            --text-secondary: #57606a;
+            --text-muted: #8c959f;
+            --accent: #0969da;
+            --accent-hover: #0860ca;
+            --accent-subtle: rgba(9, 105, 218, 0.1);
+            --border: #d8dee4;
+            --border-subtle: #eaeef2;
+            --error-bg: rgba(207, 34, 46, 0.08);
+            --error-text: #cf222e;
+            --success: #1a7f37;
+            --warning: #9a6700;
+        }
+
+        /* ── Solarized Light Theme ── */
+        [data-theme="solarized-light"] {
+            --bg-primary: #fdf6e3;
+            --bg-secondary: #eee8d5;
+            --bg-tertiary: #dfd8c2;
+            --bg-quaternary: #ccc5af;
+            --text-primary: #073642;
+            --text-secondary: #586e75;
+            --text-muted: #93a1a1;
+            --accent: #268bd2;
+            --accent-hover: #1a7ac0;
+            --accent-subtle: rgba(38, 139, 210, 0.1);
+            --border: #ccc5af;
+            --border-subtle: #dfd8c2;
+            --error-bg: rgba(220, 50, 47, 0.1);
+            --error-text: #dc322f;
+            --success: #859900;
+            --warning: #b58900;
+        }
+
+        /* ── Catppuccin Latte Theme ── */
+        [data-theme="catppuccin-latte"] {
+            --bg-primary: #eff1f5;
+            --bg-secondary: #e6e9ef;
+            --bg-tertiary: #dce0e8;
+            --bg-quaternary: #ccd0da;
+            --text-primary: #4c4f69;
+            --text-secondary: #5c5f77;
+            --text-muted: #6c6f85;
+            --accent: #1e66f5;
+            --accent-hover: #1a5ce0;
+            --accent-subtle: rgba(30, 102, 245, 0.1);
+            --border: #ccd0da;
+            --border-subtle: #dce0e8;
+            --error-bg: rgba(210, 15, 57, 0.08);
+            --error-text: #d20f39;
+            --success: #40a02b;
+            --warning: #df8e1d;
+        }
+
+        /* ── Light theme overrides for elements with hardcoded dark rgba values ── */
+        [data-theme="github-light"] .modal,
+        [data-theme="solarized-light"] .modal,
+        [data-theme="catppuccin-latte"] .modal {
+            background-color: rgba(0, 0, 0, 0.4);
+        }
+        [data-theme="github-light"] #scrollToBottomButton,
+        [data-theme="solarized-light"] #scrollToBottomButton,
+        [data-theme="catppuccin-latte"] #scrollToBottomButton {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        }
+        [data-theme="github-light"] .cloud-icon,
+        [data-theme="solarized-light"] .cloud-icon,
+        [data-theme="catppuccin-latte"] .cloud-icon {
+            color: var(--accent);
+        }
+
+        /* ── Theme Selector UI ── */
+        .theme-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: var(--space-sm);
+        }
+        .theme-swatch {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 6px;
+            padding: var(--space-sm);
+            border: 2px solid var(--border);
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition);
+            background: none;
+        }
+        .theme-swatch:hover {
+            border-color: var(--accent);
+        }
+        .theme-swatch.active {
+            border-color: var(--accent);
+            background-color: var(--accent-subtle);
+        }
+        .theme-swatch-preview {
+            width: 100%;
+            height: 36px;
+            border-radius: var(--radius-sm);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding: 4px;
+        }
+        .swatch-bar {
+            border-radius: 2px;
+            height: 6px;
+        }
+        .theme-swatch-name {
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            font-weight: 500;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .theme-swatch.active .theme-swatch-name {
+            color: var(--accent);
+        }
+        .theme-group-label {
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: var(--space-xs);
         }
 
         * {
@@ -2201,6 +2376,66 @@
                 </button>
             </div>
             <div class="modal-body">
+                <!-- Appearance — always visible, no collapse needed -->
+                <div class="settings-section">
+                    <p class="settings-section-title">Appearance</p>
+                    <div class="theme-group-label">Dark</div>
+                    <div class="theme-grid" style="margin-bottom: var(--space-md);">
+                        <button class="theme-swatch" data-theme-id="default-dark">
+                            <div class="theme-swatch-preview" style="background:#0a0a0a;">
+                                <div class="swatch-bar" style="background:#141414;width:80%;"></div>
+                                <div class="swatch-bar" style="background:#3b82f6;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#262626;width:65%;"></div>
+                            </div>
+                            <span class="theme-swatch-name">Default</span>
+                        </button>
+                        <button class="theme-swatch" data-theme-id="dracula">
+                            <div class="theme-swatch-preview" style="background:#1e1f29;">
+                                <div class="swatch-bar" style="background:#282a36;width:80%;"></div>
+                                <div class="swatch-bar" style="background:#bd93f9;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#44475a;width:65%;"></div>
+                            </div>
+                            <span class="theme-swatch-name">Dracula</span>
+                        </button>
+                        <button class="theme-swatch" data-theme-id="tokyo-night">
+                            <div class="theme-swatch-preview" style="background:#13141f;">
+                                <div class="swatch-bar" style="background:#1a1b2e;width:80%;"></div>
+                                <div class="swatch-bar" style="background:#7aa2f7;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#292e42;width:65%;"></div>
+                            </div>
+                            <span class="theme-swatch-name">Tokyo Night</span>
+                        </button>
+                    </div>
+                    <div class="theme-group-label">Light</div>
+                    <div class="theme-grid" style="margin-bottom: var(--space-sm);">
+                        <button class="theme-swatch" data-theme-id="github-light">
+                            <div class="theme-swatch-preview" style="background:#ffffff;">
+                                <div class="swatch-bar" style="background:#f6f8fa;width:80%;"></div>
+                                <div class="swatch-bar" style="background:#0969da;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#d8dee4;width:65%;"></div>
+                            </div>
+                            <span class="theme-swatch-name">GitHub Light</span>
+                        </button>
+                        <button class="theme-swatch" data-theme-id="solarized-light">
+                            <div class="theme-swatch-preview" style="background:#fdf6e3;">
+                                <div class="swatch-bar" style="background:#eee8d5;width:80%;"></div>
+                                <div class="swatch-bar" style="background:#268bd2;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#ccc5af;width:65%;"></div>
+                            </div>
+                            <span class="theme-swatch-name">Solarized</span>
+                        </button>
+                        <button class="theme-swatch" data-theme-id="catppuccin-latte">
+                            <div class="theme-swatch-preview" style="background:#eff1f5;">
+                                <div class="swatch-bar" style="background:#e6e9ef;width:80%;"></div>
+                                <div class="swatch-bar" style="background:#1e66f5;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#ccd0da;width:65%;"></div>
+                            </div>
+                            <span class="theme-swatch-name">Catppuccin</span>
+                        </button>
+                    </div>
+                    <p class="context-limit-info">Click any theme to apply — saved automatically</p>
+                </div>
+
                 <div class="settings-section collapsible-section">
                     <button class="settings-section-toggle" id="personaSectionToggle">
                         Persona Presets

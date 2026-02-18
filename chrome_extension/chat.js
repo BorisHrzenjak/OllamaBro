@@ -1455,34 +1455,37 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function saveSystemPrompt() {
-        const newPrompt = systemPromptInput.value.trim();
-        const contextLimitValue = contextLimitInput.value.trim();
+        try {
+            const newPrompt = systemPromptInput.value.trim();
+            const contextLimitValue = contextLimitInput.value.trim();
 
-        let modelData = await loadModelChatState(currentModelName);
-        modelData.systemPrompt = newPrompt;
+            let modelData = await loadModelChatState(currentModelName);
+            modelData.systemPrompt = newPrompt;
 
-        // Parse and save context limit override
-        const parsedLimit = parseInt(contextLimitValue, 10);
-        if (contextLimitValue && !isNaN(parsedLimit) && parsedLimit > 0) {
-            modelData.contextLimitOverride = parsedLimit;
-        } else {
-            modelData.contextLimitOverride = null; // Use auto-detection
+            // Parse and save context limit override
+            const parsedLimit = parseInt(contextLimitValue, 10);
+            if (contextLimitValue && !isNaN(parsedLimit) && parsedLimit > 0) {
+                modelData.contextLimitOverride = parsedLimit;
+            } else {
+                modelData.contextLimitOverride = null; // Use auto-detection
+            }
+
+            // Collect and save model params
+            modelData.params = collectParams();
+
+            await saveModelChatState(currentModelName, modelData);
+
+            // Update context indicator to reflect new system prompt size
+            const currentMessages = getCurrentConversationMessages(modelData);
+            await updateContextIndicator(currentMessages, newPrompt, modelData);
+
+            // Save TTS settings
+            await saveTTSSettings();
+
+            console.log('[OllamaBro] Settings saved for model:', currentModelName);
+        } finally {
+            closeSettingsModal();
         }
-
-        // Collect and save model params
-        modelData.params = collectParams();
-
-        await saveModelChatState(currentModelName, modelData);
-
-        // Update context indicator to reflect new system prompt size
-        const currentMessages = getCurrentConversationMessages(modelData);
-        await updateContextIndicator(currentMessages, newPrompt, modelData);
-
-        // Save TTS settings
-        await saveTTSSettings();
-
-        closeSettingsModal();
-        console.log('[OllamaBro] Settings saved for model:', currentModelName);
     }
 
     async function clearSystemPrompt() {
@@ -3633,6 +3636,49 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target === dashboardModal) closeDashboardModal();
         });
     }
+
+    // ── Theme System ──────────────────────────────────────────────────────────
+
+    const LIGHT_THEMES = new Set(['github-light', 'solarized-light', 'catppuccin-latte']);
+    const HLJS_LIGHT_HREF = 'lib/github-light.min.css';
+    const HLJS_DARK_HREF = 'lib/atom-one-dark.min.css';
+
+    function applyTheme(themeId) {
+        const root = document.documentElement;
+        if (themeId === 'default-dark') {
+            root.removeAttribute('data-theme');
+        } else {
+            root.setAttribute('data-theme', themeId);
+        }
+        const hljsLink = document.getElementById('hljs-theme');
+        if (hljsLink) {
+            hljsLink.href = LIGHT_THEMES.has(themeId) ? HLJS_LIGHT_HREF : HLJS_DARK_HREF;
+        }
+        document.querySelectorAll('.theme-swatch').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.themeId === themeId);
+        });
+    }
+
+    async function loadSavedTheme() {
+        try {
+            const result = await chrome.storage.local.get(['activeTheme']);
+            applyTheme(result.activeTheme || 'default-dark');
+        } catch (e) {
+            applyTheme('default-dark');
+        }
+    }
+
+    document.querySelectorAll('.theme-swatch').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const themeId = btn.dataset.themeId;
+            applyTheme(themeId);
+            await chrome.storage.local.set({ activeTheme: themeId });
+        });
+    });
+
+    await loadSavedTheme();
+
+    // ─────────────────────────────────────────────────────────────────────────
 
     init();
 

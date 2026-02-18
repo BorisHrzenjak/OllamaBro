@@ -1,4 +1,12 @@
 
+// Apply saved theme immediately so popup matches the chat window
+chrome.storage.local.get(['activeTheme'], (result) => {
+    const themeId = result.activeTheme || 'default-dark';
+    if (themeId !== 'default-dark') {
+        document.documentElement.setAttribute('data-theme', themeId);
+    }
+});
+
 document.addEventListener('DOMContentLoaded', () => {
     const modelListElement = document.getElementById('modelList');
     const loadingMessageElement = document.getElementById('loadingMessage');

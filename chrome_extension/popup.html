@@ -24,6 +24,78 @@
             --transition: 150ms ease;
         }
 
+        /* ── Dracula ── */
+        [data-theme="dracula"] {
+            --bg-primary: #1e1f29;
+            --bg-secondary: #282a36;
+            --bg-hover: #373844;
+            --bg-active: #44475a;
+            --text-primary: #f8f8f2;
+            --text-secondary: #8b9dc3;
+            --text-muted: #6272a4;
+            --accent: #bd93f9;
+            --accent-hover: #a97ef7;
+            --border: #44475a;
+        }
+        /* ── Tokyo Night ── */
+        [data-theme="tokyo-night"] {
+            --bg-primary: #13141f;
+            --bg-secondary: #1a1b2e;
+            --bg-hover: #1e2030;
+            --bg-active: #292e42;
+            --text-primary: #c0caf5;
+            --text-secondary: #a9b1d6;
+            --text-muted: #565f89;
+            --accent: #7aa2f7;
+            --accent-hover: #6a91e7;
+            --border: #292e42;
+        }
+        /* ── GitHub Light ── */
+        [data-theme="github-light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-hover: #eaeef2;
+            --bg-active: #d8dee4;
+            --text-primary: #1f2328;
+            --text-secondary: #57606a;
+            --text-muted: #8c959f;
+            --accent: #0969da;
+            --accent-hover: #0860ca;
+            --border: #d8dee4;
+        }
+        /* ── Solarized Light ── */
+        [data-theme="solarized-light"] {
+            --bg-primary: #fdf6e3;
+            --bg-secondary: #eee8d5;
+            --bg-hover: #dfd8c2;
+            --bg-active: #ccc5af;
+            --text-primary: #073642;
+            --text-secondary: #586e75;
+            --text-muted: #93a1a1;
+            --accent: #268bd2;
+            --accent-hover: #1a7ac0;
+            --border: #ccc5af;
+        }
+        /* ── Catppuccin Latte ── */
+        [data-theme="catppuccin-latte"] {
+            --bg-primary: #eff1f5;
+            --bg-secondary: #e6e9ef;
+            --bg-hover: #dce0e8;
+            --bg-active: #ccd0da;
+            --text-primary: #4c4f69;
+            --text-secondary: #5c5f77;
+            --text-muted: #6c6f85;
+            --accent: #1e66f5;
+            --accent-hover: #1a5ce0;
+            --border: #ccd0da;
+        }
+        [data-theme="github-light"] .error-title,
+        [data-theme="github-light"] .error-text { color: #cf222e; }
+        [data-theme="solarized-light"] .error-title,
+        [data-theme="solarized-light"] .error-text { color: #dc322f; }
+        [data-theme="catppuccin-latte"] .error-title,
+        [data-theme="catppuccin-latte"] .error-text { color: #d20f39; }
+
         * {
             margin: 0;
             padding: 0;
