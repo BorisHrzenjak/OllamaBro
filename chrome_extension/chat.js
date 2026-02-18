@@ -2427,6 +2427,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         settingsButton.addEventListener('click', openSettingsModal);
     }
 
+    const modelParamsButton = document.getElementById('modelParamsButton');
+    if (modelParamsButton) {
+        modelParamsButton.addEventListener('click', () => {
+            openSettingsModal();
+            // Ensure the Model Parameters section is expanded
+            const body = document.getElementById('paramSectionBody');
+            const toggle = document.getElementById('paramSectionToggle');
+            if (body && !body.classList.contains('expanded')) {
+                body.classList.add('expanded');
+                toggle.classList.add('expanded');
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            }
+        });
+    }
+
     if (closeSettingsModalButton) {
         closeSettingsModalButton.addEventListener('click', closeSettingsModal);
     }
