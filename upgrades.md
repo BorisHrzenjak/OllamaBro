@@ -63,7 +63,7 @@ Show an estimated token count below the input box as the user types (using a rou
 
 ## Notification & Background
 
-**16. Background Processing + Notifications**
+**16. Background Processing + Notifications** 
 Send a message, close the tab, and get a Chrome notification when the response completes. Uses `chrome.notifications` API and the service worker in `background.js`. Big UX win for slow local models.
 
 **17. Server Status Indicator**
@@ -73,7 +73,7 @@ A persistent indicator showing whether the proxy server and Ollama are reachable
 
 ## Accessibility & Polish
 
-**18. Keyboard Shortcuts Panel**
+**18. Keyboard Shortcuts Panel** (IMPLEMENTED)
 A `?` button or `Shift+?` shortcut showing all available keyboard shortcuts. Also add shortcuts for: `Ctrl+N` (new chat), `Ctrl+K` (search conversations), `Ctrl+Enter` (send), `Esc` (abort generation).
 
 **19. Theme System**

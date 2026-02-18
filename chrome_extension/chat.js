@@ -133,6 +133,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     const storageKeyPrefix = 'ollamaBroChat_';
     const sidebarStateKey = 'ollamaBroSidebarState';
     const draftsKey = 'ollamaBroDrafts';
+    const personaPresetsKey = 'ollamaBroPersonaPresets';
+
+    let activePersonaName = '';
+
+    const DEFAULT_PRESETS = [
+        {
+            id: 'default-code-reviewer',
+            name: 'Code Reviewer',
+            prompt: 'You are an expert code reviewer. Analyze code for bugs, performance issues, security vulnerabilities, and style violations. Provide clear, actionable feedback with specific suggestions for improvement.'
+        },
+        {
+            id: 'default-translator',
+            name: 'Translator',
+            prompt: 'You are a professional translator. Translate text accurately while preserving tone, nuance, and cultural context. If the target language is not specified, ask before translating.'
+        },
+        {
+            id: 'default-tutor',
+            name: 'Tutor',
+            prompt: 'You are a patient and encouraging tutor. Explain concepts clearly using simple language and relatable examples. Break down complex topics step by step. Ask clarifying questions to tailor explanations to the student\'s level.'
+        },
+        {
+            id: 'default-storyteller',
+            name: 'Storyteller',
+            prompt: 'You are a creative storyteller. Craft vivid, engaging narratives with compelling characters and immersive descriptions. Adapt your style and tone to match the genre and mood requested.'
+        }
+    ];
     // Store available models as objects with name and size
     let availableModels = [];
     let currentAbortController = null; // Track current request for aborting
@@ -1290,10 +1316,21 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             updateContextLimitInfo();
         });
-        
+
+        // Refresh persona presets only if section is already expanded
+        const personaBody = document.getElementById('personaSectionBody');
+        if (personaBody && personaBody.classList.contains('expanded')) {
+            loadPersonaPresets().then(presets => {
+                renderPersonaPresets(presets);
+                hideNewPresetForm();
+            });
+        } else {
+            hideNewPresetForm();
+        }
+
         // Load TTS settings
         loadTTSSettings();
-        
+
         settingsModal.classList.add('active');
         systemPromptInput.focus();
     }
@@ -1356,7 +1393,258 @@ document.addEventListener('DOMContentLoaded', async () => {
         const currentMessages = getCurrentConversationMessages(modelData);
         await updateContextIndicator(currentMessages, '', modelData);
 
+        // Clear active persona badge
+        activePersonaName = '';
+        updatePersonaBadge();
+        loadPersonaPresets().then(renderPersonaPresets);
+
         console.log('[OllamaBro] System prompt cleared for model:', currentModelName);
+    }
+
+    // --- Persona Preset Functions ---
+
+    async function loadPersonaPresets() {
+        if (!chrome.storage || !chrome.storage.local) return [...DEFAULT_PRESETS];
+        try {
+            const initKey = `${personaPresetsKey}_init`;
+            const result = await chrome.storage.local.get([personaPresetsKey, initKey]);
+            if (!result[initKey]) {
+                // First run — seed with defaults, user owns the list from here
+                const initial = DEFAULT_PRESETS.map(({ id, name, prompt }) => ({ id, name, prompt }));
+                await chrome.storage.local.set({ [personaPresetsKey]: initial, [initKey]: true });
+                return initial;
+            }
+            return result[personaPresetsKey] || [];
+        } catch (error) {
+            console.error('[OllamaBro] Error loading persona presets:', error);
+            return [...DEFAULT_PRESETS];
+        }
+    }
+
+    async function savePersonaPresets(presets) {
+        if (!chrome.storage || !chrome.storage.local) return;
+        try {
+            await chrome.storage.local.set({ [personaPresetsKey]: presets });
+        } catch (error) {
+            console.error('[OllamaBro] Error saving persona presets:', error);
+        }
+    }
+
+    function renderPersonaPresets(presets) {
+        const list = document.getElementById('personaPresetsList');
+        if (!list) return;
+        list.innerHTML = '';
+
+        if (presets.length === 0) {
+            const empty = document.createElement('p');
+            empty.style.cssText = 'font-size: var(--font-size-xs); color: var(--text-muted); padding: var(--space-sm) 0;';
+            empty.textContent = 'No presets yet. Use the button below to add one.';
+            list.appendChild(empty);
+            return;
+        }
+
+        for (const preset of presets) {
+            list.appendChild(createPresetViewRow(preset));
+        }
+    }
+
+    function createPresetViewRow(preset) {
+        const item = document.createElement('div');
+        item.className = 'preset-item';
+        item.dataset.presetId = preset.id;
+
+        const info = document.createElement('div');
+        info.className = 'preset-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'preset-item-name';
+        nameEl.textContent = preset.name;
+
+        const preview = document.createElement('div');
+        preview.className = 'preset-item-preview';
+        preview.textContent = preset.prompt;
+        preview.title = preset.prompt;
+
+        info.appendChild(nameEl);
+        info.appendChild(preview);
+
+        const actions = document.createElement('div');
+        actions.className = 'preset-item-actions';
+
+        const applyBtn = document.createElement('button');
+        applyBtn.className = 'preset-apply-button';
+        const isActive = activePersonaName === preset.name;
+        applyBtn.textContent = isActive ? 'Active' : 'Apply';
+        if (isActive) applyBtn.classList.add('active');
+        applyBtn.addEventListener('click', () => applyPersonaPreset(preset));
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'preset-edit-button';
+        editBtn.title = 'Edit preset';
+        editBtn.appendChild(createLucideIcon('pencil', 13));
+        editBtn.addEventListener('click', () => openPresetEditInline(item, preset));
+
+        actions.appendChild(applyBtn);
+        actions.appendChild(editBtn);
+        item.appendChild(info);
+        item.appendChild(actions);
+        return item;
+    }
+
+    function openPresetEditInline(itemEl, preset) {
+        itemEl.innerHTML = '';
+        itemEl.classList.add('preset-item-editing');
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'preset-name-input';
+        nameInput.value = preset.name;
+        nameInput.maxLength = 50;
+        nameInput.placeholder = 'Preset name';
+
+        const promptTextarea = document.createElement('textarea');
+        promptTextarea.className = 'preset-prompt-input';
+        promptTextarea.value = preset.prompt;
+        promptTextarea.rows = 4;
+        promptTextarea.placeholder = 'System prompt text...';
+
+        const actionsRow = document.createElement('div');
+        actionsRow.className = 'preset-edit-actions';
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'modal-button danger';
+        deleteBtn.style.marginRight = 'auto';
+        deleteBtn.textContent = 'Delete';
+        deleteBtn.addEventListener('click', () => deletePersonaPreset(preset.id));
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-button secondary';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', () => loadPersonaPresets().then(renderPersonaPresets));
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'modal-button primary';
+        saveBtn.textContent = 'Save';
+        saveBtn.addEventListener('click', async () => {
+            const newName = nameInput.value.trim();
+            const newPrompt = promptTextarea.value.trim();
+            if (!newName) { nameInput.focus(); return; }
+            if (!newPrompt) { promptTextarea.focus(); return; }
+            await updatePersonaPreset(preset.id, newName, newPrompt);
+        });
+
+        actionsRow.appendChild(deleteBtn);
+        actionsRow.appendChild(cancelBtn);
+        actionsRow.appendChild(saveBtn);
+        itemEl.appendChild(nameInput);
+        itemEl.appendChild(promptTextarea);
+        itemEl.appendChild(actionsRow);
+        nameInput.focus();
+        nameInput.select();
+    }
+
+    async function updatePersonaPreset(id, name, prompt) {
+        const presets = await loadPersonaPresets();
+        const idx = presets.findIndex(p => p.id === id);
+        if (idx === -1) return;
+        const oldName = presets[idx].name;
+        const updated = presets.map(p => p.id === id ? { id: p.id, name, prompt } : p);
+        if (activePersonaName === oldName) {
+            activePersonaName = name;
+            updatePersonaBadge();
+        }
+        await savePersonaPresets(updated);
+        renderPersonaPresets(updated);
+    }
+
+    function togglePersonaSection() {
+        const toggle = document.getElementById('personaSectionToggle');
+        const body = document.getElementById('personaSectionBody');
+        if (!toggle || !body) return;
+        const isExpanded = body.classList.contains('expanded');
+        if (isExpanded) {
+            body.classList.remove('expanded');
+            toggle.classList.remove('expanded');
+        } else {
+            body.classList.add('expanded');
+            toggle.classList.add('expanded');
+            loadPersonaPresets().then(presets => {
+                renderPersonaPresets(presets);
+                hideNewPresetForm();
+            });
+        }
+    }
+
+    function applyPersonaPreset(preset) {
+        if (systemPromptInput) {
+            systemPromptInput.value = preset.prompt;
+            updateSystemPromptTokenCount();
+        }
+        activePersonaName = preset.name;
+        updatePersonaBadge();
+        // Re-render to update Active/Apply button states
+        loadPersonaPresets().then(renderPersonaPresets);
+        console.log('[OllamaBro] Applied persona preset:', preset.name);
+    }
+
+    function updatePersonaBadge() {
+        const badge = document.getElementById('personaBadge');
+        if (!badge) return;
+        if (activePersonaName) {
+            badge.textContent = activePersonaName;
+            badge.style.display = 'inline-flex';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+
+    async function deletePersonaPreset(id) {
+        const presets = await loadPersonaPresets();
+        const deleted = presets.find(p => p.id === id);
+        const updated = presets.filter(p => p.id !== id);
+        await savePersonaPresets(updated);
+        if (deleted && activePersonaName === deleted.name) {
+            activePersonaName = '';
+            updatePersonaBadge();
+        }
+        renderPersonaPresets(updated);
+    }
+
+    async function saveNewPersonaPreset() {
+        const nameInput = document.getElementById('newPresetName');
+        const promptInput = document.getElementById('newPresetPrompt');
+        const name = nameInput ? nameInput.value.trim() : '';
+        const prompt = promptInput ? promptInput.value.trim() : '';
+        if (!name) { if (nameInput) nameInput.focus(); return; }
+        if (!prompt) { if (promptInput) promptInput.focus(); return; }
+
+        const newPreset = { id: `user-${Date.now()}`, name, prompt, isDefault: false };
+        const presets = await loadPersonaPresets();
+        presets.push(newPreset);
+        await savePersonaPresets(presets);
+        hideNewPresetForm();
+        renderPersonaPresets(presets);
+        console.log('[OllamaBro] Saved new persona preset:', name);
+    }
+
+    function showNewPresetForm() {
+        const form = document.getElementById('newPresetForm');
+        const addBtn = document.getElementById('addNewPresetButton');
+        if (form) { form.style.display = 'flex'; }
+        if (addBtn) { addBtn.style.display = 'none'; }
+        const nameInput = document.getElementById('newPresetName');
+        if (nameInput) nameInput.focus();
+    }
+
+    function hideNewPresetForm() {
+        const form = document.getElementById('newPresetForm');
+        const addBtn = document.getElementById('addNewPresetButton');
+        if (form) { form.style.display = 'none'; }
+        if (addBtn) { addBtn.style.display = 'flex'; }
+        const nameInput = document.getElementById('newPresetName');
+        const promptInput = document.getElementById('newPresetPrompt');
+        if (nameInput) nameInput.value = '';
+        if (promptInput) promptInput.value = '';
     }
 
     // Clear context modal functions
@@ -2037,6 +2325,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (systemPromptInput) {
         systemPromptInput.addEventListener('input', updateSystemPromptTokenCount);
+    }
+
+    // Persona preset event listeners
+    const personaSectionToggle = document.getElementById('personaSectionToggle');
+    if (personaSectionToggle) {
+        personaSectionToggle.addEventListener('click', togglePersonaSection);
+    }
+
+    const addNewPresetButton = document.getElementById('addNewPresetButton');
+    if (addNewPresetButton) {
+        addNewPresetButton.addEventListener('click', showNewPresetForm);
+    }
+
+    const saveNewPresetButton = document.getElementById('saveNewPresetButton');
+    if (saveNewPresetButton) {
+        saveNewPresetButton.addEventListener('click', saveNewPersonaPreset);
+    }
+
+    const cancelNewPresetButton = document.getElementById('cancelNewPresetButton');
+    if (cancelNewPresetButton) {
+        cancelNewPresetButton.addEventListener('click', hideNewPresetForm);
     }
 
     // Clear context modal event listeners
