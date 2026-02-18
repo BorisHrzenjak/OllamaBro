@@ -54,6 +54,20 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - Warning and critical states as the context fills
 - Override the context window size per model, or let it auto-detect
 
+### Themes
+Six built-in themes selectable from Settings → Appearance:
+
+| Theme | Style |
+|---|---|
+| Default Dark | Dark minimal (default) |
+| Dracula | Dark — purple accent |
+| Tokyo Night | Dark — blue-violet accent |
+| GitHub Light | Light — GitHub blue |
+| Solarized Light | Light — warm beige |
+| Catppuccin Latte | Light — pastel blue |
+
+Theme is applied instantly and persisted across sessions. Code blocks automatically switch between a matching dark or light syntax-highlighting stylesheet.
+
 ### UX & Polish
 - **Smart auto-scrolling** — follows new tokens automatically; pauses when you scroll up; scroll-to-bottom button reappears during streaming
 - **Input draft persistence** — unsent text is saved per conversation and restored when you return
