@@ -1,6 +1,7 @@
 # OllamaBro
 
-![image](https://github.com/user-attachments/assets/58803a45-c3b4-4edf-8035-131f66751247)
+![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
+
 
 OllamaBro is a Chrome extension that provides a full-featured chat interface for your local Ollama models — directly in the browser, no cloud required.
 
