@@ -165,7 +165,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedImages = []; // Store selected images for sending
 
     // Context management constants
-    const DEFAULT_CONTEXT_LIMIT = 4096; // Default context window size
+    const DEFAULT_CONTEXT_LIMIT = 4096;   // 4K — local models
+    const CLOUD_CONTEXT_LIMIT = 131072;   // 128K — cloud models
     const WARNING_THRESHOLD = 0.75; // 75% - yellow
     const CRITICAL_THRESHOLD = 0.90; // 90% - red
 
