@@ -771,6 +771,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         return container;
     }
 
+    // Collapse all expanded thinking boxes from previous bot messages
+    function collapsePreviousThinkingBoxes() {
+        // Find all thinking containers in the chat
+        const allThinkingContainers = document.querySelectorAll('.thinking-container');
+        allThinkingContainers.forEach(container => {
+            const contentDiv = container.querySelector('.thinking-content');
+            const toggle = container.querySelector('.thinking-toggle');
+            const indicator = container.querySelector('.thinking-indicator');
+
+            // Only collapse if currently expanded
+            if (contentDiv && contentDiv.classList.contains('expanded')) {
+                contentDiv.classList.remove('expanded');
+                toggle.classList.remove('expanded');
+                indicator.textContent = 'Show thinking';
+            }
+        });
+    }
+
     // Image processing functions
     function validateImageFile(file) {
         const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
@@ -1856,6 +1874,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Set streaming flag
         isStreaming = true;
+
+        // Collapse previous thinking boxes to keep chat clean
+        collapsePreviousThinkingBoxes();
 
         // Show stop button during streaming and add streaming class
         if (stopButton) {
