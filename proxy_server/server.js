@@ -217,7 +217,7 @@ app.all('/proxy/*', (req, res) => {
     const originalPath = req.params[0];
     const ollamaPath = '/' + originalPath;
     const targetUrlString = OLLAMA_API_BASE_URL + ollamaPath;
-    const ALLOWED_OLLAMA_PATHS = ['/api/tags', '/api/chat', '/api/generate', '/api/show'];
+    const ALLOWED_OLLAMA_PATHS = ['/api/tags', '/api/chat', '/api/generate', '/api/show', '/api/pull'];
 
     console.log(`Proxying request: ${req.method} ${req.originalUrl} -> ${targetUrlString}`);
 
@@ -259,7 +259,8 @@ app.all('/proxy/*', (req, res) => {
             proxyRes.on('error', (err) => console.error('Proxy to Ollama: Error on response stream from Ollama:', err));
         });
 
-        const OLLAMA_REQUEST_TIMEOUT = 60000;
+        // Pull requests can take many minutes to download large models
+        const OLLAMA_REQUEST_TIMEOUT = ollamaPath.startsWith('/api/pull') ? 1800000 : 60000;
         proxyReq.setTimeout(OLLAMA_REQUEST_TIMEOUT, () => {
             console.error(`Proxy to Ollama: Request timed out after ${OLLAMA_REQUEST_TIMEOUT / 1000}s. Aborting.`);
             proxyReq.abort();

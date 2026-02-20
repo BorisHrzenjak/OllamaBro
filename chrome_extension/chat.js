@@ -1401,6 +1401,162 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // --- Model Update Functions ---
+
+    async function pullModel(modelName, statusEl, buttonEl) {
+        const icon = buttonEl.querySelector('.lucide');
+        buttonEl.disabled = true;
+        buttonEl.classList.add('updating');
+        statusEl.textContent = 'Connecting...';
+        statusEl.className = 'update-status';
+
+        try {
+            const response = await fetch('http://localhost:3000/proxy/api/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: modelName, stream: true })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // keep incomplete last line
+
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const json = JSON.parse(line);
+                        if (json.error) {
+                            throw new Error(json.error);
+                        }
+                        if (json.status) {
+                            let text = json.status;
+                            if (json.total && json.completed) {
+                                const pct = Math.round((json.completed / json.total) * 100);
+                                text += ` ${pct}%`;
+                            }
+                            statusEl.textContent = text;
+                        }
+                    } catch (parseErr) {
+                        if (parseErr.message !== 'Unexpected end of JSON input') {
+                            throw parseErr;
+                        }
+                    }
+                }
+            }
+
+            statusEl.textContent = 'Up to date';
+            statusEl.className = 'update-status success';
+        } catch (err) {
+            statusEl.textContent = `Error: ${err.message}`;
+            statusEl.className = 'update-status error';
+        } finally {
+            buttonEl.disabled = false;
+            buttonEl.classList.remove('updating');
+        }
+    }
+
+    async function updateCurrentModel() {
+        const statusEl = document.getElementById('updateCurrentModelStatus');
+        const buttonEl = document.getElementById('updateCurrentModelButton');
+        if (!statusEl || !buttonEl || !currentModelName) return;
+        await pullModel(currentModelName, statusEl, buttonEl);
+    }
+
+    async function updateAllModels() {
+        const statusEl = document.getElementById('updateAllModelsStatus');
+        const buttonEl = document.getElementById('updateAllModelsButton');
+        if (!statusEl || !buttonEl) return;
+
+        buttonEl.disabled = true;
+        buttonEl.classList.add('updating');
+        statusEl.className = 'update-status';
+
+        try {
+            const res = await fetch('http://localhost:3000/proxy/api/tags');
+            if (!res.ok) throw new Error('Could not fetch model list');
+            const data = await res.json();
+            const models = (data.models || []).map(m => m.name);
+
+            if (models.length === 0) {
+                statusEl.textContent = 'No models found';
+                return;
+            }
+
+            for (let i = 0; i < models.length; i++) {
+                const name = models[i];
+                statusEl.textContent = `[${i + 1}/${models.length}] Updating ${name}...`;
+                statusEl.className = 'update-status';
+
+                try {
+                    const response = await fetch('http://localhost:3000/proxy/api/pull', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name, stream: true })
+                    });
+
+                    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let buffer = '';
+
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split('\n');
+                        buffer = lines.pop();
+
+                        for (const line of lines) {
+                            if (!line.trim()) continue;
+                            try {
+                                const json = JSON.parse(line);
+                                if (json.error) throw new Error(json.error);
+                                if (json.status) {
+                                    let text = `[${i + 1}/${models.length}] ${name}: ${json.status}`;
+                                    if (json.total && json.completed) {
+                                        const pct = Math.round((json.completed / json.total) * 100);
+                                        text += ` ${pct}%`;
+                                    }
+                                    statusEl.textContent = text;
+                                }
+                            } catch (parseErr) {
+                                if (parseErr.message !== 'Unexpected end of JSON input') throw parseErr;
+                            }
+                        }
+                    }
+                } catch (modelErr) {
+                    statusEl.textContent = `[${i + 1}/${models.length}] ${name}: Error — ${modelErr.message}`;
+                    statusEl.className = 'update-status error';
+                    await new Promise(r => setTimeout(r, 1500)); // brief pause before next model
+                }
+            }
+
+            statusEl.textContent = `All ${models.length} models up to date`;
+            statusEl.className = 'update-status success';
+        } catch (err) {
+            statusEl.textContent = `Error: ${err.message}`;
+            statusEl.className = 'update-status error';
+        } finally {
+            buttonEl.disabled = false;
+            buttonEl.classList.remove('updating');
+        }
+    }
+
+    // --- End Model Update Functions ---
+
     function toggleSection(toggleId, bodyId) {
         const toggle = document.getElementById(toggleId);
         const body = document.getElementById(bodyId);
@@ -1417,6 +1573,15 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Settings modal functions
     function openSettingsModal() {
+        // Update model name label in the update button
+        const updateNameEl = document.getElementById('updateCurrentModelName');
+        if (updateNameEl && currentModelName) {
+            updateNameEl.textContent = decodeURIComponent(currentModelName);
+        }
+        // Reset update status on open
+        const updateStatusEl = document.getElementById('updateCurrentModelStatus');
+        if (updateStatusEl) { updateStatusEl.textContent = ''; updateStatusEl.className = 'update-status'; }
+
         // Load current settings
         loadModelChatState(currentModelName).then(modelData => {
             // Load system prompt
@@ -2492,6 +2657,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const paramResetButton = document.getElementById('paramResetButton');
     if (paramResetButton) {
         paramResetButton.addEventListener('click', resetParamInputs);
+    }
+
+    const updateCurrentModelButton = document.getElementById('updateCurrentModelButton');
+    if (updateCurrentModelButton) {
+        updateCurrentModelButton.addEventListener('click', updateCurrentModel);
+    }
+
+    const modelMgmtSectionToggle = document.getElementById('modelMgmtSectionToggle');
+    if (modelMgmtSectionToggle) {
+        modelMgmtSectionToggle.addEventListener('click', () => toggleSection('modelMgmtSectionToggle', 'modelMgmtSectionBody'));
+    }
+
+    const updateAllModelsButton = document.getElementById('updateAllModelsButton');
+    if (updateAllModelsButton) {
+        updateAllModelsButton.addEventListener('click', updateAllModels);
     }
 
     // Set up bidirectional slider ↔ number sync

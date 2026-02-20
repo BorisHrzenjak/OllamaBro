@@ -2027,6 +2027,86 @@
             height: 13px;
         }
 
+        .param-update-row {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
+            flex-wrap: wrap;
+        }
+
+        .model-update-button {
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            padding: 6px var(--space-md);
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-muted);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+
+        .model-update-button:hover:not(:disabled) {
+            border-color: rgba(59, 130, 246, 0.4);
+            color: var(--accent);
+            background-color: var(--accent-subtle);
+        }
+
+        .model-update-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .model-update-button .lucide {
+            width: 13px;
+            height: 13px;
+        }
+
+        .model-update-button.updating .lucide {
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .update-status {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            flex: 1;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .update-status.success { color: var(--success); }
+        .update-status.error { color: var(--error-text); }
+
+        .model-management-section {
+            margin-top: var(--space-md);
+            padding-top: var(--space-md);
+            border-top: 1px solid var(--border);
+        }
+
+        .model-management-title {
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+            margin: 0 0 var(--space-xs) 0;
+        }
+
+        .model-management-desc {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            margin: 0 0 var(--space-sm) 0;
+        }
+
         /* Sidebar Footer */
         #sidebarFooter {
             padding: var(--space-md);
@@ -2542,6 +2622,30 @@
                             <i data-lucide="rotate-ccw"></i>
                             Reset to defaults
                         </button>
+                        <div class="param-update-row">
+                            <button id="updateCurrentModelButton" class="model-update-button" title="Pull latest version of this model from Ollama">
+                                <i data-lucide="download"></i>
+                                Update <span id="updateCurrentModelName">model</span>
+                            </button>
+                            <span id="updateCurrentModelStatus" class="update-status"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="modelMgmtSectionToggle">
+                        Model Management
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="modelMgmtSectionBody" class="settings-section-body">
+                        <p class="modal-description">Pull updated versions of all your locally installed models. Models are updated one by one.</p>
+                        <div class="param-update-row">
+                            <button id="updateAllModelsButton" class="model-update-button" title="Update all installed Ollama models">
+                                <i data-lucide="refresh-cw"></i>
+                                Update All Local Models
+                            </button>
+                            <span id="updateAllModelsStatus" class="update-status"></span>
+                        </div>
                     </div>
                 </div>
 
