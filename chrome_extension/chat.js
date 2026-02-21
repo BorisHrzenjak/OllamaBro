@@ -22,6 +22,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const newChatButton = document.getElementById('newChatButton');
     const collapseSidebarButton = document.getElementById('collapseSidebarButton');
     const conversationList = document.getElementById('conversationList');
+    const conversationSearchInput = document.getElementById('conversationSearchInput');
+    const clearSearchButton = document.getElementById('clearSearchButton');
 
     // Settings modal elements
     const settingsButton = document.getElementById('settingsButton');
@@ -130,6 +132,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     let currentModelName = '';
+    let sidebarSearchQuery = '';
     const storageKeyPrefix = 'ollamaBroChat_';
     const sidebarStateKey = 'ollamaBroSidebarState';
     const draftsKey = 'ollamaBroDrafts';
@@ -1307,8 +1310,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         conversationList.innerHTML = ''; // Clear existing items
         if (!modelData || !modelData.conversations) return;
 
-        const sortedConversations = Object.values(modelData.conversations)
+        let sortedConversations = Object.values(modelData.conversations)
             .sort((a, b) => b.lastMessageTime - a.lastMessageTime); // Newest first
+
+        // Apply search filter if a query exists
+        if (sidebarSearchQuery) {
+            const q = sidebarSearchQuery.toLowerCase();
+            sortedConversations = sortedConversations.filter(conv => {
+                if ((conv.summary || '').toLowerCase().includes(q)) return true;
+                return conv.messages && conv.messages.some(
+                    msg => typeof msg.content === 'string' && msg.content.toLowerCase().includes(q)
+                );
+            });
+        }
+
+        // Show empty state when no results
+        if (sidebarSearchQuery && sortedConversations.length === 0) {
+            const empty = document.createElement('div');
+            empty.id = 'noSearchResults';
+            empty.textContent = 'No matching chats';
+            conversationList.appendChild(empty);
+            return;
+        }
 
         sortedConversations.forEach(conv => {
             const item = document.createElement('div');
@@ -2564,6 +2587,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         currentModelName = newModelName;
+        sidebarSearchQuery = '';
+        conversationSearchInput.value = '';
+        clearSearchButton.style.display = 'none';
         updateModelDisplay(currentModelName);
 
         // Clear any selected images when switching models
@@ -2827,6 +2853,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     exportChatButton.addEventListener('click', exportConversation);
 
     newChatButton.addEventListener('click', () => startNewConversation(currentModelName));
+
+    conversationSearchInput.addEventListener('input', async () => {
+        sidebarSearchQuery = conversationSearchInput.value;
+        clearSearchButton.style.display = sidebarSearchQuery ? 'flex' : 'none';
+        const modelData = await loadModelChatState(currentModelName);
+        populateConversationSidebar(currentModelName, modelData);
+    });
+
+    clearSearchButton.addEventListener('click', async () => {
+        conversationSearchInput.value = '';
+        sidebarSearchQuery = '';
+        clearSearchButton.style.display = 'none';
+        const modelData = await loadModelChatState(currentModelName);
+        populateConversationSidebar(currentModelName, modelData);
+        conversationSearchInput.focus();
+    });
 
     // Settings modal event listeners
     if (settingsButton) {

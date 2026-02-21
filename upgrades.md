@@ -30,7 +30,7 @@ Save named system prompts (e.g., "Code Reviewer", "Translator", "ELI5") as prese
 **8. Model Comparison Mode**
 Send the same message to 2+ models simultaneously and display responses side-by-side. Great for evaluating local models. Would open multiple streaming connections in parallel.
 
-**9. Ollama Model Manager**
+**9. Ollama Model Manager** (IMPLEMENTED)
 A panel showing locally installed models (`/api/tags`) with size, and a pull interface (`/api/pull`) to download new ones — with a progress stream. Lets users manage Ollama without touching the terminal.
 
 ---

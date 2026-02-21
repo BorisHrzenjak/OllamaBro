@@ -366,6 +366,71 @@
             color: var(--error-text);
         }
 
+        #sidebarSearch {
+            padding: var(--space-sm) var(--space-md);
+            border-bottom: 1px solid var(--border);
+        }
+
+        #sidebarSearchWrapper {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 6px var(--space-sm);
+            transition: border-color var(--transition);
+        }
+
+        #sidebarSearchWrapper:focus-within {
+            border-color: var(--accent);
+        }
+
+        #sidebarSearchIcon {
+            color: var(--text-muted);
+            flex-shrink: 0;
+            width: 14px;
+            height: 14px;
+            pointer-events: none;
+        }
+
+        #conversationSearchInput {
+            flex: 1;
+            background: none;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            font-size: var(--font-size-sm);
+            min-width: 0;
+        }
+
+        #conversationSearchInput::placeholder {
+            color: var(--text-muted);
+        }
+
+        #clearSearchButton {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0;
+            display: none;
+            align-items: center;
+            border-radius: var(--radius-sm);
+            transition: color var(--transition);
+        }
+
+        #clearSearchButton:hover {
+            color: var(--text-primary);
+        }
+
+        #noSearchResults {
+            padding: var(--space-md);
+            text-align: center;
+            color: var(--text-muted);
+            font-size: var(--font-size-sm);
+        }
+
         /* Main Chat Area */
         #mainChatArea {
             flex: 1;
@@ -2549,6 +2614,15 @@
                 <div id="contextIndicator" class="context-indicator" title="Estimated context usage">
                     <span id="contextIndicatorIcon"><i data-lucide="database"></i></span>
                     <span id="contextIndicatorText">0 tokens</span>
+                </div>
+            </div>
+            <div id="sidebarSearch">
+                <div id="sidebarSearchWrapper">
+                    <i data-lucide="search" id="sidebarSearchIcon"></i>
+                    <input type="text" id="conversationSearchInput" placeholder="Search chats..." autocomplete="off" spellcheck="false" />
+                    <button id="clearSearchButton" title="Clear search">
+                        <i data-lucide="x"></i>
+                    </button>
                 </div>
             </div>
             <div id="conversationList"></div>
