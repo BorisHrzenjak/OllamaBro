@@ -1234,6 +1234,72 @@
             border-color: rgba(239, 68, 68, 0.5);
         }
 
+        /* Edit button accent on hover */
+        .edit-button:hover { color: var(--accent); border-color: var(--accent); }
+
+        /* Regenerate button accent on hover */
+        .regenerate-button:hover { color: var(--accent); border-color: var(--accent); }
+
+        /* Edit mode UI */
+        .message-edit-container {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
+            width: 100%;
+        }
+        .message-edit-textarea {
+            width: 100%;
+            min-height: 60px;
+            max-height: 300px;
+            padding: var(--space-sm) var(--space-md);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: var(--font-size-md);
+            font-family: inherit;
+            line-height: 1.5;
+            resize: none;
+            outline: none;
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+        .message-edit-textarea:focus {
+            border-color: var(--accent);
+        }
+        .message-edit-buttons {
+            display: flex;
+            gap: var(--space-sm);
+            justify-content: flex-end;
+        }
+        .message-edit-save {
+            padding: var(--space-xs) var(--space-md);
+            background-color: var(--accent);
+            color: var(--accent-text, white);
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity var(--transition);
+        }
+        .message-edit-save:hover { opacity: 0.85; }
+        .message-edit-cancel {
+            padding: var(--space-xs) var(--space-md);
+            background-color: var(--bg-quaternary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+            transition: all var(--transition);
+        }
+        .message-edit-cancel:hover {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
         /* TTS Button */
         .tts-button.speaking {
             background-color: var(--accent);

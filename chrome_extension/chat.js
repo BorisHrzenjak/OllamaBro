@@ -289,7 +289,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             'mic': '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
             'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/>',
             'mic': '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
-            'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/>'
+            'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/>',
+            'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+            'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
         };
 
         if (icons[iconName]) {
@@ -944,7 +946,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    function addMessageToChatUI(sender, initialText, messageClass, modelDataForFilename, images = null) {
+    function addMessageToChatUI(sender, initialText, messageClass, modelDataForFilename, images = null, messageIndex = -1) {
         const messageDiv = document.createElement('div');
         messageDiv.classList.add('message', messageClass);
 
@@ -980,6 +982,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             textContentDiv.textContent = initialText;
         }
         messageDiv.appendChild(textContentDiv);
+
+        if (messageClass === 'user-message' && messageIndex >= 0) {
+            const actionsDiv = document.createElement('div');
+            actionsDiv.classList.add('message-actions');
+            const editButton = document.createElement('button');
+            editButton.classList.add('action-button', 'edit-button');
+            editButton.title = 'Edit message';
+            editButton.appendChild(createLucideIcon('pencil', 16));
+            editButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                if (isStreaming) return;
+                enterEditMode(messageDiv, textContentDiv, messageIndex);
+            });
+            actionsDiv.appendChild(editButton);
+            messageDiv.appendChild(actionsDiv);
+        }
 
         if (messageClass === 'bot-message') {
             const actionsDiv = document.createElement('div');
@@ -1172,13 +1190,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (modelData.conversations[conversationId] && modelData.conversations[conversationId].messages) {
             messages = modelData.conversations[conversationId].messages;
-            messages.forEach(msg => {
+            messages.forEach((msg, index) => {
                 const textContentDiv = addMessageToChatUI(
                     msg.role === 'user' ? 'You' : currentModelName,
                     msg.content,
                     msg.role === 'user' ? 'user-message' : 'bot-message',
                     modelData,
-                    msg.images // Pass images if present
+                    msg.images, // Pass images if present
+                    index
                 );
 
                 // Add metadata to existing bot messages that have it stored
@@ -1192,6 +1211,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Update context indicator
         await updateContextIndicator(messages, modelData.systemPrompt, modelData);
+        updateRegenerateButton();
     }
 
     async function startNewConversation(modelForNewChat = currentModelName) {
@@ -1977,48 +1997,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         closeClearContextModal();
     }
 
-    async function sendMessageToOllama(prompt) {
-        if (!prompt || prompt.trim() === '') return;
-
-        // Clear draft for current conversation when sending
-        let modelData = await loadModelChatState(currentModelName);
-        if (modelData.activeConversationId) {
-            await clearDraft(modelData.activeConversationId);
-        }
-
-        modelData = await loadModelChatState(currentModelName);
-        if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
-            console.warn('No active or valid conversation found, attempting to start a new one.');
-            await startNewConversation(currentModelName);
-            modelData = await loadModelChatState(currentModelName);
-            if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
-                console.error('Failed to start or find an active conversation after attempting to create one.');
-                addMessageToChatUI('System', 'Error: Could not establish an active conversation. Please try refreshing or creating a new chat manually.', 'error-message', modelData);
-                return;
-            }
-        }
+    async function triggerLLMCompletion(modelData) {
         const activeConvId = modelData.activeConversationId;
         const currentConversation = modelData.conversations[activeConvId];
 
-        // Prepare user message with images if any
-        const userMessage = { role: 'user', content: prompt };
-        if (selectedImages.length > 0) {
-            userMessage.images = selectedImages.map(img => ({
-                base64: img.base64,
-                fileName: img.fileName,
-                fileType: img.fileType
-            }));
-        }
-
-        // Add user message to UI and save state
-        addMessageToChatUI('You', prompt, 'user-message', modelData, userMessage.images);
-        currentConversation.messages.push(userMessage);
-        currentConversation.summary = getConversationSummary(currentConversation.messages);
-        currentConversation.lastMessageTime = Date.now();
-        // Do not save yet, save after bot response or error
-
-        messageInput.value = '';
-        clearSelectedImages(); // Clear images after sending
         // Show loading indicator - will hide when first content arrives or on error
         if (loadingIndicator) {
             loadingIndicator.style.display = 'block';
@@ -2265,7 +2247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await updateContextIndicator(currentConversation.messages, modelData.systemPrompt, modelData);
 
         } catch (error) {
-            console.error('Error sending message to Ollama or processing stream:', error);
+            console.error('Error in triggerLLMCompletion:', error);
             let errorMessage = 'Error communicating with the model. Please check the proxy server and Ollama status.';
 
             // Handle AbortError specifically
@@ -2292,7 +2274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentConversation.messages.push({ role: 'assistant', content: currentBotContent + `\n\n[Error: ${errorMessage}]` });
             currentConversation.lastMessageTime = Date.now();
         } finally {
-            console.log('sendMessageToOllama finally block completed');
+            console.log('triggerLLMCompletion finally block completed');
 
             // Reset streaming flag
             isStreaming = false;
@@ -2319,7 +2301,181 @@ document.addEventListener('DOMContentLoaded', async () => {
             await saveModelChatState(currentModelName, modelData);
             populateConversationSidebar(currentModelName, modelData);
             console.log('UI unlocked, state saved, sidebar repopulated in finally block.');
+            updateRegenerateButton();
         }
+    }
+
+    async function sendMessageToOllama(prompt) {
+        if (!prompt || prompt.trim() === '') return;
+
+        // Clear draft for current conversation when sending
+        let modelData = await loadModelChatState(currentModelName);
+        if (modelData.activeConversationId) {
+            await clearDraft(modelData.activeConversationId);
+        }
+
+        modelData = await loadModelChatState(currentModelName);
+        if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
+            console.warn('No active or valid conversation found, attempting to start a new one.');
+            await startNewConversation(currentModelName);
+            modelData = await loadModelChatState(currentModelName);
+            if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
+                console.error('Failed to start or find an active conversation after attempting to create one.');
+                addMessageToChatUI('System', 'Error: Could not establish an active conversation. Please try refreshing or creating a new chat manually.', 'error-message', modelData);
+                return;
+            }
+        }
+        const activeConvId = modelData.activeConversationId;
+        const currentConversation = modelData.conversations[activeConvId];
+
+        // Prepare user message with images if any
+        const userMessage = { role: 'user', content: prompt };
+        if (selectedImages.length > 0) {
+            userMessage.images = selectedImages.map(img => ({
+                base64: img.base64,
+                fileName: img.fileName,
+                fileType: img.fileType
+            }));
+        }
+
+        // Push message first so index is correct, then add to UI
+        currentConversation.messages.push(userMessage);
+        currentConversation.summary = getConversationSummary(currentConversation.messages);
+        currentConversation.lastMessageTime = Date.now();
+        addMessageToChatUI('You', prompt, 'user-message', modelData, userMessage.images, currentConversation.messages.length - 1);
+
+        messageInput.value = '';
+        clearSelectedImages(); // Clear images after sending
+
+        await triggerLLMCompletion(modelData);
+    }
+
+    function enterEditMode(messageDiv, textContentDiv, messageIndex) {
+        if (messageDiv.classList.contains('editing')) return;
+        messageDiv.classList.add('editing');
+        const originalText = textContentDiv.textContent;
+        textContentDiv.style.display = 'none';
+        const actionsDiv = messageDiv.querySelector('.message-actions');
+        if (actionsDiv) actionsDiv.style.display = 'none';
+
+        const editContainer = document.createElement('div');
+        editContainer.classList.add('message-edit-container');
+
+        const textarea = document.createElement('textarea');
+        textarea.classList.add('message-edit-textarea');
+        textarea.value = originalText;
+
+        const buttonRow = document.createElement('div');
+        buttonRow.classList.add('message-edit-buttons');
+
+        const saveBtn = document.createElement('button');
+        saveBtn.classList.add('message-edit-save');
+        saveBtn.textContent = 'Save & Send';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.classList.add('message-edit-cancel');
+        cancelBtn.textContent = 'Cancel';
+
+        buttonRow.appendChild(saveBtn);
+        buttonRow.appendChild(cancelBtn);
+        editContainer.appendChild(textarea);
+        editContainer.appendChild(buttonRow);
+        messageDiv.appendChild(editContainer);
+
+        // Auto-resize
+        textarea.addEventListener('input', () => {
+            textarea.style.height = 'auto';
+            textarea.style.height = textarea.scrollHeight + 'px';
+        });
+        textarea.focus();
+        textarea.style.height = textarea.scrollHeight + 'px';
+
+        textarea.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') cancelBtn.click();
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                e.preventDefault();
+                saveBtn.click();
+            }
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            const newContent = textarea.value.trim();
+            if (!newContent) return;
+            exitEditMode(messageDiv, textContentDiv, actionsDiv, editContainer);
+            await saveEditedMessage(messageIndex, newContent);
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            exitEditMode(messageDiv, textContentDiv, actionsDiv, editContainer);
+        });
+    }
+
+    function exitEditMode(messageDiv, textContentDiv, actionsDiv, editContainer) {
+        messageDiv.classList.remove('editing');
+        textContentDiv.style.display = '';
+        if (actionsDiv) actionsDiv.style.display = '';
+        if (editContainer && editContainer.parentNode === messageDiv) {
+            messageDiv.removeChild(editContainer);
+        }
+    }
+
+    async function saveEditedMessage(messageIndex, newContent) {
+        if (isStreaming) return;
+        let modelData = await loadModelChatState(currentModelName);
+        const activeConvId = modelData.activeConversationId;
+        if (!activeConvId || !modelData.conversations[activeConvId]) return;
+        const conversation = modelData.conversations[activeConvId];
+
+        // Preserve images from original message if present
+        const originalMsg = conversation.messages[messageIndex];
+        const updatedMsg = { ...originalMsg, content: newContent };
+        delete updatedMsg.metadata;
+
+        // Truncate and replace
+        conversation.messages = conversation.messages.slice(0, messageIndex);
+        conversation.messages.push(updatedMsg);
+        conversation.summary = getConversationSummary(conversation.messages);
+        conversation.lastMessageTime = Date.now();
+
+        await saveModelChatState(currentModelName, modelData);
+        displayConversationMessages(modelData, activeConvId);
+        await triggerLLMCompletion(modelData);
+    }
+
+    async function regenerateLastResponse() {
+        if (isStreaming) return;
+        let modelData = await loadModelChatState(currentModelName);
+        const activeConvId = modelData.activeConversationId;
+        if (!activeConvId || !modelData.conversations[activeConvId]) return;
+        const conversation = modelData.conversations[activeConvId];
+        const messages = conversation.messages;
+        if (messages.length === 0 || messages[messages.length - 1].role !== 'assistant') return;
+
+        conversation.messages = messages.slice(0, messages.length - 1);
+        conversation.lastMessageTime = Date.now();
+        await saveModelChatState(currentModelName, modelData);
+        displayConversationMessages(modelData, activeConvId);
+        await triggerLLMCompletion(modelData);
+    }
+
+    function updateRegenerateButton() {
+        document.querySelectorAll('.regenerate-button').forEach(btn => btn.remove());
+        if (isStreaming) return;
+        const allBotMessages = chatContainer.querySelectorAll('.bot-message');
+        if (allBotMessages.length === 0) return;
+        const lastBotMessage = allBotMessages[allBotMessages.length - 1];
+        const actionsDiv = lastBotMessage.querySelector('.message-actions');
+        if (!actionsDiv) return;
+
+        const regenBtn = document.createElement('button');
+        regenBtn.classList.add('action-button', 'regenerate-button');
+        regenBtn.title = 'Regenerate response';
+        regenBtn.appendChild(createLucideIcon('refresh-cw', 16));
+        regenBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            regenerateLastResponse();
+        });
+        actionsDiv.insertBefore(regenBtn, actionsDiv.firstChild);
     }
 
 
