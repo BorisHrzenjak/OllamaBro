@@ -380,6 +380,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function makeCloudBadge(size = 14) {
+        const span = document.createElement('span');
+        span.className = 'cloud-icon cap-badge';
+        span.title = 'Cloud model';
+        span.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" fill="#3b82f6" viewBox="0 0 16 16"><path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"/></svg>`;
+        return span;
+    }
+
     // Cloud model detection
     function isCloudModel(modelName) {
         if (!modelName || typeof modelName !== 'string') return false;
@@ -433,7 +441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const container = document.createElement('div');
         container.style.display = 'flex';
         container.style.alignItems = 'center';
-        container.style.gap = 'var(--spacing-xs)';
+        container.style.gap = '6px';
 
         // Add model name text
         const textSpan = document.createElement('span');
@@ -441,13 +449,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         container.appendChild(textSpan);
 
         // Add cloud icon for cloud models
-        if (modelName.includes('.cloud')) {
-            const cloudIcon = document.createElement('span');
-            cloudIcon.classList.add('cloud-icon');
-            cloudIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"/></svg>';
-            cloudIcon.title = 'Cloud model';
-            cloudIcon.style.color = '#3b82f6'; // Blue color for cloud icon
-            container.appendChild(cloudIcon);
+        if (isCloudModel(modelName)) {
+            container.appendChild(makeCloudBadge(14));
         }
 
         modelNameDisplay.appendChild(container);
@@ -1423,12 +1426,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- Model Update Functions ---
 
-    async function pullModel(modelName, statusEl, buttonEl) {
+    async function pullModel(modelName, statusEl, buttonEl, barEl = null) {
         const icon = buttonEl.querySelector('.lucide');
         buttonEl.disabled = true;
         buttonEl.classList.add('updating');
         statusEl.textContent = 'Connecting...';
         statusEl.className = 'update-status';
+        if (barEl) barEl.style.width = '0%';
 
         try {
             const response = await fetch('http://localhost:3000/proxy/api/pull', {
@@ -1465,6 +1469,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (json.total && json.completed) {
                                 const pct = Math.round((json.completed / json.total) * 100);
                                 text += ` ${pct}%`;
+                                if (barEl) barEl.style.width = pct + '%';
                             }
                             statusEl.textContent = text;
                         }
@@ -1476,6 +1481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
             }
 
+            if (barEl) barEl.style.width = '100%';
             statusEl.textContent = 'Up to date';
             statusEl.className = 'update-status success';
         } catch (err) {
@@ -1577,6 +1583,62 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --- End Model Update Functions ---
 
+    async function populateMgmtModelList() {
+        const listEl = document.getElementById('mgmtModelList');
+        if (!listEl) return;
+
+        listEl.innerHTML = '<span class="mgmt-loading">Loading...</span>';
+
+        try {
+            let models = availableModels.length > 0 ? availableModels : [];
+            if (models.length === 0) {
+                const res = await fetch('http://localhost:3000/proxy/api/tags');
+                if (!res.ok) throw new Error('Could not fetch model list');
+                const data = await res.json();
+                models = data.models || [];
+            }
+
+            if (models.length === 0) {
+                listEl.innerHTML = '<span class="mgmt-empty">No local models found.</span>';
+                return;
+            }
+
+            listEl.innerHTML = '';
+            if (typeof lucide !== 'undefined') lucide.createIcons({ el: listEl });
+
+            for (const model of models) {
+                const row = document.createElement('div');
+                row.className = 'mgmt-model-row';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'mgmt-model-name';
+                nameSpan.textContent = model.name;
+                nameSpan.title = model.name;
+                row.appendChild(nameSpan);
+
+                const capsSpan = document.createElement('span');
+                capsSpan.className = 'mgmt-model-caps';
+                row.appendChild(capsSpan);
+
+                const sizeSpan = document.createElement('span');
+                sizeSpan.className = 'mgmt-model-size';
+                if (model.size && model.size > 0) {
+                    sizeSpan.textContent = (model.size / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+                }
+                row.appendChild(sizeSpan);
+
+                listEl.appendChild(row);
+
+                // Show cloud badge synchronously
+                if (isCloudModel(model.name)) {
+                    capsSpan.appendChild(makeCloudBadge(13));
+                }
+            }
+        } catch (err) {
+            listEl.innerHTML = `<span class="mgmt-error">Error: ${err.message}</span>`;
+        }
+    }
+
     function toggleSection(toggleId, bodyId) {
         const toggle = document.getElementById(toggleId);
         const body = document.getElementById(bodyId);
@@ -1601,6 +1663,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Reset update status on open
         const updateStatusEl = document.getElementById('updateCurrentModelStatus');
         if (updateStatusEl) { updateStatusEl.textContent = ''; updateStatusEl.className = 'update-status'; }
+
+        // Populate installed models list in Model Management tab
+        if (document.getElementById('mgmtModelList')) populateMgmtModelList();
 
         // Load current settings
         loadModelChatState(currentModelName).then(modelData => {
@@ -2583,13 +2648,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             detailsContainer.style.gap = '8px';
 
             // Add cloud icon for cloud models
-            if (modelName.includes('.cloud')) {
-                const cloudIcon = document.createElement('span');
-                cloudIcon.classList.add('cloud-icon');
-                cloudIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383z"/></svg>';
-                cloudIcon.title = 'Cloud model';
-                cloudIcon.style.color = '#3b82f6';
-                detailsContainer.appendChild(cloudIcon);
+            if (isCloudModel(modelName)) {
+                detailsContainer.appendChild(makeCloudBadge(14));
             }
 
             // Add size display
@@ -2828,6 +2888,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     const updateAllModelsButton = document.getElementById('updateAllModelsButton');
     if (updateAllModelsButton) {
         updateAllModelsButton.addEventListener('click', updateAllModels);
+    }
+
+    // Pull new model UI
+    const pullNewModelButton = document.getElementById('pullNewModelButton');
+    const pullNewModelInput = document.getElementById('pullNewModelInput');
+    const pullNewModelProgress = document.getElementById('pullNewModelProgress');
+    const pullNewModelBar = document.getElementById('pullNewModelBar');
+    const pullNewModelStatus = document.getElementById('pullNewModelStatus');
+    if (pullNewModelButton && pullNewModelInput) {
+        pullNewModelButton.addEventListener('click', async () => {
+            const name = pullNewModelInput.value.trim();
+            if (!name) return;
+            pullNewModelProgress.style.display = 'block';
+            pullNewModelBar.style.width = '0%';
+            await pullModel(name, pullNewModelStatus, pullNewModelButton, pullNewModelBar);
+            populateMgmtModelList();
+        });
+        pullNewModelInput.addEventListener('keydown', e => {
+            if (e.key === 'Enter') pullNewModelButton.click();
+        });
+    }
+
+    const refreshMgmtListButton = document.getElementById('refreshMgmtListButton');
+    if (refreshMgmtListButton) {
+        refreshMgmtListButton.addEventListener('click', populateMgmtModelList);
     }
 
     // Set up bidirectional slider ↔ number sync

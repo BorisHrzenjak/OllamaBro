@@ -2451,6 +2451,83 @@
             cursor: default;
             flex-shrink: 0;
         }
+        /* Model Management Panel */
+        .mgmt-panel {
+            padding: var(--space-sm) 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .mgmt-panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: var(--space-xs);
+        }
+        .mgmt-panel-title {
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .mgmt-refresh-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 2px 4px;
+            border-radius: var(--radius-sm);
+            display: flex;
+            align-items: center;
+            line-height: 1;
+        }
+        .mgmt-refresh-btn:hover { color: var(--text-primary); background: var(--bg-quaternary); }
+        .mgmt-model-list {
+            max-height: 200px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .mgmt-model-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 4px;
+            border-radius: var(--radius-sm);
+        }
+        .mgmt-model-row:hover { background: var(--bg-quaternary); }
+        .mgmt-model-name {
+            flex: 1;
+            min-width: 0;
+            font-size: var(--font-size-sm);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .mgmt-model-size {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+        .mgmt-model-caps { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
+        .cap-badge { display: inline-flex; align-items: center; line-height: 1; }
+        .pull-input-row { display: flex; gap: var(--space-xs); align-items: center; }
+        .pull-progress-track {
+            height: 4px;
+            background: var(--bg-quaternary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .pull-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 2px;
+            transition: width 0.2s ease;
+            width: 0%;
+        }
+        .mgmt-empty, .mgmt-loading { font-size: var(--font-size-xs); color: var(--text-muted); padding: 8px 4px; }
+        .mgmt-error { font-size: var(--font-size-xs); color: var(--error-text); padding: 8px 4px; }
+
     </style>
 </head>
 
@@ -2724,14 +2801,55 @@
                         <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
                     </button>
                     <div id="modelMgmtSectionBody" class="settings-section-body">
-                        <p class="modal-description">Pull updated versions of all your locally installed models. Models are updated one by one.</p>
-                        <div class="param-update-row">
-                            <button id="updateAllModelsButton" class="model-update-button" title="Update all installed Ollama models">
-                                <i data-lucide="refresh-cw"></i>
-                                Update All Local Models
-                            </button>
-                            <span id="updateAllModelsStatus" class="update-status"></span>
+
+                        <!-- Installed Models -->
+                        <div class="mgmt-panel">
+                            <div class="mgmt-panel-header">
+                                <span class="mgmt-panel-title">Installed Models</span>
+                                <button id="refreshMgmtListButton" class="mgmt-refresh-btn" title="Refresh list">
+                                    <i data-lucide="refresh-cw"></i>
+                                </button>
+                            </div>
+                            <div id="mgmtModelList" class="mgmt-model-list">
+                                <span class="mgmt-loading">Loading...</span>
+                            </div>
                         </div>
+
+                        <!-- Pull New Model -->
+                        <div class="mgmt-panel">
+                            <div class="mgmt-panel-header">
+                                <span class="mgmt-panel-title">Pull Model</span>
+                            </div>
+                            <div class="pull-input-row">
+                                <input type="text" id="pullNewModelInput" class="param-number" style="width:auto;flex:1;text-align:left;" placeholder="e.g. tinyllama">
+                                <button id="pullNewModelButton" class="model-update-button">
+                                    <i data-lucide="download"></i>
+                                    Pull
+                                </button>
+                            </div>
+                            <div id="pullNewModelProgress" style="display:none;margin-top:6px;">
+                                <div class="pull-progress-track">
+                                    <div id="pullNewModelBar" class="pull-progress-fill"></div>
+                                </div>
+                                <span id="pullNewModelStatus" class="update-status" style="display:block;margin-top:4px;"></span>
+                            </div>
+                        </div>
+
+                        <!-- Update All -->
+                        <div class="mgmt-panel" style="border-bottom:none;">
+                            <div class="mgmt-panel-header">
+                                <span class="mgmt-panel-title">Update All Models</span>
+                            </div>
+                            <p class="modal-description" style="margin-bottom:var(--space-sm);">Pull updated versions of all your locally installed models. Models are updated one by one.</p>
+                            <div class="param-update-row">
+                                <button id="updateAllModelsButton" class="model-update-button" title="Update all installed Ollama models">
+                                    <i data-lucide="refresh-cw"></i>
+                                    Update All Local Models
+                                </button>
+                                <span id="updateAllModelsStatus" class="update-status"></span>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
