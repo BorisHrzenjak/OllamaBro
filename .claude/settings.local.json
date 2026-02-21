@@ -7,7 +7,8 @@
       "mcp__MCP_DOCKER__brave_web_search",
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(findstr:*)"
     ],
     "deny": []
   }

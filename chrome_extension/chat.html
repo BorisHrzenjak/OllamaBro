@@ -23,9 +23,10 @@
             --text-primary: #fafafa;
             --text-secondary: #a3a3a3;
             --text-muted: #737373;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --accent-subtle: rgba(59, 130, 246, 0.1);
+            --accent: #f5a623;
+            --accent-hover: #e8971a;
+            --accent-subtle: rgba(245, 166, 35, 0.1);
+            --accent-text: #1a1a1a;
             --border: #262626;
             --border-subtle: #1f1f1f;
             --error-bg: rgba(239, 68, 68, 0.1);
@@ -68,6 +69,7 @@
             --accent: #bd93f9;
             --accent-hover: #a97ef7;
             --accent-subtle: rgba(189, 147, 249, 0.12);
+            --accent-text: #1e1f29;
             --border: #44475a;
             --border-subtle: #373844;
             --error-bg: rgba(255, 85, 85, 0.12);
@@ -88,6 +90,7 @@
             --accent: #7aa2f7;
             --accent-hover: #6a91e7;
             --accent-subtle: rgba(122, 162, 247, 0.12);
+            --accent-text: #13141f;
             --border: #292e42;
             --border-subtle: #1e2030;
             --error-bg: rgba(247, 118, 142, 0.12);
@@ -108,6 +111,7 @@
             --accent: #0969da;
             --accent-hover: #0860ca;
             --accent-subtle: rgba(9, 105, 218, 0.1);
+            --accent-text: white;
             --border: #d8dee4;
             --border-subtle: #eaeef2;
             --error-bg: rgba(207, 34, 46, 0.08);
@@ -128,6 +132,7 @@
             --accent: #268bd2;
             --accent-hover: #1a7ac0;
             --accent-subtle: rgba(38, 139, 210, 0.1);
+            --accent-text: white;
             --border: #ccc5af;
             --border-subtle: #dfd8c2;
             --error-bg: rgba(220, 50, 47, 0.1);
@@ -148,6 +153,7 @@
             --accent: #1e66f5;
             --accent-hover: #1a5ce0;
             --accent-subtle: rgba(30, 102, 245, 0.1);
+            --accent-text: white;
             --border: #ccd0da;
             --border-subtle: #dce0e8;
             --error-bg: rgba(210, 15, 57, 0.08);
@@ -510,7 +516,7 @@
         .user-message {
             align-self: flex-start;
             background-color: var(--accent);
-            color: white;
+            color: var(--accent-text, white);
         }
 
         .bot-message {
@@ -700,6 +706,13 @@
 
         #sendButton:hover {
             background-color: var(--accent-hover);
+            box-shadow: 0 0 0 3px var(--accent-subtle), 0 2px 8px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+        }
+
+        #sendButton:active {
+            transform: translateY(0);
+            box-shadow: 0 0 0 2px var(--accent-subtle);
         }
 
         #sendButton:disabled {
@@ -1052,6 +1065,13 @@
 
         .modal-button.primary:hover {
             background-color: var(--accent-hover);
+            box-shadow: 0 0 0 3px var(--accent-subtle), 0 2px 8px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+        }
+
+        .modal-button.primary:active {
+            transform: translateY(0);
+            box-shadow: 0 0 0 2px var(--accent-subtle);
         }
 
         .modal-button.secondary {
@@ -2402,7 +2422,7 @@
                 <button id="collapseSidebarButton" title="Toggle sidebar">
                     <i data-lucide="panel-left-close"></i>
                 </button>
-                <h1>OllamaBro</h1>
+                <h1>Ollama<span style="color:var(--accent)">Bro</span></h1>
                 <div id="modelNameDisplay">Loading...</div>
                 <span id="personaBadge" class="persona-badge" style="display: none;" title="Active persona"></span>
                 <button id="clearChatButton" class="header-icon-button" title="Clear conversation">
@@ -2465,7 +2485,7 @@
                         <button class="theme-swatch" data-theme-id="default-dark">
                             <div class="theme-swatch-preview" style="background:#0a0a0a;">
                                 <div class="swatch-bar" style="background:#141414;width:80%;"></div>
-                                <div class="swatch-bar" style="background:#3b82f6;width:50%;"></div>
+                                <div class="swatch-bar" style="background:#f5a623;width:50%;"></div>
                                 <div class="swatch-bar" style="background:#262626;width:65%;"></div>
                             </div>
                             <span class="theme-swatch-name">Default</span>
