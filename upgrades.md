@@ -2,7 +2,7 @@
 
 ## High Impact / Quick Wins
 
-**1. Message Editing + Regeneration**
+**1. Message Editing + Regeneration** (IMPLEMENTED)
 Allow editing any past user message to "branch" the conversation from that point, discarding everything after. Also add a "Regenerate" button on the last AI response. The abort controller infrastructure is already there.
 
 **2. Prompt History Navigation** (IMPLEMENTED)
@@ -24,7 +24,7 @@ A button (or context menu option) that injects the current page's `document.body
 **6. Model Parameter Controls**
 Expose `temperature`, `top_p`, `top_k`, `seed`, `repeat_penalty`, and `num_predict` sliders/inputs in the settings modal per-conversation. The proxy already forwards to Ollama — just need to pass these in the request body.
 
-**7. Persona / System Prompt Presets**
+**7. Persona / System Prompt Presets** (IMPLEMENTED)
 Save named system prompts (e.g., "Code Reviewer", "Translator", "ELI5") as presets. One-click to apply. Stored in `chrome.storage.local`.
 
 **8. Model Comparison Mode**
