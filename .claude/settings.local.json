@@ -8,7 +8,11 @@
       "Bash(netstat:*)",
       "Bash(taskkill:*)",
       "Bash(curl:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "mcp__MCP_DOCKER__fetch",
+      "mcp__MCP_DOCKER__browser_navigate",
+      "Bash(pm2 logs:*)",
+      "Bash(pm2 restart:*)"
     ],
     "deny": []
   }

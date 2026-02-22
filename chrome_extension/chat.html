@@ -819,6 +819,12 @@
             animation: pulse-recording 1.5s infinite;
         }
 
+        /* Web Search Button Active State */
+        #webSearchButton.active {
+            color: var(--accent);
+            background-color: var(--accent-subtle);
+        }
+
         @keyframes pulse-recording {
             0% {
                 box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
@@ -2677,6 +2683,9 @@
                 </button>
                 <button id="micButton" class="input-icon-button" title="Voice Input">
                     <i data-lucide="mic"></i>
+                </button>
+                <button id="webSearchButton" class="input-icon-button" title="Web Search: OFF">
+                    <i data-lucide="globe"></i>
                 </button>
                 <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
                 <button id="sendButton">Send</button>

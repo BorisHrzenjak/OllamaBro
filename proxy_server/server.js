@@ -1,7 +1,65 @@
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const { URL } = require('url');
+
+// --- Web Search (Tavily + Jina Reader) ---
+
+const SEARCH_TRIGGERS = [
+    /\b(today|yesterday|this (week|month|year)|right now|currently|latest|recent|newest)\b/i,
+    /\b(breaking|just announced|just released|as of \d{4})\b/i,
+    /\b(what('s| is| are) the? (current|latest|newest|price|score|weather))\b/i,
+    /\b(news about|update on|what happened (to|with|at)|who won|who is the current)\b/i,
+    /\b(20(24|25|26))\b/,
+    /\b(stock price|weather forecast|election results|release date)\b/i,
+];
+
+function heuristicNeedsSearch(text) {
+    return SEARCH_TRIGGERS.some(re => re.test(text));
+}
+
+function extractUrls(text) {
+    const urlRegex = /https?:\/\/[^\s)>,"'\]]+/g;
+    return [...new Set(text.match(urlRegex) || [])];
+}
+
+// Jina Reader: fetches live page content as markdown, free, no API key needed
+async function fetchPageViaJina(url) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000); // 10s max
+    try {
+        const resp = await fetch(`https://r.jina.ai/${url}`, {
+            headers: { 'Accept': 'text/plain', 'X-No-Cache': 'true' },
+            signal: controller.signal
+        });
+        if (!resp.ok) throw new Error(`Jina HTTP ${resp.status}`);
+        const text = await resp.text();
+        return text.slice(0, 4000); // cap to avoid flooding context window
+    } finally {
+        clearTimeout(timeout);
+    }
+}
+
+async function fetchTavilyResults(query) {
+    const apiKey = process.env.TAVILY_API_KEY;
+    if (!apiKey || apiKey === 'your_tavily_api_key_here') {
+        console.warn('[Search] TAVILY_API_KEY not set in .env — skipping search');
+        return null;
+    }
+    const resp = await fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            api_key: apiKey,
+            query: query.slice(0, 300),
+            max_results: 5,
+            search_depth: 'basic'
+        })
+    });
+    if (!resp.ok) throw new Error(`Tavily HTTP ${resp.status}`);
+    return resp.json();
+}
 
 const app = express();
 const PORT = 3000;
@@ -213,7 +271,7 @@ app.post('/api/tts/generate', async (req, res) => {
 
 // --- Ollama Proxy ---
 
-app.all('/proxy/*', (req, res) => {
+app.all('/proxy/*', async (req, res) => {
     const originalPath = req.params[0];
     const ollamaPath = '/' + originalPath;
     const targetUrlString = OLLAMA_API_BASE_URL + ollamaPath;
@@ -286,17 +344,71 @@ app.all('/proxy/*', (req, res) => {
             if (ollamaPath.startsWith('/api/chat') && contentType === 'application/json') {
                 try {
                     const ollamaPayload = JSON.parse(req.rawBody);
-                    
+
                     // Ensure streaming: true for /api/chat
                     // Ollama defaults to streaming if 'stream' is not present or true.
                     if (ollamaPayload.hasOwnProperty('stream') && ollamaPayload.stream === false) {
-                        ollamaPayload.stream = true; 
+                        ollamaPayload.stream = true;
                         console.log('Proxy to Ollama: Modified payload for /api/chat to ensure streaming (changed stream:false to stream:true).');
                     } else if (!ollamaPayload.hasOwnProperty('stream')) {
                         ollamaPayload.stream = true;
                         console.log('Proxy to Ollama: Modified payload for /api/chat to ensure streaming (added stream:true).');
                     }
                     // If ollamaPayload.stream is already true, no changes needed to the stream property.
+
+                    // --- Web search context injection ---
+                    const lastMsg = ollamaPayload.messages?.at(-1);
+
+                    if (lastMsg?.role === 'user') {
+                        const messageContent = lastMsg.content || '';
+                        const webSearchRequested = ollamaPayload._webSearch === true;
+                        const contextParts = [];
+                        const today = new Date().toISOString().split('T')[0];
+
+                        // Track 1: fetch any URLs in the message via Jina Reader (live page content)
+                        const urls = extractUrls(messageContent);
+                        console.log(`[Search] URLs found in message: ${JSON.stringify(urls)}`);
+                        for (const url of urls.slice(0, 2)) {
+                            try {
+                                console.log(`[Search] Fetching URL via Jina: ${url}`);
+                                const content = await fetchPageViaJina(url);
+                                contextParts.push(`Retrieved page (${url}):\n${content}`);
+                                console.log(`[Search] Jina: got ${content.length} chars from ${url}`);
+                            } catch (jinaErr) {
+                                console.warn(`[Search] Jina failed for ${url}:`, jinaErr.message);
+                            }
+                        }
+
+                        // Track 2: Tavily search if toggle is on or heuristic triggers
+                        if (webSearchRequested || heuristicNeedsSearch(messageContent)) {
+                            try {
+                                const query = messageContent.slice(0, 300);
+                                console.log(`[Search] Querying Tavily for: "${query.slice(0, 80)}"`);
+                                const data = await fetchTavilyResults(query);
+                                if (data?.results?.length > 0) {
+                                    const snippets = data.results
+                                        .map((r, i) => `[${i + 1}] ${r.title} — ${r.url}\n${r.content}`)
+                                        .join('\n\n');
+                                    contextParts.push(`Web search results:\n${snippets}`);
+                                    console.log(`[Search] Tavily: injected ${data.results.length} results`);
+                                }
+                            } catch (searchErr) {
+                                console.warn('[Search] Tavily failed, continuing without search context:', searchErr.message);
+                            }
+                        }
+
+                        // Inject all gathered context into the system message
+                        if (contextParts.length > 0) {
+                            const contextBlock = `The following information was retrieved by a tool before this conversation. Use it to answer the user directly — do not say you cannot access the internet, as this data is already provided to you.\n\n${contextParts.join('\n\n')}\n\nToday's date: ${today}.`;
+                            const sysIdx = ollamaPayload.messages.findIndex(m => m.role === 'system');
+                            if (sysIdx >= 0) {
+                                ollamaPayload.messages[sysIdx].content = contextBlock + '\n\n' + ollamaPayload.messages[sysIdx].content;
+                            } else {
+                                ollamaPayload.messages.unshift({ role: 'system', content: contextBlock });
+                            }
+                        }
+                    }
+                    delete ollamaPayload._webSearch; // strip internal flag before forwarding
 
                     bodyToSend = JSON.stringify(ollamaPayload);
                 } catch (e) {

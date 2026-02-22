@@ -37,7 +37,7 @@ A panel showing locally installed models (`/api/tags`) with size, and a pull int
 
 ## Conversation Organization
 
-**10. Conversation Search**
+**10. Conversation Search** (IMPLEMENTED)
 A search bar in the sidebar that filters conversations by title or searches through message content stored in `chrome.storage.local`. Already have the data structure — needs a search UI.
 
 **11. Conversation Pinning & Tagging**

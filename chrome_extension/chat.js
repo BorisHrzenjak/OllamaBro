@@ -56,6 +56,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const imagePreviewArea = document.getElementById('imagePreviewArea');
     const dragDropOverlay = document.getElementById('dragDropOverlay');
     const micButton = document.getElementById('micButton');
+    const webSearchButton = document.getElementById('webSearchButton');
+
+    // Web search state
+    let webSearchEnabled = false;
+
+    webSearchButton.addEventListener('click', () => {
+        webSearchEnabled = !webSearchEnabled;
+        webSearchButton.classList.toggle('active', webSearchEnabled);
+        webSearchButton.title = webSearchEnabled ? 'Web Search: ON' : 'Web Search: OFF';
+    });
 
     // Speech Recognition Setup
     let recognition = null;
@@ -2155,6 +2165,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 messages: apiMessages,
                 stream: true
             };
+
+            if (webSearchEnabled) requestBody._webSearch = true;
 
             // Attach non-null model params as Ollama options
             const p = modelData.params || {};
