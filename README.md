@@ -13,6 +13,13 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
   - 👁️ Green eye icon — vision-capable models (LLaVA, Llama 3.2-Vision, Gemma3, etc.)
   - 🧠 Purple brain icon — reasoning-optimised models (Qwen2.5, DeepSeek, CodeLlama, etc.)
 - Smart capability detection via Ollama API (`/api/show`), template analysis, and architecture inspection, with caching to avoid repeated calls
+- **Hardware Recommendations** — Settings → Model Management → *View Recommended Models* opens a popup powered by [llmfit](https://github.com/notBradPitt/llmfit) that analyses your GPU/CPU and lists every model from a curated catalogue, grouped by fit level:
+  - 🟢 **Perfect** — fully fits in VRAM at the recommended quantisation
+  - 🟡 **Good** — runs well with minor tradeoffs
+  - 🟠 **Marginal** — fits but tight
+  - 🔴 **Too Large** — won't fit on current hardware
+  - Each card shows estimated speed (t/s), VRAM usage %, best quantisation, run mode, and a **Pull** button that pre-fills the model name in the Pull Model input
+  - Requires llmfit to be installed (optional — the rest of the extension works fine without it)
 
 ### Chat Interface
 - Dedicated browser tab chat window with a collapsible conversation sidebar
@@ -22,6 +29,16 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **`<think>` tag support** — reasoning traces rendered in a collapsible "thinking" block
 - **Message actions** (appear on hover): copy, regenerate, text-to-speech
 - **Message metadata** (appear on hover): token count, generation speed, timing
+
+### Web Search
+- **Globe button** in the input bar toggles web search on/off for the current message
+- **Auto-trigger** — search fires automatically when your message contains temporal or news-related keywords (`today`, `latest`, `newest`, `breaking`, `news about`, year mentions, etc.)
+- **Live URL fetching** — any `http(s)://` URL you include in a message is automatically fetched and its live content injected into context (no toggle needed)
+- Two complementary backends:
+  - *Jina Reader* — free, no API key, fetches and extracts any URL as clean text in real time
+  - *Tavily* — AI-optimised web search with full page content extraction (free tier: 1,000 searches/month, no credit card)
+- Search results are injected into the model's context before the request is sent — works with every local model, no tool-calling support required
+- Configure your Tavily key in `proxy_server/.env` (see Setup)
 
 ### Multimodal / Vision
 - Image upload UI appears automatically for vision-capable models
@@ -91,6 +108,8 @@ Theme is applied instantly and persisted across sessions. Code blocks automatica
 - [Ollama](https://ollama.com/) running locally on port 11434
 - [Node.js](https://nodejs.org/) (includes npm)
 - Google Chrome
+- *(Optional)* [Tavily](https://tavily.com/) free API key for web search (1,000 searches/month, no credit card)
+- *(Optional)* [llmfit](https://github.com/notBradPitt/llmfit) for hardware-aware model recommendations
 
 ## Setup
 
@@ -116,6 +135,32 @@ This single script will:
 3. Click **Load unpacked** and select the `chrome_extension/` folder
 
 The OllamaBro icon will appear in the toolbar. Click it to pick a model and start chatting.
+
+### Web Search (optional)
+
+To enable Tavily-powered search, add your API key to `proxy_server/.env`:
+
+```
+TAVILY_API_KEY=your_key_here
+```
+
+Get a free key at [tavily.com](https://tavily.com) — no credit card required. URL fetching via Jina Reader works without any key.
+
+Restart the proxy after adding the key:
+
+```bash
+pm2 restart ollama-proxy
+```
+
+### Hardware Recommendations (optional)
+
+Install [llmfit](https://github.com/notBradPitt/llmfit) to enable the *Recommended for Your Hardware* popup in Settings → Model Management:
+
+```bash
+cargo install llmfit
+```
+
+> Requires the [Rust toolchain](https://rustup.rs/). Once installed, no further configuration is needed — OllamaBro detects it automatically via the proxy server.
 
 ---
 

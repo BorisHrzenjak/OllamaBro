@@ -12,7 +12,12 @@
       "mcp__MCP_DOCKER__fetch",
       "mcp__MCP_DOCKER__browser_navigate",
       "Bash(pm2 logs:*)",
-      "Bash(pm2 restart:*)"
+      "Bash(pm2 restart:*)",
+      "Bash(echo could not run llmfit:*)",
+      "Bash(head:*)",
+      "Bash(llmfit system:*)",
+      "Bash(llmfit fit:*)",
+      "Bash(python:*)"
     ],
     "deny": []
   }

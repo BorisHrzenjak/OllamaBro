@@ -3,6 +3,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const { URL } = require('url');
+const { spawn } = require('child_process');
 
 // --- Web Search (Tavily + Jina Reader) ---
 
@@ -267,6 +268,46 @@ app.post('/api/tts/generate', async (req, res) => {
             res.end();
         }
     }
+});
+
+// --- LLMFit Hardware Recommendations ---
+
+app.get('/api/llmfit/recommend', (req, res) => {
+    const proc = spawn('llmfit', ['--json', 'fit']);
+    let stdout = '';
+    let stderr = '';
+    let done = false;
+
+    const finish = () => { done = true; };
+
+    proc.stdout.on('data', d => { stdout += d; });
+    proc.stderr.on('data', d => { stderr += d; });
+
+    proc.on('error', err => {
+        if (done || res.headersSent) return;
+        finish();
+        res.status(500).json({ error: `llmfit not found or failed to start: ${err.message}` });
+    });
+
+    proc.on('close', code => {
+        if (done || res.headersSent) return;
+        finish();
+        if (code !== 0) {
+            return res.status(500).json({ error: stderr.trim() || `llmfit exited with code ${code}` });
+        }
+        try {
+            res.json(JSON.parse(stdout));
+        } catch (e) {
+            res.status(500).json({ error: 'Failed to parse llmfit output' });
+        }
+    });
+
+    setTimeout(() => {
+        if (done || res.headersSent) return;
+        finish();
+        proc.kill();
+        res.status(504).json({ error: 'llmfit timed out' });
+    }, 30000);
 });
 
 // --- Ollama Proxy ---

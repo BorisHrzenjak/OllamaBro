@@ -1672,6 +1672,267 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // Convert llmfit's HuggingFace-style model names to Ollama pull names (best effort)
+    function llmfitNameToOllama(hfName) {
+        const lower = hfName.toLowerCase();
+        const sizeMatch = lower.match(/[-/](\d+(?:\.\d+)?)b(?:$|[-_])/);
+        const tag = sizeMatch ? sizeMatch[1] + 'b' : null;
+        const t = n => tag ? `${n}:${tag}` : n;
+        if (lower.includes('deepseek-r1-distill'))    return t('deepseek-r1');
+        if (lower.includes('deepseek-r1'))             return t('deepseek-r1');
+        if (lower.includes('deepseek-v3'))             return t('deepseek-v3');
+        if (lower.includes('deepseek-v2'))             return t('deepseek-v2');
+        if (lower.includes('gemma-3') || lower.includes('gemma3')) return t('gemma3');
+        if (lower.includes('gemma-2') || lower.includes('gemma2')) return t('gemma2');
+        if (lower.includes('llama-3.2'))               return t('llama3.2');
+        if (lower.includes('llama-3.1'))               return t('llama3.1');
+        if (lower.includes('llama-3'))                 return t('llama3');
+        if (lower.includes('llama-2'))                 return t('llama2');
+        if (lower.includes('qwen3'))                   return t('qwen3');
+        if (lower.includes('qwen2.5-coder'))           return t('qwen2.5-coder');
+        if (lower.includes('qwen2.5'))                 return t('qwen2.5');
+        if (lower.includes('phi-4') || lower.includes('phi4')) return 'phi4';
+        if (lower.includes('phi-3') || lower.includes('phi3')) return t('phi3');
+        if (lower.includes('mixtral'))                 return t('mixtral');
+        if (lower.includes('mistral'))                 return t('mistral');
+        if (lower.includes('codellama'))               return t('codellama');
+        if (lower.includes('yi-coder'))                return t('yi-coder');
+        if (lower.includes('yi'))                      return t('yi');
+        if (lower.includes('solar'))                   return t('solar');
+        // fallback: strip org prefix, lowercase, remove common suffixes
+        return hfName.replace(/^[^/]+\//, '').toLowerCase()
+            .replace(/-(it|instruct|chat|hf)$/g, '').replace(/-\d+b/, '');
+    }
+
+    function buildLlmfitCard(m) {
+        const fitLower = (m.fit_level || '').toLowerCase();
+        const ollamaName = llmfitNameToOllama(m.name);
+        const org = m.name.includes('/') ? m.name.split('/')[0] : null;
+        const modelName = m.name.replace(/^[^/]+\//, '');
+
+        const card = document.createElement('div');
+        card.className = 'llmfit-card';
+
+        // Header: name + fit badge
+        const header = document.createElement('div');
+        header.className = 'llmfit-card-header';
+
+        const nameWrap = document.createElement('div');
+        nameWrap.className = 'llmfit-card-name';
+        if (org) {
+            const orgEl = document.createElement('div');
+            orgEl.className = 'llmfit-card-org';
+            orgEl.textContent = org;
+            nameWrap.appendChild(orgEl);
+        }
+        const nameText = document.createElement('div');
+        nameText.textContent = modelName;
+        nameWrap.appendChild(nameText);
+        header.appendChild(nameWrap);
+
+        const fitEl = document.createElement('span');
+        fitEl.className = `llmfit-fit ${fitLower}`;
+        fitEl.textContent = m.fit_level || '?';
+        header.appendChild(fitEl);
+        card.appendChild(header);
+
+        // Stats grid
+        const stats = document.createElement('div');
+        stats.className = 'llmfit-card-stats';
+        const addStat = (label, value) => {
+            if (!value && value !== 0) return;
+            const s = document.createElement('span');
+            s.className = 'llmfit-stat';
+            s.innerHTML = `<span class="llmfit-stat-label">${label}</span><span class="llmfit-stat-value">${value}</span>`;
+            stats.appendChild(s);
+        };
+        addStat('Speed', m.estimated_tps ? `${m.estimated_tps} t/s` : null);
+        addStat('VRAM', m.utilization_pct ? `${m.utilization_pct}%` : null);
+        addStat('Quant', m.best_quant);
+        addStat('Mode', m.run_mode);
+        addStat('Size', m.parameter_count);
+        addStat('Category', m.category);
+        card.appendChild(stats);
+
+        // Use case
+        if (m.use_case) {
+            const uc = document.createElement('div');
+            uc.className = 'llmfit-use-case';
+            uc.textContent = m.use_case;
+            card.appendChild(uc);
+        }
+
+        // Footer: score bar + pull button
+        const footer = document.createElement('div');
+        footer.className = 'llmfit-card-footer';
+
+        const track = document.createElement('div');
+        track.className = 'llmfit-score-track';
+        const fill = document.createElement('div');
+        fill.className = 'llmfit-score-fill';
+        fill.style.width = `${Math.min(100, m.score || 0)}%`;
+        track.appendChild(fill);
+        footer.appendChild(track);
+
+        const scoreLabel = document.createElement('span');
+        scoreLabel.className = 'llmfit-score-label';
+        scoreLabel.textContent = `Score ${Math.round(m.score || 0)}/100`;
+        footer.appendChild(scoreLabel);
+
+        const pullBtn = document.createElement('button');
+        pullBtn.className = 'llmfit-pull-btn';
+        pullBtn.title = `Pull ${ollamaName}`;
+        pullBtn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Pull`;
+        pullBtn.addEventListener('click', () => {
+            closeLlmfitModal();
+            // Ensure settings modal is open and Model Management section is expanded
+            const settingsModal = document.getElementById('settingsModal');
+            if (settingsModal && !settingsModal.classList.contains('active')) {
+                openSettingsModal();
+            }
+            const mgmtBody = document.getElementById('modelMgmtSectionBody');
+            if (mgmtBody && !mgmtBody.classList.contains('expanded')) {
+                toggleSection('modelMgmtSectionToggle', 'modelMgmtSectionBody');
+            }
+            const input = document.getElementById('pullNewModelInput');
+            if (input) {
+                input.value = ollamaName;
+                setTimeout(() => { input.focus(); input.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, 100);
+            }
+        });
+        footer.appendChild(pullBtn);
+        card.appendChild(footer);
+
+        return card;
+    }
+
+    async function openLlmfitModal() {
+        const modal = document.getElementById('llmfitModal');
+        const loading = document.getElementById('llmfitModalLoading');
+        const body = document.getElementById('llmfitModalBody');
+        if (!modal) return;
+
+        // Reset to loading state
+        if (body) { body.style.display = 'none'; body.innerHTML = ''; }
+        if (loading) loading.style.display = 'flex';
+        modal.classList.add('active');
+        if (typeof lucide !== 'undefined') lucide.createIcons({ el: loading });
+
+        try {
+            const res = await fetch('http://localhost:3000/api/llmfit/recommend');
+            if (!res.ok) {
+                const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+                throw new Error(err.error || `HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const models = data.models || [];
+
+            if (loading) loading.style.display = 'none';
+            if (!body) return;
+            body.style.display = 'block';
+
+            if (models.length === 0) {
+                body.innerHTML = '<div class="llmfit-unavail">No recommendations returned.</div>';
+                return;
+            }
+
+            // Group by fit level
+            const groups = { Perfect: [], Good: [], Marginal: [], 'Too Tight': [] };
+            for (const m of models) {
+                const key = m.fit_level || 'Marginal';
+                (groups[key] = groups[key] || []).push(m);
+            }
+
+            const groupOrder = ['Perfect', 'Good', 'Marginal', 'Too Tight'];
+            const groupLabels = {
+                Perfect: '🟢 Perfect',
+                Good: '🟡 Good',
+                Marginal: '🟠 Marginal',
+                'Too Tight': '🔴 Too Large'
+            };
+
+            const canRun = groups.Perfect.length + groups.Good.length + groups.Marginal.length;
+
+            // Filter bar
+            const filterBar = document.createElement('div');
+            filterBar.className = 'llmfit-filter-bar';
+
+            const allBtn = document.createElement('button');
+            allBtn.className = 'llmfit-filter-btn active';
+            allBtn.textContent = `All (${models.length})`;
+            allBtn.dataset.filter = 'all';
+            filterBar.appendChild(allBtn);
+
+            for (const key of groupOrder) {
+                const count = (groups[key] || []).length;
+                if (count === 0) continue;
+                const btn = document.createElement('button');
+                btn.className = 'llmfit-filter-btn';
+                btn.textContent = `${groupLabels[key]} (${count})`;
+                btn.dataset.filter = key;
+                filterBar.appendChild(btn);
+            }
+            body.appendChild(filterBar);
+
+            // Summary line
+            const summary = document.createElement('div');
+            summary.className = 'llmfit-summary';
+            summary.textContent = `${models.length} models analyzed · ${canRun} can run on your hardware`;
+            body.appendChild(summary);
+
+            // Group sections
+            const groupSections = [];
+            for (const key of groupOrder) {
+                const list = groups[key];
+                if (!list || list.length === 0) continue;
+
+                const section = document.createElement('div');
+                section.dataset.group = key;
+
+                const heading = document.createElement('div');
+                heading.className = 'llmfit-group-heading';
+                heading.textContent = `${groupLabels[key]} (${list.length})`;
+                section.appendChild(heading);
+
+                const cards = document.createElement('div');
+                cards.className = 'llmfit-cards';
+                for (const m of list) cards.appendChild(buildLlmfitCard(m));
+                section.appendChild(cards);
+
+                body.appendChild(section);
+                groupSections.push(section);
+            }
+
+            // Wire filter buttons
+            const filterBtns = filterBar.querySelectorAll('.llmfit-filter-btn');
+            filterBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    filterBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const filter = btn.dataset.filter;
+                    groupSections.forEach(s => {
+                        s.style.display = (filter === 'all' || s.dataset.group === filter) ? '' : 'none';
+                    });
+                });
+            });
+
+        } catch (err) {
+            if (loading) loading.style.display = 'none';
+            if (body) {
+                body.style.display = 'block';
+                const msg = (err.message.includes('not found') || err.message.includes('Failed to fetch'))
+                    ? 'llmfit not available. Install it from <code>cargo install llmfit</code> to see hardware recommendations.'
+                    : `Error: ${err.message}`;
+                body.innerHTML = `<div class="llmfit-unavail">${msg}</div>`;
+            }
+        }
+    }
+
+    function closeLlmfitModal() {
+        const modal = document.getElementById('llmfitModal');
+        if (modal) modal.classList.remove('active');
+    }
+
     function toggleSection(toggleId, bodyId) {
         const toggle = document.getElementById(toggleId);
         const body = document.getElementById(bodyId);
@@ -2967,6 +3228,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     const refreshMgmtListButton = document.getElementById('refreshMgmtListButton');
     if (refreshMgmtListButton) {
         refreshMgmtListButton.addEventListener('click', populateMgmtModelList);
+    }
+
+    const openLlmfitButton = document.getElementById('openLlmfitButton');
+    if (openLlmfitButton) {
+        openLlmfitButton.addEventListener('click', openLlmfitModal);
+    }
+
+    const closeLlmfitModalButton = document.getElementById('closeLlmfitModal');
+    if (closeLlmfitModalButton) {
+        closeLlmfitModalButton.addEventListener('click', closeLlmfitModal);
+    }
+
+    const llmfitModal = document.getElementById('llmfitModal');
+    if (llmfitModal) {
+        llmfitModal.addEventListener('click', e => { if (e.target === llmfitModal) closeLlmfitModal(); });
     }
 
     // Set up bidirectional slider ↔ number sync

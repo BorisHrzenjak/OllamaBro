@@ -2553,8 +2553,6 @@
         }
         .mgmt-refresh-btn:hover { color: var(--text-primary); background: var(--bg-quaternary); }
         .mgmt-model-list {
-            max-height: 200px;
-            overflow-y: auto;
             display: flex;
             flex-direction: column;
             gap: 2px;
@@ -2598,6 +2596,118 @@
         }
         .mgmt-empty, .mgmt-loading { font-size: var(--font-size-xs); color: var(--text-muted); padding: 8px 4px; }
         .mgmt-error { font-size: var(--font-size-xs); color: var(--error-text); padding: 8px 4px; }
+
+        /* llmfit Hardware Recommendations Modal */
+        #llmfitModal .modal-content { max-width: 600px; }
+        .llmfit-cards { display: flex; flex-direction: column; gap: var(--space-sm); }
+        .llmfit-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: var(--space-md);
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+        .llmfit-card-header { display: flex; align-items: flex-start; gap: var(--space-sm); }
+        .llmfit-card-name {
+            flex: 1;
+            font-size: var(--font-size-sm);
+            font-weight: 600;
+            color: var(--text-primary);
+            word-break: break-word;
+        }
+        .llmfit-card-org {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+        .llmfit-fit {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 7px;
+            border-radius: 4px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .llmfit-fit.perfect  { background: rgba(34,197,94,0.15);  color: #22c55e; }
+        .llmfit-fit.good     { background: rgba(245,158,11,0.15);  color: #f59e0b; }
+        .llmfit-fit.possible { background: rgba(239,68,68,0.15);   color: #ef4444; }
+        .llmfit-card-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 14px;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+        .llmfit-stat { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+        .llmfit-stat-label { color: var(--text-muted); }
+        .llmfit-stat-value { color: var(--text-secondary); font-weight: 500; }
+        .llmfit-use-case {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            font-style: italic;
+        }
+        .llmfit-card-footer { display: flex; align-items: center; gap: var(--space-sm); }
+        .llmfit-score-track { flex: 1; height: 4px; background: var(--bg-quaternary); border-radius: 2px; overflow: hidden; }
+        .llmfit-score-fill  { height: 100%; border-radius: 2px; background: var(--accent); }
+        .llmfit-score-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+        .llmfit-pull-btn {
+            font-size: 12px;
+            padding: 4px 12px;
+            background: transparent;
+            color: var(--accent);
+            border: 1px solid var(--accent);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            flex-shrink: 0;
+            font-weight: 500;
+        }
+        .llmfit-pull-btn:hover { background: var(--accent); color: var(--accent-text, #fff); }
+        .llmfit-unavail { font-size: var(--font-size-sm); color: var(--text-muted); padding: 8px 0; font-style: italic; }
+        .llmfit-filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-bottom: var(--space-md);
+            padding-bottom: var(--space-md);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .llmfit-filter-btn {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: background 0.15s, color 0.15s, border-color 0.15s;
+        }
+        .llmfit-filter-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+        .llmfit-filter-btn.active {
+            background: var(--accent-subtle);
+            color: var(--accent);
+            border-color: var(--accent);
+            font-weight: 600;
+        }
+        .llmfit-summary {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            margin-bottom: var(--space-sm);
+        }
+        .llmfit-group-heading {
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin: var(--space-md) 0 var(--space-xs);
+        }
 
     </style>
 </head>
@@ -2898,6 +3008,19 @@
                             </div>
                         </div>
 
+                        <!-- Hardware Recommendations (llmfit) -->
+                        <div class="mgmt-panel">
+                            <div class="mgmt-panel-header">
+                                <span class="mgmt-panel-title">Hardware Recommendations</span>
+                            </div>
+                            <div class="param-update-row">
+                                <button id="openLlmfitButton" class="model-update-button">
+                                    <i data-lucide="cpu"></i>
+                                    View Recommended Models
+                                </button>
+                            </div>
+                        </div>
+
                         <!-- Pull New Model -->
                         <div class="mgmt-panel">
                             <div class="mgmt-panel-header">
@@ -3078,6 +3201,25 @@
                     Loading stats...
                 </div>
                 <div id="dashboardContent" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- LLMFit Hardware Recommendations Modal -->
+    <div id="llmfitModal" class="modal">
+        <div class="modal-content" id="llmfitModalContent">
+            <div class="modal-header">
+                <h2>Recommended for Your Hardware</h2>
+                <button id="closeLlmfitModal" class="modal-close-button">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="llmfitModalLoading" style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:var(--font-size-sm);padding:20px 0;">
+                    <i data-lucide="loader"></i>
+                    Analyzing hardware...
+                </div>
+                <div id="llmfitModalBody" style="display:none;"></div>
             </div>
         </div>
     </div>
