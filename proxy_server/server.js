@@ -62,6 +62,30 @@ async function fetchTavilyResults(query) {
     return resp.json();
 }
 
+async function fetchTavilyResearch(query) {
+    const apiKey = process.env.TAVILY_API_KEY;
+    if (!apiKey || apiKey === 'your_tavily_api_key_here') {
+        console.warn('[Research] TAVILY_API_KEY not set in .env — skipping research');
+        return null;
+    }
+    console.log(`[Research] Starting deep research for: "${query.slice(0, 100)}"`);
+    const resp = await fetch('https://api.tavily.com/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            api_key: apiKey,
+            query: query.slice(0, 500),
+            max_depth: 3,
+            max_breadth: 4
+        })
+    });
+    if (!resp.ok) {
+        const errorText = await resp.text().catch(() => '');
+        throw new Error(`Tavily Research HTTP ${resp.status}: ${errorText}`);
+    }
+    return resp.json();
+}
+
 const app = express();
 const PORT = 3000;
 const OLLAMA_API_BASE_URL = 'http://localhost:11434';
@@ -310,6 +334,29 @@ app.get('/api/llmfit/recommend', (req, res) => {
     }, 30000);
 });
 
+// --- Tavily Research Endpoint ---
+
+app.post('/api/research', async (req, res) => {
+    const { query } = req.body;
+    if (!query || typeof query !== 'string') {
+        return res.status(400).json({ error: 'Missing or invalid query parameter' });
+    }
+
+    try {
+        console.log(`[Research] Received research request: "${query.slice(0, 100)}"`);
+        const result = await fetchTavilyResearch(query);
+        
+        if (!result) {
+            return res.status(503).json({ error: 'TAVILY_API_KEY not configured' });
+        }
+
+        res.json(result);
+    } catch (err) {
+        console.error('[Research] Error:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // --- Ollama Proxy ---
 
 app.all('/proxy/*', async (req, res) => {
@@ -403,6 +450,7 @@ app.all('/proxy/*', async (req, res) => {
                     if (lastMsg?.role === 'user') {
                         const messageContent = lastMsg.content || '';
                         const webSearchRequested = ollamaPayload._webSearch === true;
+                        const deepResearchRequested = ollamaPayload._deepResearch === true;
                         const contextParts = [];
                         const today = new Date().toISOString().split('T')[0];
 
@@ -420,8 +468,42 @@ app.all('/proxy/*', async (req, res) => {
                             }
                         }
 
-                        // Track 2: Tavily search if toggle is on or heuristic triggers
-                        if (webSearchRequested || heuristicNeedsSearch(messageContent)) {
+                        // Track 2a: Deep Research (Tavily Research API) - takes priority
+                        if (deepResearchRequested) {
+                            try {
+                                const query = messageContent.slice(0, 500);
+                                console.log(`[Research] Starting deep research for: "${query.slice(0, 80)}"`);
+                                const data = await fetchTavilyResearch(query);
+                                if (data?.content) {
+                                    contextParts.push(`Deep Research Report:\n${data.content}`);
+                                    if (data.sources && data.sources.length > 0) {
+                                        const sourcesList = data.sources
+                                            .map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`)
+                                            .join('\n');
+                                        contextParts.push(`Sources:\n${sourcesList}`);
+                                    }
+                                    console.log(`[Research] Injected deep research report with ${data.sources?.length || 0} sources`);
+                                }
+                            } catch (researchErr) {
+                                console.warn('[Research] Tavily Research failed, falling back to basic search:', researchErr.message);
+                                // Fallback to basic search
+                                try {
+                                    const query = messageContent.slice(0, 300);
+                                    const data = await fetchTavilyResults(query);
+                                    if (data?.results?.length > 0) {
+                                        const snippets = data.results
+                                            .map((r, i) => `[${i + 1}] ${r.title} — ${r.url}\n${r.content}`)
+                                            .join('\n\n');
+                                        contextParts.push(`Web search results:\n${snippets}`);
+                                        console.log(`[Search] Tavily fallback: injected ${data.results.length} results`);
+                                    }
+                                } catch (searchErr) {
+                                    console.warn('[Search] Fallback search also failed:', searchErr.message);
+                                }
+                            }
+                        }
+                        // Track 2b: Regular Tavily search (if not deep research)
+                        else if (webSearchRequested || heuristicNeedsSearch(messageContent)) {
                             try {
                                 const query = messageContent.slice(0, 300);
                                 console.log(`[Search] Querying Tavily for: "${query.slice(0, 80)}"`);
@@ -450,6 +532,7 @@ app.all('/proxy/*', async (req, res) => {
                         }
                     }
                     delete ollamaPayload._webSearch; // strip internal flag before forwarding
+                    delete ollamaPayload._deepResearch; // strip internal flag before forwarding
 
                     bodyToSend = JSON.stringify(ollamaPayload);
                 } catch (e) {

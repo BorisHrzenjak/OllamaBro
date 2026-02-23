@@ -71,6 +71,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         webSearchEnabled = !webSearchEnabled;
         webSearchButton.classList.toggle('active', webSearchEnabled);
         webSearchButton.title = webSearchEnabled ? 'Web Search: ON' : 'Web Search: OFF';
+        // Disable deep research when web search is enabled (mutually exclusive)
+        if (webSearchEnabled && deepResearchEnabled) {
+            deepResearchEnabled = false;
+            deepResearchButton.classList.remove('active');
+            deepResearchButton.title = 'Deep Research: OFF';
+        }
+    });
+
+    // Deep research state
+    const deepResearchButton = document.getElementById('deepResearchButton');
+    let deepResearchEnabled = false;
+
+    deepResearchButton.addEventListener('click', () => {
+        deepResearchEnabled = !deepResearchEnabled;
+        deepResearchButton.classList.toggle('active', deepResearchEnabled);
+        deepResearchButton.title = deepResearchEnabled ? 'Deep Research: ON' : 'Deep Research: OFF';
+        // Disable web search when deep research is enabled (mutually exclusive)
+        if (deepResearchEnabled && webSearchEnabled) {
+            webSearchEnabled = false;
+            webSearchButton.classList.remove('active');
+            webSearchButton.title = 'Web Search: OFF';
+        }
     });
 
     // Speech Recognition Setup
@@ -313,7 +335,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             'mic': '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/>',
             'mic-off': '<line x1="2" y1="2" x2="22" y2="22"/><path d="M18.89 13.23A7.12 7.12 0 0 0 19 12v-2"/><path d="M5 10v2a7 7 0 0 0 12 5"/><path d="M15 9.34V5a3 3 0 0 0-5.68-1.33"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12"/><line x1="12" y1="19" x2="12" y2="22"/>',
             'pencil': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
-            'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>'
+            'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+            'search-check': '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/><path d="m9 11 2 2 4-4"/>'
         };
 
         if (icons[iconName]) {
@@ -2464,6 +2487,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             };
 
             if (webSearchEnabled) requestBody._webSearch = true;
+            if (deepResearchEnabled) requestBody._deepResearch = true;
 
             // Attach non-null model params as Ollama options
             const p = modelData.params || {};

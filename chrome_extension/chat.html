@@ -841,6 +841,12 @@
             background-color: var(--accent-subtle);
         }
 
+        /* Deep Research Button Active State */
+        #deepResearchButton.active {
+            color: #10b981;
+            background-color: rgba(16, 185, 129, 0.15);
+        }
+
         @keyframes pulse-recording {
             0% {
                 box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4);
@@ -3032,6 +3038,9 @@
                 </button>
                 <button id="webSearchButton" class="input-icon-button" title="Web Search: OFF">
                     <i data-lucide="globe"></i>
+                </button>
+                <button id="deepResearchButton" class="input-icon-button" title="Deep Research: OFF">
+                    <i data-lucide="search-check"></i>
                 </button>
                 <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
                 <button id="sendButton">Send</button>
