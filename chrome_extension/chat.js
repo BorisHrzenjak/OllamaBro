@@ -1,4 +1,10 @@
 document.addEventListener('DOMContentLoaded', async () => {
+    // Set app version from manifest
+    const appVersionEl = document.getElementById('appVersion');
+    if (appVersionEl && chrome.runtime?.getManifest) {
+        appVersionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+    }
+
     // Initialize Lucide icons
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
@@ -180,6 +186,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Context management constants
     const DEFAULT_CONTEXT_LIMIT = 4096;   // 4K — local models
     const CLOUD_CONTEXT_LIMIT = 131072;   // 128K — cloud models
+    const MAX_MESSAGES_PER_CONVERSATION = 200;
+    const MAX_VISIBLE_MESSAGES = 50;
     const WARNING_THRESHOLD = 0.75; // 75% - yellow
     const CRITICAL_THRESHOLD = 0.90; // 90% - red
 
@@ -187,6 +195,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isUserScrolledUp = false;
     let scrollThreshold = 100; // pixels from bottom to consider "at bottom"
     let isStreaming = false;
+    let showFullHistory = false;
 
     // Smart scroll functions
     function isNearBottom() {
@@ -540,11 +549,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function trimConversationMessages(conversation) {
+        if (!conversation?.messages) return;
+        if (conversation.messages.length > MAX_MESSAGES_PER_CONVERSATION) {
+            conversation.messages = conversation.messages.slice(-MAX_MESSAGES_PER_CONVERSATION);
+        }
+    }
+
     async function saveModelChatState(modelToSave, modelData) {
         console.log('[OllamaBro] saveModelChatState - Attempting to save for model:', modelToSave, 'Data:', modelData);
         if (!chrome.storage || !chrome.storage.local) {
             console.warn('Chrome storage API not available.');
             return;
+        }
+        // Trim oversized conversations before persisting
+        if (modelData?.conversations) {
+            Object.values(modelData.conversations).forEach(trimConversationMessages);
         }
         try {
             const key = getModelStorageKey(modelToSave); // Key generation will also log
@@ -1206,14 +1226,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         if (modelData.conversations[conversationId] && modelData.conversations[conversationId].messages) {
             messages = modelData.conversations[conversationId].messages;
-            messages.forEach((msg, index) => {
+            const totalMessages = messages.length;
+            const startIndex = showFullHistory ? 0 : Math.max(0, totalMessages - MAX_VISIBLE_MESSAGES);
+
+            if (startIndex > 0) {
+                const loadMoreBtn = document.createElement('button');
+                loadMoreBtn.className = 'load-more-messages-btn';
+                loadMoreBtn.textContent = `↑ Load ${startIndex} earlier message${startIndex === 1 ? '' : 's'}`;
+                loadMoreBtn.addEventListener('click', () => {
+                    showFullHistory = true;
+                    displayConversationMessages(modelData, conversationId);
+                });
+                chatContainer.appendChild(loadMoreBtn);
+            }
+
+            messages.slice(startIndex).forEach((msg, i) => {
                 const textContentDiv = addMessageToChatUI(
                     msg.role === 'user' ? 'You' : currentModelName,
                     msg.content,
                     msg.role === 'user' ? 'user-message' : 'bot-message',
                     modelData,
-                    msg.images, // Pass images if present
-                    index
+                    msg.images,
+                    startIndex + i
                 );
 
                 // Add metadata to existing bot messages that have it stored
@@ -1249,6 +1283,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
         modelData.activeConversationId = newConversationId;
         await saveModelChatState(modelForNewChat, modelData);
+        showFullHistory = false;
         displayConversationMessages(modelData, newConversationId);
         populateConversationSidebar(modelForNewChat, modelData);
 
@@ -1272,6 +1307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (modelData.conversations[newConversationId]) {
             modelData.activeConversationId = newConversationId;
             await saveModelChatState(modelToSwitch, modelData);
+            showFullHistory = false;
             displayConversationMessages(modelData, newConversationId);
             populateConversationSidebar(modelToSwitch, modelData); // Refresh sidebar to highlight active
 
@@ -2645,6 +2681,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 stopButton.style.display = 'none';
             }
             currentAbortController = null;
+            if (botTextElement) botTextElement.dataset.fullMessage = '';
 
             // Remove streaming class from message
             if (botMessageDiv) {
@@ -3464,6 +3501,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    window.addEventListener('pagehide', () => {
+        stopKokoroStatusPoll();
+        stopKokoroSpeech();
+        if (recognition && isListening) { try { recognition.stop(); } catch (e) {} }
+        if (currentAbortController) { currentAbortController.abort(); currentAbortController = null; }
+        if (typeof speechSynthesis !== 'undefined' && speechSynthesis.speaking) { speechSynthesis.cancel(); }
+    }, { once: true });
+
     // ===== TTS State =====
     // Web Speech API state
     let ttsUtterance = null;
@@ -3750,6 +3795,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ===== TTS Settings =====
 
     let kokoroStatusPollTimer = null;
+    let ttsEngineListenersAttached = false;
 
     async function loadTTSSettings() {
         const settings = await chrome.storage.local.get('ttsSettings');
@@ -3769,25 +3815,28 @@ document.addEventListener('DOMContentLoaded', async () => {
             triggerKokoroModelLoad();
         }
 
-        // Listen for engine toggle changes
-        document.querySelectorAll('input[name="ttsEngine"]').forEach(radio => {
-            radio.addEventListener('change', async (e) => {
-                const engine = e.target.value;
-                const select = document.getElementById('ttsVoiceSelect');
-                const statusText = document.getElementById('ttsStatusText');
-                await populateVoicesForEngine(engine, select);
+        // Listen for engine toggle changes (guard against duplicate attachments)
+        if (!ttsEngineListenersAttached) {
+            ttsEngineListenersAttached = true;
+            document.querySelectorAll('input[name="ttsEngine"]').forEach(radio => {
+                radio.addEventListener('change', async (e) => {
+                    const engine = e.target.value;
+                    const select = document.getElementById('ttsVoiceSelect');
+                    const statusText = document.getElementById('ttsStatusText');
+                    await populateVoicesForEngine(engine, select);
 
-                updateKokoroStatusVisibility(engine);
+                    updateKokoroStatusVisibility(engine);
 
-                if (engine === 'kokoro') {
-                    if (statusText) statusText.textContent = 'Kokoro TTS runs on the proxy server';
-                    triggerKokoroModelLoad();
-                } else {
-                    stopKokoroStatusPoll();
-                    if (statusText) statusText.textContent = 'Click speaker icon on any response to hear it';
-                }
+                    if (engine === 'kokoro') {
+                        if (statusText) statusText.textContent = 'Kokoro TTS runs on the proxy server';
+                        triggerKokoroModelLoad();
+                    } else {
+                        stopKokoroStatusPoll();
+                        if (statusText) statusText.textContent = 'Click speaker icon on any response to hear it';
+                    }
+                });
             });
-        });
+        }
 
         return ttsSettings;
     }

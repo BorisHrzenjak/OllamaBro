@@ -1,6 +1,6 @@
 {
   "name": "OllamaBro",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "manifest_version": 3,
   "description": "Chat with local Ollama models directly in Chrome.",
   "action": {
@@ -27,8 +27,15 @@
     "storage",
     "nativeMessaging"
   ],
-  "web_accessible_resources": [{
-    "resources": ["lib/*", "images/*"],
-    "matches": ["<all_urls>"]
-  }]
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "lib/*",
+        "images/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }

@@ -1,125 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OllamaBro</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
     <style>
         :root {
-            --bg-primary:      #0c0d10;
-            --bg-secondary:    #13151a;
-            --bg-hover:        #1a1d25;
-            --bg-active:       #22263000;
-            --text-primary:    #eef0f6;
-            --text-secondary:  #8892a8;
-            --text-muted:      #454c5e;
-            --accent:          #f5a623;
-            --accent-hover:    #e8971a;
-            --accent-glow:     rgba(245, 166, 35, 0.18);
-            --accent-subtle:   rgba(245, 166, 35, 0.07);
-            --border:          #1e2130;
-            --border-hover:    #2c3147;
-            --radius-sm:       5px;
-            --radius-md:       9px;
-            --ease-out:        cubic-bezier(0.4, 0, 0.2, 1);
+            --bg-primary: #0c0d10;
+            --bg-secondary: #13151a;
+            --bg-hover: #1a1d25;
+            --bg-active: #22263000;
+            --text-primary: #eef0f6;
+            --text-secondary: #8892a8;
+            --text-muted: #454c5e;
+            --accent: #f5a623;
+            --accent-hover: #e8971a;
+            --accent-glow: rgba(245, 166, 35, 0.18);
+            --accent-subtle: rgba(245, 166, 35, 0.07);
+            --border: #1e2130;
+            --border-hover: #2c3147;
+            --radius-sm: 5px;
+            --radius-md: 9px;
+            --ease-out: cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         /* ── Dracula ── */
         [data-theme="dracula"] {
-            --bg-primary:    #1e1f29;
-            --bg-secondary:  #282a36;
-            --bg-hover:      #373844;
-            --bg-active:     #44475a;
-            --text-primary:  #f8f8f2;
-            --text-secondary:#8b9dc3;
-            --text-muted:    #6272a4;
-            --accent:        #bd93f9;
-            --accent-hover:  #a97ef7;
-            --accent-glow:   rgba(189, 147, 249, 0.15);
+            --bg-primary: #1e1f29;
+            --bg-secondary: #282a36;
+            --bg-hover: #373844;
+            --bg-active: #44475a;
+            --text-primary: #f8f8f2;
+            --text-secondary: #8b9dc3;
+            --text-muted: #6272a4;
+            --accent: #bd93f9;
+            --accent-hover: #a97ef7;
+            --accent-glow: rgba(189, 147, 249, 0.15);
             --accent-subtle: rgba(189, 147, 249, 0.07);
-            --border:        #44475a;
-            --border-hover:  #6272a4;
+            --border: #44475a;
+            --border-hover: #6272a4;
         }
 
         /* ── Tokyo Night ── */
         [data-theme="tokyo-night"] {
-            --bg-primary:    #13141f;
-            --bg-secondary:  #1a1b2e;
-            --bg-hover:      #1e2030;
-            --bg-active:     #292e42;
-            --text-primary:  #c0caf5;
-            --text-secondary:#a9b1d6;
-            --text-muted:    #565f89;
-            --accent:        #7aa2f7;
-            --accent-hover:  #6a91e7;
-            --accent-glow:   rgba(122, 162, 247, 0.15);
+            --bg-primary: #13141f;
+            --bg-secondary: #1a1b2e;
+            --bg-hover: #1e2030;
+            --bg-active: #292e42;
+            --text-primary: #c0caf5;
+            --text-secondary: #a9b1d6;
+            --text-muted: #565f89;
+            --accent: #7aa2f7;
+            --accent-hover: #6a91e7;
+            --accent-glow: rgba(122, 162, 247, 0.15);
             --accent-subtle: rgba(122, 162, 247, 0.07);
-            --border:        #292e42;
-            --border-hover:  #3b4261;
+            --border: #292e42;
+            --border-hover: #3b4261;
         }
 
         /* ── GitHub Light ── */
         [data-theme="github-light"] {
-            --bg-primary:    #ffffff;
-            --bg-secondary:  #f6f8fa;
-            --bg-hover:      #eaeef2;
-            --bg-active:     #d8dee4;
-            --text-primary:  #1f2328;
-            --text-secondary:#57606a;
-            --text-muted:    #8c959f;
-            --accent:        #0969da;
-            --accent-hover:  #0860ca;
-            --accent-glow:   rgba(9, 105, 218, 0.1);
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-hover: #eaeef2;
+            --bg-active: #d8dee4;
+            --text-primary: #1f2328;
+            --text-secondary: #57606a;
+            --text-muted: #8c959f;
+            --accent: #0969da;
+            --accent-hover: #0860ca;
+            --accent-glow: rgba(9, 105, 218, 0.1);
             --accent-subtle: rgba(9, 105, 218, 0.06);
-            --border:        #d8dee4;
-            --border-hover:  #b0bbc5;
+            --border: #d8dee4;
+            --border-hover: #b0bbc5;
         }
 
         /* ── Solarized Light ── */
         [data-theme="solarized-light"] {
-            --bg-primary:    #fdf6e3;
-            --bg-secondary:  #eee8d5;
-            --bg-hover:      #dfd8c2;
-            --bg-active:     #ccc5af;
-            --text-primary:  #073642;
-            --text-secondary:#586e75;
-            --text-muted:    #93a1a1;
-            --accent:        #268bd2;
-            --accent-hover:  #1a7ac0;
-            --accent-glow:   rgba(38, 139, 210, 0.1);
+            --bg-primary: #fdf6e3;
+            --bg-secondary: #eee8d5;
+            --bg-hover: #dfd8c2;
+            --bg-active: #ccc5af;
+            --text-primary: #073642;
+            --text-secondary: #586e75;
+            --text-muted: #93a1a1;
+            --accent: #268bd2;
+            --accent-hover: #1a7ac0;
+            --accent-glow: rgba(38, 139, 210, 0.1);
             --accent-subtle: rgba(38, 139, 210, 0.06);
-            --border:        #ccc5af;
-            --border-hover:  #b5b09b;
+            --border: #ccc5af;
+            --border-hover: #b5b09b;
         }
 
         /* ── Catppuccin Latte ── */
         [data-theme="catppuccin-latte"] {
-            --bg-primary:    #eff1f5;
-            --bg-secondary:  #e6e9ef;
-            --bg-hover:      #dce0e8;
-            --bg-active:     #ccd0da;
-            --text-primary:  #4c4f69;
-            --text-secondary:#5c5f77;
-            --text-muted:    #6c6f85;
-            --accent:        #1e66f5;
-            --accent-hover:  #1a5ce0;
-            --accent-glow:   rgba(30, 102, 245, 0.1);
+            --bg-primary: #eff1f5;
+            --bg-secondary: #e6e9ef;
+            --bg-hover: #dce0e8;
+            --bg-active: #ccd0da;
+            --text-primary: #4c4f69;
+            --text-secondary: #5c5f77;
+            --text-muted: #6c6f85;
+            --accent: #1e66f5;
+            --accent-hover: #1a5ce0;
+            --accent-glow: rgba(30, 102, 245, 0.1);
             --accent-subtle: rgba(30, 102, 245, 0.06);
-            --border:        #ccd0da;
-            --border-hover:  #b9bfcc;
+            --border: #ccd0da;
+            --border-hover: #b9bfcc;
         }
 
         [data-theme="github-light"] .error-title,
-        [data-theme="github-light"] .error-text { color: #cf222e; }
-        [data-theme="solarized-light"] .error-title,
-        [data-theme="solarized-light"] .error-text { color: #dc322f; }
-        [data-theme="catppuccin-latte"] .error-title,
-        [data-theme="catppuccin-latte"] .error-text { color: #d20f39; }
+        [data-theme="github-light"] .error-text {
+            color: #cf222e;
+        }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        [data-theme="solarized-light"] .error-title,
+        [data-theme="solarized-light"] .error-text {
+            color: #dc322f;
+        }
+
+        [data-theme="catppuccin-latte"] .error-title,
+        [data-theme="catppuccin-latte"] .error-text {
+            color: #d20f39;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
         body {
             font-family: 'Figtree', sans-serif;
@@ -135,13 +150,11 @@
         /* ── Top accent ribbon ── */
         .accent-ribbon {
             height: 2px;
-            background: linear-gradient(
-                90deg,
-                transparent 0%,
-                var(--accent) 30%,
-                var(--accent) 70%,
-                transparent 100%
-            );
+            background: linear-gradient(90deg,
+                    transparent 0%,
+                    var(--accent) 30%,
+                    var(--accent) 70%,
+                    transparent 100%);
             opacity: 0.85;
         }
 
@@ -239,8 +252,15 @@
         }
 
         @keyframes dot-pulse {
-            0%, 100% { opacity: 1; }
-            50%       { opacity: 0.3; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.3;
+            }
         }
 
         /* ── Model list ── */
@@ -258,8 +278,15 @@
         }
 
         @keyframes slide-in {
-            from { opacity: 0; transform: translateX(10px); }
-            to   { opacity: 1; transform: translateX(0); }
+            from {
+                opacity: 0;
+                transform: translateX(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
         }
 
         .model-item {
@@ -274,25 +301,53 @@
             overflow: hidden;
             transition:
                 background-color 150ms var(--ease-out),
-                border-color     150ms var(--ease-out);
+                border-color 150ms var(--ease-out);
             animation: slide-in 300ms var(--ease-out) both;
         }
 
-        .model-item:nth-child(1)  { animation-delay: 0ms; }
-        .model-item:nth-child(2)  { animation-delay: 35ms; }
-        .model-item:nth-child(3)  { animation-delay: 70ms; }
-        .model-item:nth-child(4)  { animation-delay: 105ms; }
-        .model-item:nth-child(5)  { animation-delay: 140ms; }
-        .model-item:nth-child(6)  { animation-delay: 175ms; }
-        .model-item:nth-child(7)  { animation-delay: 210ms; }
-        .model-item:nth-child(8)  { animation-delay: 245ms; }
-        .model-item:nth-child(n+9){ animation-delay: 280ms; }
+        .model-item:nth-child(1) {
+            animation-delay: 0ms;
+        }
+
+        .model-item:nth-child(2) {
+            animation-delay: 35ms;
+        }
+
+        .model-item:nth-child(3) {
+            animation-delay: 70ms;
+        }
+
+        .model-item:nth-child(4) {
+            animation-delay: 105ms;
+        }
+
+        .model-item:nth-child(5) {
+            animation-delay: 140ms;
+        }
+
+        .model-item:nth-child(6) {
+            animation-delay: 175ms;
+        }
+
+        .model-item:nth-child(7) {
+            animation-delay: 210ms;
+        }
+
+        .model-item:nth-child(8) {
+            animation-delay: 245ms;
+        }
+
+        .model-item:nth-child(n+9) {
+            animation-delay: 280ms;
+        }
 
         /* Left accent stripe */
         .model-item::before {
             content: '';
             position: absolute;
-            left: 0; top: 6px; bottom: 6px;
+            left: 0;
+            top: 6px;
+            bottom: 6px;
             width: 2px;
             background-color: var(--accent);
             border-radius: 0 2px 2px 0;
@@ -359,9 +414,9 @@
             opacity: 0;
             transform: translateX(-5px);
             transition:
-                opacity  150ms var(--ease-out),
+                opacity 150ms var(--ease-out),
                 transform 150ms var(--ease-out),
-                color     150ms;
+                color 150ms;
             flex-shrink: 0;
             margin-left: 10px;
         }
@@ -400,7 +455,9 @@
         }
 
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .status-text {
@@ -436,17 +493,25 @@
         }
 
         /* ── Scrollbar ── */
-        .content::-webkit-scrollbar        { width: 4px; }
-        .content::-webkit-scrollbar-track  { background: transparent; }
-        .content::-webkit-scrollbar-thumb  {
+        .content::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .content::-webkit-scrollbar-thumb {
             background-color: var(--border);
             border-radius: 2px;
         }
+
         .content::-webkit-scrollbar-thumb:hover {
             background-color: var(--border-hover);
         }
     </style>
 </head>
+
 <body>
     <div class="accent-ribbon"></div>
     <div class="header">
@@ -472,4 +537,5 @@
     <script src="lib/lucide.min.js"></script>
     <script src="popup.js"></script>
 </body>
+
 </html>

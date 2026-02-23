@@ -168,11 +168,13 @@
         [data-theme="catppuccin-latte"] .modal {
             background-color: rgba(0, 0, 0, 0.4);
         }
+
         [data-theme="github-light"] #scrollToBottomButton,
         [data-theme="solarized-light"] #scrollToBottomButton,
         [data-theme="catppuccin-latte"] #scrollToBottomButton {
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
         }
+
         [data-theme="github-light"] .cloud-icon,
         [data-theme="solarized-light"] .cloud-icon,
         [data-theme="catppuccin-latte"] .cloud-icon {
@@ -185,6 +187,7 @@
             grid-template-columns: 1fr 1fr 1fr;
             gap: var(--space-sm);
         }
+
         .theme-swatch {
             display: flex;
             flex-direction: column;
@@ -197,13 +200,16 @@
             transition: all var(--transition);
             background: none;
         }
+
         .theme-swatch:hover {
             border-color: var(--accent);
         }
+
         .theme-swatch.active {
             border-color: var(--accent);
             background-color: var(--accent-subtle);
         }
+
         .theme-swatch-preview {
             width: 100%;
             height: 36px;
@@ -214,10 +220,12 @@
             gap: 2px;
             padding: 4px;
         }
+
         .swatch-bar {
             border-radius: 2px;
             height: 6px;
         }
+
         .theme-swatch-name {
             font-size: var(--font-size-xs);
             color: var(--text-secondary);
@@ -225,9 +233,11 @@
             text-align: center;
             white-space: nowrap;
         }
+
         .theme-swatch.active .theme-swatch-name {
             color: var(--accent);
         }
+
         .theme-group-label {
             font-size: var(--font-size-xs);
             font-weight: 600;
@@ -475,6 +485,12 @@
             font-size: var(--font-size-lg);
             font-weight: 600;
             color: var(--text-primary);
+        }
+
+        .app-version {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+            margin-left: var(--space-sm);
         }
 
         #modelNameDisplay {
@@ -771,7 +787,7 @@
 
         #sendButton:hover {
             background-color: var(--accent-hover);
-            box-shadow: 0 0 0 3px var(--accent-subtle), 0 2px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 0 0 3px var(--accent-subtle), 0 2px 8px rgba(0, 0, 0, 0.2);
             transform: translateY(-1px);
         }
 
@@ -1136,7 +1152,7 @@
 
         .modal-button.primary:hover {
             background-color: var(--accent-hover);
-            box-shadow: 0 0 0 3px var(--accent-subtle), 0 2px 8px rgba(0,0,0,0.2);
+            box-shadow: 0 0 0 3px var(--accent-subtle), 0 2px 8px rgba(0, 0, 0, 0.2);
             transform: translateY(-1px);
         }
 
@@ -1306,10 +1322,16 @@
         }
 
         /* Edit button accent on hover */
-        .edit-button:hover { color: var(--accent); border-color: var(--accent); }
+        .edit-button:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
 
         /* Regenerate button accent on hover */
-        .regenerate-button:hover { color: var(--accent); border-color: var(--accent); }
+        .regenerate-button:hover {
+            color: var(--accent);
+            border-color: var(--accent);
+        }
 
         /* Edit mode UI */
         .message-edit-container {
@@ -1319,6 +1341,7 @@
             margin-top: var(--space-sm);
             width: 100%;
         }
+
         .message-edit-textarea {
             width: 100%;
             min-height: 60px;
@@ -1336,14 +1359,17 @@
             box-sizing: border-box;
             overflow-y: auto;
         }
+
         .message-edit-textarea:focus {
             border-color: var(--accent);
         }
+
         .message-edit-buttons {
             display: flex;
             gap: var(--space-sm);
             justify-content: flex-end;
         }
+
         .message-edit-save {
             padding: var(--space-xs) var(--space-md);
             background-color: var(--accent);
@@ -1355,7 +1381,11 @@
             cursor: pointer;
             transition: opacity var(--transition);
         }
-        .message-edit-save:hover { opacity: 0.85; }
+
+        .message-edit-save:hover {
+            opacity: 0.85;
+        }
+
         .message-edit-cancel {
             padding: var(--space-xs) var(--space-md);
             background-color: var(--bg-quaternary);
@@ -1366,6 +1396,7 @@
             cursor: pointer;
             transition: all var(--transition);
         }
+
         .message-edit-cancel:hover {
             background-color: var(--bg-tertiary);
             color: var(--text-primary);
@@ -1384,8 +1415,15 @@
         }
 
         @keyframes pulse-loading {
-            0%, 100% { opacity: 0.6; }
-            50% { opacity: 1; }
+
+            0%,
+            100% {
+                opacity: 0.6;
+            }
+
+            50% {
+                opacity: 1;
+            }
         }
 
         /* TTS Engine Toggle */
@@ -2228,8 +2266,13 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
 
         .update-status {
@@ -2242,8 +2285,13 @@
             text-overflow: ellipsis;
         }
 
-        .update-status.success { color: var(--success); }
-        .update-status.error { color: var(--error-text); }
+        .update-status.success {
+            color: var(--success);
+        }
+
+        .update-status.error {
+            color: var(--error-text);
+        }
 
         .model-management-section {
             margin-top: var(--space-md);
@@ -2346,13 +2394,40 @@
             height: 15px;
         }
 
-        .stat-card-icon.blue { background-color: rgba(59,130,246,0.15); color: #3b82f6; }
-        .stat-card-icon.purple { background-color: rgba(139,92,246,0.15); color: #a78bfa; }
-        .stat-card-icon.green { background-color: rgba(34,197,94,0.15); color: #22c55e; }
-        .stat-card-icon.amber { background-color: rgba(245,158,11,0.15); color: #f59e0b; }
-        .stat-card-icon.pink { background-color: rgba(236,72,153,0.15); color: #ec4899; }
-        .stat-card-icon.cyan { background-color: rgba(6,182,212,0.15); color: #06b6d4; }
-        .stat-card-icon.red { background-color: rgba(239,68,68,0.15); color: #ef4444; }
+        .stat-card-icon.blue {
+            background-color: rgba(59, 130, 246, 0.15);
+            color: #3b82f6;
+        }
+
+        .stat-card-icon.purple {
+            background-color: rgba(139, 92, 246, 0.15);
+            color: #a78bfa;
+        }
+
+        .stat-card-icon.green {
+            background-color: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .stat-card-icon.amber {
+            background-color: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+        }
+
+        .stat-card-icon.pink {
+            background-color: rgba(236, 72, 153, 0.15);
+            color: #ec4899;
+        }
+
+        .stat-card-icon.cyan {
+            background-color: rgba(6, 182, 212, 0.15);
+            color: #06b6d4;
+        }
+
+        .stat-card-icon.red {
+            background-color: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
 
         .stat-value {
             font-size: 1.75rem;
@@ -2522,17 +2597,20 @@
             cursor: default;
             flex-shrink: 0;
         }
+
         /* Model Management Panel */
         .mgmt-panel {
             padding: var(--space-sm) 0;
             border-bottom: 1px solid var(--border-subtle);
         }
+
         .mgmt-panel-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
             margin-bottom: var(--space-xs);
         }
+
         .mgmt-panel-title {
             font-size: var(--font-size-xs);
             font-weight: 600;
@@ -2540,6 +2618,7 @@
             text-transform: uppercase;
             letter-spacing: 0.05em;
         }
+
         .mgmt-refresh-btn {
             background: none;
             border: none;
@@ -2551,12 +2630,18 @@
             align-items: center;
             line-height: 1;
         }
-        .mgmt-refresh-btn:hover { color: var(--text-primary); background: var(--bg-quaternary); }
+
+        .mgmt-refresh-btn:hover {
+            color: var(--text-primary);
+            background: var(--bg-quaternary);
+        }
+
         .mgmt-model-list {
             display: flex;
             flex-direction: column;
             gap: 2px;
         }
+
         .mgmt-model-row {
             display: flex;
             align-items: center;
@@ -2564,7 +2649,11 @@
             padding: 4px 4px;
             border-radius: var(--radius-sm);
         }
-        .mgmt-model-row:hover { background: var(--bg-quaternary); }
+
+        .mgmt-model-row:hover {
+            background: var(--bg-quaternary);
+        }
+
         .mgmt-model-name {
             flex: 1;
             min-width: 0;
@@ -2573,20 +2662,39 @@
             text-overflow: ellipsis;
             white-space: nowrap;
         }
+
         .mgmt-model-size {
             font-size: var(--font-size-xs);
             color: var(--text-muted);
             white-space: nowrap;
         }
-        .mgmt-model-caps { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
-        .cap-badge { display: inline-flex; align-items: center; line-height: 1; }
-        .pull-input-row { display: flex; gap: var(--space-xs); align-items: center; }
+
+        .mgmt-model-caps {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            flex-shrink: 0;
+        }
+
+        .cap-badge {
+            display: inline-flex;
+            align-items: center;
+            line-height: 1;
+        }
+
+        .pull-input-row {
+            display: flex;
+            gap: var(--space-xs);
+            align-items: center;
+        }
+
         .pull-progress-track {
             height: 4px;
             background: var(--bg-quaternary);
             border-radius: 2px;
             overflow: hidden;
         }
+
         .pull-progress-fill {
             height: 100%;
             background: var(--accent);
@@ -2594,12 +2702,31 @@
             transition: width 0.2s ease;
             width: 0%;
         }
-        .mgmt-empty, .mgmt-loading { font-size: var(--font-size-xs); color: var(--text-muted); padding: 8px 4px; }
-        .mgmt-error { font-size: var(--font-size-xs); color: var(--error-text); padding: 8px 4px; }
+
+        .mgmt-empty,
+        .mgmt-loading {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            padding: 8px 4px;
+        }
+
+        .mgmt-error {
+            font-size: var(--font-size-xs);
+            color: var(--error-text);
+            padding: 8px 4px;
+        }
 
         /* llmfit Hardware Recommendations Modal */
-        #llmfitModal .modal-content { max-width: 600px; }
-        .llmfit-cards { display: flex; flex-direction: column; gap: var(--space-sm); }
+        #llmfitModal .modal-content {
+            max-width: 600px;
+        }
+
+        .llmfit-cards {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+        }
+
         .llmfit-card {
             background: var(--bg-tertiary);
             border: 1px solid var(--border);
@@ -2609,7 +2736,13 @@
             flex-direction: column;
             gap: var(--space-sm);
         }
-        .llmfit-card-header { display: flex; align-items: flex-start; gap: var(--space-sm); }
+
+        .llmfit-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: var(--space-sm);
+        }
+
         .llmfit-card-name {
             flex: 1;
             font-size: var(--font-size-sm);
@@ -2617,11 +2750,13 @@
             color: var(--text-primary);
             word-break: break-word;
         }
+
         .llmfit-card-org {
             font-size: var(--font-size-xs);
             color: var(--text-muted);
             font-weight: 400;
         }
+
         .llmfit-fit {
             font-size: 11px;
             font-weight: 600;
@@ -2631,9 +2766,22 @@
             flex-shrink: 0;
             margin-top: 1px;
         }
-        .llmfit-fit.perfect  { background: rgba(34,197,94,0.15);  color: #22c55e; }
-        .llmfit-fit.good     { background: rgba(245,158,11,0.15);  color: #f59e0b; }
-        .llmfit-fit.possible { background: rgba(239,68,68,0.15);   color: #ef4444; }
+
+        .llmfit-fit.perfect {
+            background: rgba(34, 197, 94, 0.15);
+            color: #22c55e;
+        }
+
+        .llmfit-fit.good {
+            background: rgba(245, 158, 11, 0.15);
+            color: #f59e0b;
+        }
+
+        .llmfit-fit.possible {
+            background: rgba(239, 68, 68, 0.15);
+            color: #ef4444;
+        }
+
         .llmfit-card-stats {
             display: flex;
             flex-wrap: wrap;
@@ -2641,18 +2789,55 @@
             font-size: 12px;
             color: var(--text-muted);
         }
-        .llmfit-stat { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
-        .llmfit-stat-label { color: var(--text-muted); }
-        .llmfit-stat-value { color: var(--text-secondary); font-weight: 500; }
+
+        .llmfit-stat {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .llmfit-stat-label {
+            color: var(--text-muted);
+        }
+
+        .llmfit-stat-value {
+            color: var(--text-secondary);
+            font-weight: 500;
+        }
+
         .llmfit-use-case {
             font-size: var(--font-size-xs);
             color: var(--text-muted);
             font-style: italic;
         }
-        .llmfit-card-footer { display: flex; align-items: center; gap: var(--space-sm); }
-        .llmfit-score-track { flex: 1; height: 4px; background: var(--bg-quaternary); border-radius: 2px; overflow: hidden; }
-        .llmfit-score-fill  { height: 100%; border-radius: 2px; background: var(--accent); }
-        .llmfit-score-label { font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+        .llmfit-card-footer {
+            display: flex;
+            align-items: center;
+            gap: var(--space-sm);
+        }
+
+        .llmfit-score-track {
+            flex: 1;
+            height: 4px;
+            background: var(--bg-quaternary);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .llmfit-score-fill {
+            height: 100%;
+            border-radius: 2px;
+            background: var(--accent);
+        }
+
+        .llmfit-score-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
         .llmfit-pull-btn {
             font-size: 12px;
             padding: 4px 12px;
@@ -2667,8 +2852,19 @@
             flex-shrink: 0;
             font-weight: 500;
         }
-        .llmfit-pull-btn:hover { background: var(--accent); color: var(--accent-text, #fff); }
-        .llmfit-unavail { font-size: var(--font-size-sm); color: var(--text-muted); padding: 8px 0; font-style: italic; }
+
+        .llmfit-pull-btn:hover {
+            background: var(--accent);
+            color: var(--accent-text, #fff);
+        }
+
+        .llmfit-unavail {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+            padding: 8px 0;
+            font-style: italic;
+        }
+
         .llmfit-filter-bar {
             display: flex;
             flex-wrap: wrap;
@@ -2677,6 +2873,7 @@
             padding-bottom: var(--space-md);
             border-bottom: 1px solid var(--border-subtle);
         }
+
         .llmfit-filter-btn {
             font-size: 12px;
             padding: 4px 10px;
@@ -2688,18 +2885,25 @@
             white-space: nowrap;
             transition: background 0.15s, color 0.15s, border-color 0.15s;
         }
-        .llmfit-filter-btn:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+        .llmfit-filter-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--text-muted);
+        }
+
         .llmfit-filter-btn.active {
             background: var(--accent-subtle);
             color: var(--accent);
             border-color: var(--accent);
             font-weight: 600;
         }
+
         .llmfit-summary {
             font-size: var(--font-size-xs);
             color: var(--text-muted);
             margin-bottom: var(--space-sm);
         }
+
         .llmfit-group-heading {
             font-size: var(--font-size-xs);
             font-weight: 600;
@@ -2709,6 +2913,22 @@
             margin: var(--space-md) 0 var(--space-xs);
         }
 
+        .load-more-messages-btn {
+            display: block;
+            margin: 8px auto;
+            padding: 6px 14px;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-sm);
+            font-size: var(--font-size-sm);
+            cursor: pointer;
+        }
+
+        .load-more-messages-btn:hover {
+            color: var(--text-primary);
+            border-color: var(--border);
+        }
     </style>
 </head>
 
@@ -2735,7 +2955,8 @@
             <div id="sidebarSearch">
                 <div id="sidebarSearchWrapper">
                     <i data-lucide="search" id="sidebarSearchIcon"></i>
-                    <input type="text" id="conversationSearchInput" placeholder="Search chats..." autocomplete="off" spellcheck="false" />
+                    <input type="text" id="conversationSearchInput" placeholder="Search chats..." autocomplete="off"
+                        spellcheck="false" />
                     <button id="clearSearchButton" title="Clear search">
                         <i data-lucide="x"></i>
                     </button>
@@ -2744,7 +2965,14 @@
             <div id="conversationList"></div>
             <div id="sidebarFooter">
                 <button id="dashboardButton" class="sidebar-footer-button" title="Usage Dashboard">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="lucide">
+                        <rect width="7" height="9" x="3" y="3" rx="1" />
+                        <rect width="7" height="5" x="14" y="3" rx="1" />
+                        <rect width="7" height="9" x="14" y="12" rx="1" />
+                        <rect width="7" height="5" x="3" y="16" rx="1" />
+                    </svg>
                     <span>Dashboard</span>
                 </button>
             </div>
@@ -2756,6 +2984,7 @@
                     <i data-lucide="panel-left-close"></i>
                 </button>
                 <h1>Ollama<span style="color:var(--accent)">Bro</span></h1>
+                <span id="appVersion" class="app-version"></span>
                 <div id="modelNameDisplay">Loading...</div>
                 <span id="personaBadge" class="persona-badge" style="display: none;" title="Active persona"></span>
                 <button id="clearChatButton" class="header-icon-button" title="Clear conversation">
@@ -2768,7 +2997,14 @@
                     <i data-lucide="chevron-down"></i>
                 </button>
                 <button id="modelParamsButton" class="header-icon-button" title="Model Parameters">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide"><path d="M14 17H5"/><path d="M19 7h-9"/><circle cx="17" cy="17" r="3"/><circle cx="7" cy="7" r="3"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="lucide">
+                        <path d="M14 17H5" />
+                        <path d="M19 7h-9" />
+                        <circle cx="17" cy="17" r="3" />
+                        <circle cx="7" cy="7" r="3" />
+                    </svg>
                 </button>
                 <button id="settingsButton" class="header-icon-button" title="System Prompt Settings">
                     <i data-lucide="settings"></i>
@@ -2881,8 +3117,10 @@
                     <div id="personaSectionBody" class="settings-section-body">
                         <div id="personaPresetsList" class="persona-presets-list"></div>
                         <div id="newPresetForm" class="new-preset-form" style="display: none;">
-                            <input type="text" id="newPresetName" class="preset-name-input" placeholder="Preset name (e.g., My Assistant)" maxlength="50">
-                            <textarea id="newPresetPrompt" class="preset-prompt-input" placeholder="System prompt text..." rows="3"></textarea>
+                            <input type="text" id="newPresetName" class="preset-name-input"
+                                placeholder="Preset name (e.g., My Assistant)" maxlength="50">
+                            <textarea id="newPresetPrompt" class="preset-prompt-input"
+                                placeholder="System prompt text..." rows="3"></textarea>
                             <div class="new-preset-actions">
                                 <button id="cancelNewPresetButton" class="modal-button secondary">Cancel</button>
                                 <button id="saveNewPresetButton" class="modal-button primary">Save Preset</button>
@@ -2901,7 +3139,8 @@
                         <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
                     </button>
                     <div id="systemPromptSectionBody" class="settings-section-body">
-                        <p class="modal-description">Set a system prompt to guide the model's behavior. This will be applied
+                        <p class="modal-description">Set a system prompt to guide the model's behavior. This will be
+                            applied
                             to all conversations with this model.</p>
                         <textarea id="systemPromptInput"
                             placeholder="e.g., You are a helpful code reviewer. Be concise and focus on best practices."
@@ -2925,8 +3164,10 @@
                                     <span class="param-hint">Randomness (0=focused, 2=creative)</span>
                                 </div>
                                 <div class="param-control-group">
-                                    <input type="range" class="param-slider" id="paramTemperatureSlider" min="0" max="2" step="0.05">
-                                    <input type="number" class="param-number" id="paramTemperature" min="0" max="2" step="0.05" placeholder="0.8">
+                                    <input type="range" class="param-slider" id="paramTemperatureSlider" min="0" max="2"
+                                        step="0.05">
+                                    <input type="number" class="param-number" id="paramTemperature" min="0" max="2"
+                                        step="0.05" placeholder="0.8">
                                 </div>
                             </div>
                             <div class="param-row">
@@ -2935,8 +3176,10 @@
                                     <span class="param-hint">Nucleus sampling threshold</span>
                                 </div>
                                 <div class="param-control-group">
-                                    <input type="range" class="param-slider" id="paramTopPSlider" min="0" max="1" step="0.05">
-                                    <input type="number" class="param-number" id="paramTopP" min="0" max="1" step="0.05" placeholder="0.9">
+                                    <input type="range" class="param-slider" id="paramTopPSlider" min="0" max="1"
+                                        step="0.05">
+                                    <input type="number" class="param-number" id="paramTopP" min="0" max="1" step="0.05"
+                                        placeholder="0.9">
                                 </div>
                             </div>
                             <div class="param-row">
@@ -2945,8 +3188,10 @@
                                     <span class="param-hint">Token pool size (0=disabled)</span>
                                 </div>
                                 <div class="param-control-group">
-                                    <input type="range" class="param-slider" id="paramTopKSlider" min="0" max="200" step="1">
-                                    <input type="number" class="param-number" id="paramTopK" min="0" max="200" step="1" placeholder="40">
+                                    <input type="range" class="param-slider" id="paramTopKSlider" min="0" max="200"
+                                        step="1">
+                                    <input type="number" class="param-number" id="paramTopK" min="0" max="200" step="1"
+                                        placeholder="40">
                                 </div>
                             </div>
                             <div class="param-row">
@@ -2955,8 +3200,10 @@
                                     <span class="param-hint">Penalise repeated tokens</span>
                                 </div>
                                 <div class="param-control-group">
-                                    <input type="range" class="param-slider" id="paramRepeatPenaltySlider" min="0" max="2" step="0.05">
-                                    <input type="number" class="param-number" id="paramRepeatPenalty" min="0" max="2" step="0.05" placeholder="1.1">
+                                    <input type="range" class="param-slider" id="paramRepeatPenaltySlider" min="0"
+                                        max="2" step="0.05">
+                                    <input type="number" class="param-number" id="paramRepeatPenalty" min="0" max="2"
+                                        step="0.05" placeholder="1.1">
                                 </div>
                             </div>
                             <div class="param-row">
@@ -2964,14 +3211,16 @@
                                     <span class="param-label">Max Tokens</span>
                                     <span class="param-hint">Tokens to generate (-1=unlimited)</span>
                                 </div>
-                                <input type="number" class="param-number param-number-solo" id="paramNumPredict" min="-1" max="8192" step="1" placeholder="-1">
+                                <input type="number" class="param-number param-number-solo" id="paramNumPredict"
+                                    min="-1" max="8192" step="1" placeholder="-1">
                             </div>
                             <div class="param-row">
                                 <div class="param-label-group">
                                     <span class="param-label">Seed</span>
                                     <span class="param-hint">Fixed seed (blank=random)</span>
                                 </div>
-                                <input type="number" class="param-number param-number-solo" id="paramSeed" min="0" step="1" placeholder="random">
+                                <input type="number" class="param-number param-number-solo" id="paramSeed" min="0"
+                                    step="1" placeholder="random">
                             </div>
                         </div>
                         <button id="paramResetButton" class="param-reset-button">
@@ -2979,7 +3228,8 @@
                             Reset to defaults
                         </button>
                         <div class="param-update-row">
-                            <button id="updateCurrentModelButton" class="model-update-button" title="Pull latest version of this model from Ollama">
+                            <button id="updateCurrentModelButton" class="model-update-button"
+                                title="Pull latest version of this model from Ollama">
                                 <i data-lucide="download"></i>
                                 Update <span id="updateCurrentModelName">model</span>
                             </button>
@@ -3027,7 +3277,8 @@
                                 <span class="mgmt-panel-title">Pull Model</span>
                             </div>
                             <div class="pull-input-row">
-                                <input type="text" id="pullNewModelInput" class="param-number" style="width:auto;flex:1;text-align:left;" placeholder="e.g. tinyllama">
+                                <input type="text" id="pullNewModelInput" class="param-number"
+                                    style="width:auto;flex:1;text-align:left;" placeholder="e.g. tinyllama">
                                 <button id="pullNewModelButton" class="model-update-button">
                                     <i data-lucide="download"></i>
                                     Pull
@@ -3037,7 +3288,8 @@
                                 <div class="pull-progress-track">
                                     <div id="pullNewModelBar" class="pull-progress-fill"></div>
                                 </div>
-                                <span id="pullNewModelStatus" class="update-status" style="display:block;margin-top:4px;"></span>
+                                <span id="pullNewModelStatus" class="update-status"
+                                    style="display:block;margin-top:4px;"></span>
                             </div>
                         </div>
 
@@ -3046,9 +3298,11 @@
                             <div class="mgmt-panel-header">
                                 <span class="mgmt-panel-title">Update All Models</span>
                             </div>
-                            <p class="modal-description" style="margin-bottom:var(--space-sm);">Pull updated versions of all your locally installed models. Models are updated one by one.</p>
+                            <p class="modal-description" style="margin-bottom:var(--space-sm);">Pull updated versions of
+                                all your locally installed models. Models are updated one by one.</p>
                             <div class="param-update-row">
-                                <button id="updateAllModelsButton" class="model-update-button" title="Update all installed Ollama models">
+                                <button id="updateAllModelsButton" class="model-update-button"
+                                    title="Update all installed Ollama models">
                                     <i data-lucide="refresh-cw"></i>
                                     Update All Local Models
                                 </button>
@@ -3065,7 +3319,8 @@
                         <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
                     </button>
                     <div id="contextWindowSectionBody" class="settings-section-body">
-                        <p class="modal-description">Override the default context window size. Leave empty or set to 0 to
+                        <p class="modal-description">Override the default context window size. Leave empty or set to 0
+                            to
                             use automatic detection.</p>
                         <div class="context-limit-input-group">
                             <input type="number" id="contextLimitInput" placeholder="Auto" min="0" step="1000">
@@ -3110,7 +3365,8 @@
                 </div>
 
                 <div class="modal-footer settings-footer">
-                    <button id="openShortcutsFromSettings" class="modal-button secondary" title="View keyboard shortcuts (Alt+H)">
+                    <button id="openShortcutsFromSettings" class="modal-button secondary"
+                        title="View keyboard shortcuts (Alt+H)">
                         <i data-lucide="keyboard"></i>
                         Shortcuts
                     </button>
@@ -3136,7 +3392,8 @@
                 <div class="shortcuts-list">
                     <div class="shortcut-item">
                         <span class="shortcut-desc">Send message</span>
-                        <div class="shortcut-keys"><kbd>Enter</kbd><span class="shortcut-separator">/</span><kbd>Ctrl</kbd><kbd>Enter</kbd></div>
+                        <div class="shortcut-keys"><kbd>Enter</kbd><span
+                                class="shortcut-separator">/</span><kbd>Ctrl</kbd><kbd>Enter</kbd></div>
                     </div>
                     <div class="shortcut-item">
                         <span class="shortcut-desc">New chat</span>
@@ -3156,7 +3413,8 @@
                     </div>
                     <div class="shortcut-item">
                         <span class="shortcut-desc">Browse message history</span>
-                        <div class="shortcut-keys"><kbd>↑</kbd><span class="shortcut-separator">/</span><kbd>↓</kbd></div>
+                        <div class="shortcut-keys"><kbd>↑</kbd><span class="shortcut-separator">/</span><kbd>↓</kbd>
+                        </div>
                     </div>
                     <div class="shortcut-item">
                         <span class="shortcut-desc">Show this panel</span>
@@ -3215,7 +3473,8 @@
                 </button>
             </div>
             <div class="modal-body">
-                <div id="llmfitModalLoading" style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:var(--font-size-sm);padding:20px 0;">
+                <div id="llmfitModalLoading"
+                    style="display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:var(--font-size-sm);padding:20px 0;">
                     <i data-lucide="loader"></i>
                     Analyzing hardware...
                 </div>
