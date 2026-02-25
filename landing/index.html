@@ -668,22 +668,34 @@
     .screenshots-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 22px;
+      gap: 24px;
+      counter-reset: screenshot;
     }
-    .screenshots-grid .screenshot-card:first-child { grid-column: 1 / -1; }
 
     .screenshot-card {
       border-radius: var(--radius-lg);
       overflow: hidden;
       border: 1px solid var(--border);
-      transition: border-color 0.3s, box-shadow 0.3s;
+      background: var(--surface);
+      transition: border-color 0.3s, box-shadow 0.3s, transform 0.3s;
+      counter-increment: screenshot;
+      display: flex;
+      flex-direction: column;
     }
     .screenshot-card:hover {
       border-color: var(--border-mid);
-      box-shadow: 0 22px 64px rgba(0,0,0,0.55), 0 0 44px rgba(124, 58, 237, 0.12);
+      transform: translateY(-3px);
+      box-shadow: 0 24px 64px rgba(0,0,0,0.55), 0 0 44px rgba(124, 58, 237, 0.12);
     }
 
-    .screenshot-img { width: 100%; display: block; }
+    /* Uniform 16:9 image area — crops & fills regardless of source dimensions */
+    .screenshot-img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      object-position: top center;
+      display: block;
+    }
 
     .screenshot-placeholder {
       aspect-ratio: 16 / 9;
@@ -732,19 +744,44 @@
       line-height: 1.5;
     }
 
+    /* Caption — prominent label at the bottom of each card */
     .screenshot-caption {
-      background: rgba(6, 10, 18, 0.85);
-      backdrop-filter: blur(10px);
-      padding: 12px 18px;
-      font-size: 0.8125rem;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      background: var(--surface);
       border-top: 1px solid var(--border);
+    }
+    .screenshot-caption::before {
+      content: counter(screenshot, decimal-leading-zero);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--violet-light);
+      background: rgba(124, 58, 237, 0.12);
+      border: 1px solid rgba(124, 58, 237, 0.28);
+      border-radius: 5px;
+      padding: 2px 7px;
+      flex-shrink: 0;
+      letter-spacing: 0.04em;
+    }
+    .screenshot-caption-text {
+      font-family: var(--font-display);
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+    .screenshot-caption-sub {
+      font-family: var(--font-body);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 2px;
     }
 
     @media (max-width: 640px) {
       .screenshots-grid { grid-template-columns: 1fr; }
-      .screenshots-grid .screenshot-card:first-child { grid-column: 1; }
     }
 
     /* ================================
@@ -1390,7 +1427,7 @@
             <svg class="ph-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Main chat interface — reasoning model with thinking block and web search context</p>
           </div>
-          <div class="screenshot-caption">Main chat — reasoning model, web search context, streaming response</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Main Chat Interface</div><div class="screenshot-caption-sub">Reasoning model · web search context · streaming response</div></div></div>
         </div>
 
         <!-- 2 — model selector dropdown with cloud badges and sizes -->
@@ -1403,7 +1440,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Model selector showing all installed models with cloud badges and file sizes</p>
           </div>
-          <div class="screenshot-caption">Model selector — installed models with cloud badges and sizes</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Model Selector</div><div class="screenshot-caption-sub">All installed models · cloud badges · file sizes</div></div></div>
         </div>
 
         <!-- 3 — vision model analyzing an uploaded image -->
@@ -1416,7 +1453,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Vision model analyzing an uploaded image with detailed description</p>
           </div>
-          <div class="screenshot-caption">Vision model (qwen3-vl) — image upload and analysis</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Vision Model — Image Analysis</div><div class="screenshot-caption-sub">Upload any image · qwen3-vl describes it in detail</div></div></div>
         </div>
 
         <!-- 4 — web search split view with fetched results panel -->
@@ -1429,7 +1466,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Web search — live results panel alongside chat response</p>
           </div>
-          <div class="screenshot-caption">Web search — live results fetched and injected as context</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Web Search</div><div class="screenshot-caption-sub">Live results fetched via Tavily · injected as context</div></div></div>
         </div>
 
         <!-- 5 — LLMFit recommended for your hardware -->
@@ -1442,7 +1479,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Recommended for Your Hardware — LLMFit scored model cards</p>
           </div>
-          <div class="screenshot-caption">LLMFit integration — hardware-matched recommendations with scores</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Recommended for Your Hardware</div><div class="screenshot-caption-sub">LLMFit · scored model cards · speed, VRAM &amp; quantization</div></div></div>
         </div>
 
         <!-- 6 — settings modal with 6 themes + all sections -->
@@ -1455,7 +1492,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Settings — 6 themes, persona presets, parameters, model management</p>
           </div>
-          <div class="screenshot-caption">Settings — 6 themes, presets, parameters, model management &amp; more</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Settings</div><div class="screenshot-caption-sub">6 themes · persona presets · model parameters · management</div></div></div>
         </div>
 
         <!-- 7 — usage analytics dashboard -->
@@ -1468,7 +1505,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Usage Dashboard — tokens, conversations, model breakdown and speed stats</p>
           </div>
-          <div class="screenshot-caption">Usage Dashboard — tokens, conversations, speed and per-model stats</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Usage Dashboard</div><div class="screenshot-caption-sub">Tokens · conversations · avg speed · per-model breakdown</div></div></div>
         </div>
 
         <!-- 8 — reasoning / thinking block expanded -->
@@ -1481,7 +1518,7 @@
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
             <p class="ph-label">Reasoning model with expanded thinking block showing chain-of-thought</p>
           </div>
-          <div class="screenshot-caption">Reasoning display — expanded &lt;think&gt; block with chain-of-thought</div>
+          <div class="screenshot-caption"><div><div class="screenshot-caption-text">Reasoning Display</div><div class="screenshot-caption-sub">Expanded &lt;think&gt; block · transparent chain-of-thought</div></div></div>
         </div>
 
       </div>
@@ -2435,8 +2472,10 @@
     document.querySelectorAll('.screenshot-card .screenshot-img').forEach(img => {
       img.style.cursor = 'zoom-in';
       img.addEventListener('click', () => {
-        const caption = img.closest('.screenshot-card').querySelector('.screenshot-caption');
-        openLightbox(img.src, caption ? caption.textContent : img.alt);
+        const title = img.closest('.screenshot-card').querySelector('.screenshot-caption-text');
+        const sub   = img.closest('.screenshot-card').querySelector('.screenshot-caption-sub');
+        const label = title ? (sub ? title.textContent + ' — ' + sub.textContent : title.textContent) : img.alt;
+        openLightbox(img.src, label);
       });
     });
 
