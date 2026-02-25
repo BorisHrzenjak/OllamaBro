@@ -1,0 +1,2342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OllamaBro — Local AI in Your Browser</title>
+  <meta name="description" content="OllamaBro is a Chrome extension that lets you chat with local Ollama models directly in your browser. Private, fast, and open source.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap" rel="stylesheet">
+  <style>
+    /* ================================
+       RESET & BASE
+    ================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html { scroll-behavior: smooth; font-size: 16px; }
+
+    :root {
+      --space:         #060a12;
+      --space-mid:     #0d1525;
+      --surface:       #131c2e;
+      --surface-2:     #1a2540;
+      --glass:         rgba(13, 21, 37, 0.75);
+      --violet:        #7c3aed;
+      --violet-light:  #9f6ef5;
+      --violet-dim:    #4c1d95;
+      --violet-glow:   rgba(124, 58, 237, 0.3);
+      --cyan:          #22d3ee;
+      --text:          #e2e8f0;
+      --text-muted:    #94a3b8;
+      --text-dim:      #475569;
+      --border:        rgba(124, 58, 237, 0.18);
+      --border-mid:    rgba(124, 58, 237, 0.38);
+      --radius:        12px;
+      --radius-lg:     20px;
+      --font-display:  'Syne', sans-serif;
+      --font-body:     'DM Sans', sans-serif;
+      --font-mono:     'DM Mono', monospace;
+    }
+
+    body {
+      background: var(--space);
+      color: var(--text);
+      font-family: var(--font-body);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    /* ================================
+       NOISE TEXTURE
+    ================================ */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.028;
+      mix-blend-mode: screen;
+    }
+
+    /* ================================
+       TYPOGRAPHY
+    ================================ */
+    h1, h2, h3, h4 { font-family: var(--font-display); }
+
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--violet-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-label::before {
+      content: '';
+      display: block;
+      width: 28px;
+      height: 1px;
+      background: var(--violet-light);
+      flex-shrink: 0;
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.025em;
+    }
+
+    .section-subtitle {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      max-width: 540px;
+      line-height: 1.75;
+    }
+
+    /* ================================
+       LAYOUT
+    ================================ */
+    .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+    .section { padding: 120px 0; }
+
+    .section-header {
+      margin-bottom: 64px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    /* ================================
+       REVEAL ANIMATIONS
+    ================================ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 0.75s ease, transform 0.75s ease;
+    }
+    .reveal.revealed { opacity: 1; transform: none; }
+    .reveal-delay-1 { transition-delay: 0.08s; }
+    .reveal-delay-2 { transition-delay: 0.16s; }
+    .reveal-delay-3 { transition-delay: 0.24s; }
+    .reveal-delay-4 { transition-delay: 0.32s; }
+    .reveal-delay-5 { transition-delay: 0.40s; }
+
+    /* ================================
+       NAVIGATION
+    ================================ */
+    .nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 18px 0;
+      transition: background 0.35s, border-color 0.35s;
+    }
+    .nav.scrolled {
+      background: rgba(6, 10, 18, 0.88);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-family: var(--font-display);
+      font-size: 1.25rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+    .nav-logo-accent { color: var(--violet-light); }
+    .nav-dot {
+      width: 8px;
+      height: 8px;
+      background: var(--violet);
+      border-radius: 50%;
+      box-shadow: 0 0 10px var(--violet);
+      animation: dot-pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes dot-pulse {
+      0%, 100% { box-shadow: 0 0 8px var(--violet); opacity: 1; }
+      50% { box-shadow: 0 0 22px var(--violet-light); opacity: 0.65; }
+    }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      padding: 7px 13px;
+      border-radius: 8px;
+      transition: color 0.2s, background 0.2s;
+    }
+    .nav-links a:hover { color: var(--text); background: var(--surface); }
+    .nav-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-display);
+      font-size: 0.875rem;
+      font-weight: 700;
+      padding: 9px 20px;
+      background: var(--violet);
+      color: white;
+      border-radius: 9px;
+      transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+      box-shadow: 0 0 24px rgba(124, 58, 237, 0.35);
+    }
+    .nav-cta:hover {
+      background: var(--violet-light);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(124, 58, 237, 0.5);
+    }
+    .nav-hamburger {
+      display: none;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 8px;
+    }
+
+    @media (max-width: 800px) {
+      .nav-links { display: none; }
+      .nav-links.open {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 100%; left: 0; right: 0;
+        background: rgba(6, 10, 18, 0.97);
+        backdrop-filter: blur(20px);
+        padding: 16px 24px 24px;
+        border-bottom: 1px solid var(--border);
+        gap: 4px;
+      }
+      .nav-links.open a { padding: 10px 12px; }
+      .nav-hamburger { display: block; }
+      .nav-cta { display: none; }
+    }
+
+    /* ================================
+       HERO
+    ================================ */
+    .hero {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+      padding: 120px 0 100px;
+    }
+
+    .hero-bg { position: absolute; inset: 0; pointer-events: none; }
+
+    .orb {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(110px);
+      opacity: 0.32;
+    }
+    .orb-1 {
+      width: 640px; height: 640px;
+      background: radial-gradient(circle, #7c3aed 0%, transparent 70%);
+      top: -220px; left: -180px;
+      animation: drift-a 20s ease-in-out infinite;
+    }
+    .orb-2 {
+      width: 420px; height: 420px;
+      background: radial-gradient(circle, #06b6d4 0%, transparent 70%);
+      top: 160px; right: -80px;
+      animation: drift-b 25s ease-in-out infinite;
+    }
+    .orb-3 {
+      width: 320px; height: 320px;
+      background: radial-gradient(circle, #4c1d95 0%, transparent 70%);
+      bottom: 0; left: 38%;
+      animation: drift-c 17s ease-in-out infinite;
+    }
+    @keyframes drift-a {
+      0%,100% { transform: translate(0,0) scale(1); }
+      33% { transform: translate(55px, 38px) scale(1.06); }
+      66% { transform: translate(-28px, 55px) scale(0.94); }
+    }
+    @keyframes drift-b {
+      0%,100% { transform: translate(0,0) scale(1); }
+      33% { transform: translate(-42px, -58px) scale(1.12); }
+      66% { transform: translate(38px, 28px) scale(0.9); }
+    }
+    @keyframes drift-c {
+      0%,100% { transform: translate(0,0); }
+      50% { transform: translate(-48px, -38px) scale(1.12); }
+    }
+
+    .hero-grid {
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(124, 58, 237, 0.055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124, 58, 237, 0.055) 1px, transparent 1px);
+      background-size: 56px 56px;
+      mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, black 35%, transparent 100%);
+    }
+
+    .hero-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--cyan);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .hero-eyebrow::before {
+      content: '';
+      display: block;
+      width: 32px; height: 1px;
+      background: var(--cyan);
+    }
+
+    .hero-h1 {
+      font-size: clamp(2.75rem, 6vw, 5rem);
+      font-weight: 800;
+      line-height: 1.02;
+      letter-spacing: -0.03em;
+      margin-bottom: 24px;
+    }
+    .hero-h1 .gradient-text {
+      background: linear-gradient(125deg, var(--violet-light) 0%, #60a5fa 60%, var(--cyan) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero-desc {
+      font-size: 1.125rem;
+      color: var(--text-muted);
+      max-width: 460px;
+      line-height: 1.8;
+      margin-bottom: 40px;
+    }
+
+    .hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      background: var(--violet);
+      color: white;
+      font-family: var(--font-display);
+      font-weight: 700;
+      font-size: 0.9375rem;
+      border-radius: var(--radius);
+      transition: all 0.22s;
+      box-shadow: 0 0 48px rgba(124, 58, 237, 0.42), 0 4px 18px rgba(0,0,0,0.45);
+    }
+    .btn-primary:hover {
+      background: var(--violet-light);
+      transform: translateY(-2px);
+      box-shadow: 0 0 64px rgba(124, 58, 237, 0.56), 0 10px 36px rgba(0,0,0,0.55);
+    }
+
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      color: var(--text);
+      font-family: var(--font-display);
+      font-weight: 600;
+      font-size: 0.9375rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--border-mid);
+      background: rgba(124, 58, 237, 0.08);
+      transition: all 0.22s;
+    }
+    .btn-secondary:hover {
+      border-color: var(--violet-light);
+      background: rgba(124, 58, 237, 0.16);
+      transform: translateY(-2px);
+    }
+
+    .hero-stats {
+      display: flex;
+      gap: 36px;
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+    }
+    .hero-stat { display: flex; flex-direction: column; gap: 3px; }
+    .stat-val {
+      font-family: var(--font-display);
+      font-size: 1.875rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      letter-spacing: 0.06em;
+    }
+
+    /* Hero visual — fake browser */
+    .hero-visual { position: relative; }
+
+    .browser-window {
+      background: var(--surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-mid);
+      overflow: hidden;
+      box-shadow:
+        0 48px 112px rgba(0, 0, 0, 0.65),
+        0 0 70px rgba(124, 58, 237, 0.18),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      animation: float-anim 7s ease-in-out infinite;
+    }
+    @keyframes float-anim {
+      0%,100% { transform: translateY(0) rotate(-0.8deg); }
+      50% { transform: translateY(-14px) rotate(-0.8deg); }
+    }
+
+    .browser-bar {
+      background: #0a1020;
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .browser-dots { display: flex; gap: 6px; }
+    .browser-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .browser-dot:nth-child(1) { background: #ff5f56; }
+    .browser-dot:nth-child(2) { background: #febc2e; }
+    .browser-dot:nth-child(3) { background: #28c840; }
+    .browser-url {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+    }
+
+    .chat-window {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      height: 380px;
+      overflow: hidden;
+    }
+    .chat-msg { display: flex; gap: 10px; align-items: flex-start; }
+    .chat-msg.user { flex-direction: row-reverse; }
+    .chat-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .chat-avatar.ai { background: linear-gradient(135deg, var(--violet) 0%, #4c1d95 100%); color: white; }
+    .chat-avatar.human { background: var(--surface-2); color: var(--text-muted); }
+    .chat-bubble {
+      max-width: 82%;
+      padding: 10px 14px;
+      border-radius: 13px;
+      font-size: 0.8125rem;
+      line-height: 1.65;
+    }
+    .chat-msg.ai .chat-bubble { background: var(--surface-2); color: var(--text); border: 1px solid var(--border); }
+    .chat-msg.user .chat-bubble { background: var(--violet); color: white; }
+
+    .chat-typing {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--surface-2);
+      border-radius: 13px;
+      width: fit-content;
+      border: 1px solid var(--border);
+    }
+    .chat-typing span {
+      width: 5px; height: 5px;
+      background: var(--violet-light);
+      border-radius: 50%;
+      animation: type-bounce 1.4s ease-in-out infinite;
+    }
+    .chat-typing span:nth-child(2) { animation-delay: 0.18s; }
+    .chat-typing span:nth-child(3) { animation-delay: 0.36s; }
+    @keyframes type-bounce {
+      0%,80%,100% { transform: scale(0.7); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    .chat-input-bar {
+      background: #0a1020;
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .chat-input-fake {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .cursor {
+      display: inline-block;
+      width: 2px; height: 12px;
+      background: var(--violet-light);
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+    .chat-send {
+      width: 32px; height: 32px;
+      background: var(--violet);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .badge-strip {
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      white-space: nowrap;
+    }
+    .badge-chip {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 100px;
+      padding: 6px 14px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.45);
+      backdrop-filter: blur(10px);
+    }
+    .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .dot-green { background: #22c55e; box-shadow: 0 0 7px #22c55e; }
+    .dot-violet { background: var(--violet-light); box-shadow: 0 0 7px var(--violet-light); }
+    .dot-cyan { background: var(--cyan); box-shadow: 0 0 7px var(--cyan); }
+
+    @media (max-width: 940px) {
+      .hero-inner { grid-template-columns: 1fr; }
+      .hero-visual { display: none; }
+    }
+    @media (max-width: 520px) {
+      .hero-h1 { font-size: 2.5rem; }
+      .hero-actions { flex-direction: column; }
+      .hero-stats { gap: 22px; }
+    }
+
+    /* ================================
+       FEATURES
+    ================================ */
+    #features {
+      background: linear-gradient(180deg, var(--space) 0%, var(--space-mid) 50%, var(--space) 100%);
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: rgba(19, 28, 46, 0.55);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 30px;
+      backdrop-filter: blur(12px);
+      transition: border-color 0.3s, transform 0.3s, box-shadow 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(124, 58, 237, 0.07) 0%, transparent 55%);
+      pointer-events: none;
+    }
+    .feature-card:hover {
+      border-color: var(--border-mid);
+      transform: translateY(-5px);
+      box-shadow: 0 22px 64px rgba(0,0,0,0.45), 0 0 35px rgba(124, 58, 237, 0.09);
+    }
+
+    .feature-icon {
+      width: 46px; height: 46px;
+      border-radius: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 18px;
+    }
+    .feature-icon svg { width: 22px; height: 22px; }
+
+    .feature-title {
+      font-family: var(--font-display);
+      font-size: 1.0625rem;
+      font-weight: 700;
+      margin-bottom: 9px;
+    }
+    .feature-desc {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      line-height: 1.7;
+    }
+
+    /* Icon color variants */
+    .ic-violet { background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.28); }
+    .ic-violet svg { color: #a78bfa; }
+    .ic-cyan   { background: rgba(34,211,238,0.1);  border: 1px solid rgba(34,211,238,0.25); }
+    .ic-cyan   svg { color: #22d3ee; }
+    .ic-green  { background: rgba(34,197,94,0.1);   border: 1px solid rgba(34,197,94,0.25); }
+    .ic-green  svg { color: #4ade80; }
+    .ic-amber  { background: rgba(245,158,11,0.1);  border: 1px solid rgba(245,158,11,0.25); }
+    .ic-amber  svg { color: #fbbf24; }
+    .ic-rose   { background: rgba(244,63,94,0.1);   border: 1px solid rgba(244,63,94,0.25); }
+    .ic-rose   svg { color: #fb7185; }
+    .ic-indigo { background: rgba(99,102,241,0.12); border: 1px solid rgba(99,102,241,0.28); }
+    .ic-indigo svg { color: #818cf8; }
+    .ic-sky    { background: rgba(56,189,248,0.1);  border: 1px solid rgba(56,189,248,0.25); }
+    .ic-sky    svg { color: #38bdf8; }
+
+    /* ================================
+       SCREENSHOTS
+    ================================ */
+    #screenshots { background: var(--space); }
+
+    .screenshots-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 22px;
+    }
+    .screenshots-grid .screenshot-card:first-child { grid-column: 1 / -1; }
+
+    .screenshot-card {
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      transition: border-color 0.3s, box-shadow 0.3s;
+    }
+    .screenshot-card:hover {
+      border-color: var(--border-mid);
+      box-shadow: 0 22px 64px rgba(0,0,0,0.55), 0 0 44px rgba(124, 58, 237, 0.12);
+    }
+
+    .screenshot-img { width: 100%; display: block; }
+
+    .screenshot-placeholder {
+      aspect-ratio: 16 / 9;
+      background: linear-gradient(135deg, #080616 0%, #150e35 40%, #0a1428 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .screenshot-placeholder::before {
+      content: '';
+      position: absolute; inset: 0;
+      background-image:
+        linear-gradient(rgba(124, 58, 237, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124, 58, 237, 0.045) 1px, transparent 1px);
+      background-size: 22px 22px;
+    }
+    .screenshot-placeholder::after {
+      content: '';
+      position: absolute;
+      width: 240px; height: 240px;
+      background: radial-gradient(circle, rgba(124, 58, 237, 0.22) 0%, transparent 70%);
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .ph-icon {
+      position: relative;
+      z-index: 1;
+      color: rgba(159, 110, 245, 0.6);
+    }
+    .ph-label {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: rgba(148, 163, 184, 0.55);
+      text-align: center;
+      max-width: 300px;
+      letter-spacing: 0.04em;
+      font-style: italic;
+      position: relative;
+      z-index: 1;
+      line-height: 1.5;
+    }
+
+    .screenshot-caption {
+      background: rgba(6, 10, 18, 0.85);
+      backdrop-filter: blur(10px);
+      padding: 12px 18px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      border-top: 1px solid var(--border);
+    }
+
+    @media (max-width: 640px) {
+      .screenshots-grid { grid-template-columns: 1fr; }
+      .screenshots-grid .screenshot-card:first-child { grid-column: 1; }
+    }
+
+    /* ================================
+       ABOUT
+    ================================ */
+    #about {
+      background: linear-gradient(180deg, var(--space) 0%, var(--space-mid) 100%);
+    }
+
+    .about-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 80px;
+      align-items: center;
+    }
+
+    .about-body { display: flex; flex-direction: column; gap: 16px; }
+    .about-body p { color: var(--text-muted); line-height: 1.85; font-size: 1.0625rem; }
+
+    .about-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .about-pill {
+      background: rgba(124, 58, 237, 0.1);
+      border: 1px solid var(--border-mid);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 0.8125rem;
+      font-family: var(--font-mono);
+      color: var(--violet-light);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .about-cards { display: flex; flex-direction: column; gap: 16px; }
+
+    .about-card {
+      background: rgba(19, 28, 46, 0.55);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      backdrop-filter: blur(10px);
+      display: flex;
+      align-items: flex-start;
+      gap: 18px;
+      transition: border-color 0.3s;
+    }
+    .about-card:hover { border-color: var(--border-mid); }
+    .about-card-icon {
+      width: 42px; height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .about-card h4 {
+      font-family: var(--font-display);
+      font-size: 0.9375rem;
+      font-weight: 700;
+      margin-bottom: 5px;
+    }
+    .about-card p { font-size: 0.875rem; color: var(--text-muted); line-height: 1.65; }
+
+    @media (max-width: 800px) {
+      .about-inner { grid-template-columns: 1fr; gap: 48px; }
+    }
+
+    /* ================================
+       DOCUMENTATION
+    ================================ */
+    #docs { background: var(--space-mid); }
+
+    .docs-layout {
+      display: grid;
+      grid-template-columns: 230px 1fr;
+      gap: 56px;
+      align-items: start;
+    }
+
+    .docs-sidebar { position: sticky; top: 90px; }
+
+    .docs-nav-group { padding: 14px 0 8px; }
+    .docs-nav-group-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.17em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 0 12px 8px;
+    }
+    .docs-nav { list-style: none; display: flex; flex-direction: column; gap: 2px; }
+    .docs-nav a {
+      display: block;
+      padding: 8px 12px;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      border-radius: 8px;
+      border-left: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .docs-nav a:hover { color: var(--text); background: rgba(124,58,237,0.08); border-left-color: rgba(124,58,237,0.5); }
+    .docs-nav a.active { color: var(--violet-light); background: rgba(124,58,237,0.1); border-left-color: var(--violet); font-weight: 500; }
+
+    .docs-content { min-width: 0; }
+
+    .doc-section {
+      padding: 44px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .doc-section:first-child { padding-top: 0; }
+    .doc-section:last-child { border-bottom: none; }
+
+    .doc-section h3 {
+      font-family: var(--font-display);
+      font-size: 1.625rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      scroll-margin-top: 100px;
+    }
+    .doc-desc { color: var(--text-muted); margin-bottom: 28px; line-height: 1.75; }
+
+    .doc-step { display: flex; gap: 18px; margin-bottom: 20px; align-items: flex-start; }
+    .doc-step-num {
+      width: 30px; height: 30px;
+      background: rgba(124,58,237,0.18);
+      border: 1px solid rgba(124,58,237,0.38);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--violet-light);
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+    .doc-step-body { flex: 1; }
+    .doc-step-title { font-weight: 600; font-size: 0.9375rem; margin-bottom: 5px; }
+    .doc-step-desc { font-size: 0.875rem; color: var(--text-muted); line-height: 1.7; }
+
+    .code-block {
+      background: var(--space);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px 22px;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      color: var(--cyan);
+      line-height: 1.75;
+      margin: 14px 0;
+      overflow-x: auto;
+    }
+    .code-block .comment { color: var(--text-dim); }
+    .code-block .cmd { color: var(--violet-light); }
+    code { font-family: var(--font-mono); color: var(--cyan); font-size: 0.875em; }
+
+    .prereq-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 28px;
+    }
+    .prereq-card {
+      background: var(--space);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      text-align: center;
+      transition: border-color 0.3s;
+    }
+    .prereq-card:hover { border-color: var(--border-mid); }
+    .prereq-card .icon { font-size: 2rem; margin-bottom: 10px; }
+    .prereq-card h4 { font-family: var(--font-display); font-size: 0.9375rem; font-weight: 700; margin-bottom: 5px; }
+    .prereq-card p { font-size: 0.8125rem; color: var(--text-muted); }
+
+    .tip-box {
+      background: rgba(124, 58, 237, 0.07);
+      border: 1px solid rgba(124, 58, 237, 0.24);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      margin: 18px 0;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .tip-icon { color: var(--violet-light); flex-shrink: 0; margin-top: 2px; }
+    .tip-text { font-size: 0.875rem; color: var(--text-muted); line-height: 1.7; }
+    .tip-text strong { color: var(--text); }
+
+    .kbd-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .kbd-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--space);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 10px 14px;
+      gap: 12px;
+    }
+    .kbd-desc { font-size: 0.875rem; color: var(--text-muted); }
+    .kbd-combo { display: flex; gap: 4px; flex-shrink: 0; }
+    kbd {
+      background: var(--surface-2);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      padding: 2px 9px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text);
+    }
+
+    @media (max-width: 920px) {
+      .docs-layout { grid-template-columns: 1fr; }
+      .docs-sidebar { position: static; display: none; }
+      .prereq-grid { grid-template-columns: 1fr; }
+      .kbd-grid { grid-template-columns: 1fr; }
+    }
+
+    /* ================================
+       GITHUB CTA
+    ================================ */
+    #github {
+      background: linear-gradient(135deg, #0c1020 0%, #180d38 50%, #0c1020 100%);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+      padding: 108px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    #github::before {
+      content: '';
+      position: absolute;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(124, 58, 237, 0.16) 0%, transparent 70%);
+      border-radius: 50%;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
+    .github-inner { position: relative; z-index: 1; }
+    .github-inner h2 {
+      font-size: clamp(2.25rem, 5vw, 3.75rem);
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      margin-bottom: 18px;
+    }
+    .github-inner > p {
+      color: var(--text-muted);
+      font-size: 1.125rem;
+      max-width: 480px;
+      margin: 0 auto 44px;
+      line-height: 1.75;
+    }
+    .github-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      padding: 17px 40px;
+      background: var(--text);
+      color: var(--space);
+      font-family: var(--font-display);
+      font-weight: 800;
+      font-size: 1.0625rem;
+      border-radius: var(--radius);
+      transition: all 0.22s;
+      box-shadow: 0 8px 44px rgba(0,0,0,0.55);
+    }
+    .github-btn:hover {
+      background: white;
+      transform: translateY(-3px);
+      box-shadow: 0 18px 64px rgba(0,0,0,0.65), 0 0 44px rgba(255,255,255,0.12);
+    }
+    .github-note {
+      margin-top: 24px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    /* ================================
+       FOOTER
+    ================================ */
+    footer {
+      background: var(--space);
+      padding: 52px 0;
+      border-top: 1px solid var(--border);
+    }
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .footer-brand { display: flex; flex-direction: column; gap: 5px; }
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: 1.125rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .footer-logo span { color: var(--violet-light); }
+    .footer-tagline { font-size: 0.8125rem; color: var(--text-dim); font-family: var(--font-mono); }
+    .footer-links { display: flex; gap: 28px; list-style: none; }
+    .footer-links a { font-size: 0.875rem; color: var(--text-muted); transition: color 0.2s; }
+    .footer-links a:hover { color: var(--violet-light); }
+    .footer-copy { font-size: 0.8125rem; color: var(--text-dim); font-family: var(--font-mono); }
+
+    @media (max-width: 640px) {
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+
+    /* ================================
+       SCROLLBAR
+    ================================ */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--space); }
+    ::-webkit-scrollbar-thumb { background: rgba(124,58,237,0.4); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(124,58,237,0.7); }
+  </style>
+</head>
+<body>
+
+  <!-- ==================== NAVIGATION ==================== -->
+  <nav class="nav" id="nav">
+    <div class="container">
+      <div class="nav-inner">
+        <a href="#" class="nav-logo">
+          <div class="nav-dot"></div>
+          Ollama<span class="nav-logo-accent">Bro</span>
+        </a>
+        <ul class="nav-links" id="navLinks">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#screenshots">Screenshots</a></li>
+          <li><a href="#about">About</a></li>
+          <li><a href="#docs">Docs</a></li>
+          <li><a href="#github">GitHub</a></li>
+        </ul>
+        <a href="https://github.com/BorisHrzenjak/OllamaBro" target="_blank" rel="noopener" class="nav-cta">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          Star on GitHub
+        </a>
+        <button class="nav-hamburger" id="hamburger" aria-label="Toggle menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+            <line x1="3" y1="18" x2="21" y2="18"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ==================== HERO ==================== -->
+  <section class="hero">
+    <div class="hero-bg">
+      <div class="orb orb-1"></div>
+      <div class="orb orb-2"></div>
+      <div class="orb orb-3"></div>
+      <div class="hero-grid"></div>
+    </div>
+    <div class="container">
+      <div class="hero-inner">
+        <!-- Left: Text -->
+        <div>
+          <div class="hero-eyebrow">Chrome Extension &nbsp;·&nbsp; 100% Local &nbsp;·&nbsp; Open Source</div>
+          <h1 class="hero-h1">
+            Local AI,<br>
+            <span class="gradient-text">right in Chrome.</span>
+          </h1>
+          <p class="hero-desc">
+            OllamaBro connects your Chrome browser directly to your local Ollama instance. Chat with any model, search the web, and analyze images — privately, with zero data leaving your machine.
+          </p>
+          <div class="hero-actions">
+            <a href="https://github.com/BorisHrzenjak/OllamaBro" target="_blank" rel="noopener" class="btn-primary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+              Get Started Free
+            </a>
+            <a href="#docs" class="btn-secondary">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              Read the Docs
+            </a>
+          </div>
+          <div class="hero-stats">
+            <div class="hero-stat">
+              <span class="stat-val">100%</span>
+              <span class="stat-label">Local</span>
+            </div>
+            <div class="hero-stat">
+              <span class="stat-val">10+</span>
+              <span class="stat-label">Features</span>
+            </div>
+            <div class="hero-stat">
+              <span class="stat-val">$0</span>
+              <span class="stat-label">Cost</span>
+            </div>
+            <div class="hero-stat">
+              <span class="stat-val">∞</span>
+              <span class="stat-label">Models</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Fake browser window -->
+        <div class="hero-visual">
+          <div class="browser-window">
+            <div class="browser-bar">
+              <div class="browser-dots">
+                <div class="browser-dot"></div>
+                <div class="browser-dot"></div>
+                <div class="browser-dot"></div>
+              </div>
+              <div class="browser-url">OllamaBro — llama3.2:3b 🧠</div>
+            </div>
+            <div class="chat-window">
+              <div class="chat-msg user">
+                <div class="chat-avatar human">U</div>
+                <div class="chat-bubble">Explain quantum entanglement simply</div>
+              </div>
+              <div class="chat-msg ai">
+                <div class="chat-avatar ai">AI</div>
+                <div class="chat-bubble">Quantum entanglement is like two magic dice: no matter how far apart they are, when one shows a 6 the other does too. Einstein called it "spooky action at a distance." 👻</div>
+              </div>
+              <div class="chat-msg user">
+                <div class="chat-avatar human">U</div>
+                <div class="chat-bubble">Search the web for recent breakthroughs</div>
+              </div>
+              <div class="chat-msg ai">
+                <div class="chat-avatar ai">AI</div>
+                <div class="chat-typing">
+                  <span></span><span></span><span></span>
+                </div>
+              </div>
+            </div>
+            <div class="chat-input-bar">
+              <div class="chat-input-fake">
+                Ask anything<span class="cursor"></span>
+              </div>
+              <div class="chat-send">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </div>
+            </div>
+          </div>
+          <div class="badge-strip">
+            <div class="badge-chip"><span class="dot dot-green"></span>Streaming</div>
+            <div class="badge-chip"><span class="dot dot-violet"></span>Private</div>
+            <div class="badge-chip"><span class="dot dot-cyan"></span>Web Search</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FEATURES ==================== -->
+  <section id="features" class="section">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-label">Capabilities</div>
+        <h2 class="section-title">Everything you need<br>to run local AI</h2>
+        <p class="section-subtitle">From basic chat to vision analysis and live web search — OllamaBro packs serious AI capabilities into a browser extension.</p>
+      </div>
+      <div class="features-grid">
+
+        <div class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon ic-violet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          </div>
+          <h3 class="feature-title">Streaming Chat</h3>
+          <p class="feature-desc">Real-time token streaming from any Ollama model. Watch responses appear word by word — no waiting for the full reply to load.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon ic-indigo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="7" height="7"/><rect x="15" y="3" width="7" height="7"/><rect x="15" y="14" width="7" height="7"/><rect x="2" y="14" width="7" height="7"/></svg>
+          </div>
+          <h3 class="feature-title">Multi-Model Support</h3>
+          <p class="feature-desc">Switch between all your installed Ollama models. Each model maintains its own completely independent conversation history.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon ic-green">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </div>
+          <h3 class="feature-title">Vision Models</h3>
+          <p class="feature-desc">Drag &amp; drop images into conversations with LLaVA, Llama 3.2-Vision, Gemma3, and more. Auto-compression keeps large images under the API limit.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-4">
+          <div class="feature-icon ic-cyan">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+          </div>
+          <h3 class="feature-title">Web Search</h3>
+          <p class="feature-desc">Live search results via Tavily API + Jina Reader are injected as context. Paste any URL and it's automatically fetched — no toggle needed.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-5">
+          <div class="feature-icon ic-violet">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </div>
+          <h3 class="feature-title">Deep Research</h3>
+          <p class="feature-desc">Multi-step research queries that pull from multiple sources and synthesize a comprehensive, cited answer — like a mini research assistant.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-1">
+          <div class="feature-icon ic-amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+          </div>
+          <h3 class="feature-title">Capability Badges</h3>
+          <p class="feature-desc">Auto-detected Vision 👁️, Reasoning 🧠, Tools, and Cloud badges on every model. Know your model's superpowers at a glance without guessing.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-2">
+          <div class="feature-icon ic-sky">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </div>
+          <h3 class="feature-title">Hardware Recommendations</h3>
+          <p class="feature-desc">"Recommended for Your Hardware" surfaces models sized to fit your system's RAM and GPU — no more guessing which models will actually run.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-3">
+          <div class="feature-icon ic-rose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3 class="feature-title">Reasoning Display</h3>
+          <p class="feature-desc">Collapsible &lt;think&gt; blocks expose the model's chain-of-thought. Full transparency into how answers are formed — expand or hide anytime.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-4">
+          <div class="feature-icon ic-indigo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          </div>
+          <h3 class="feature-title">Conversation Manager</h3>
+          <p class="feature-desc">Create, rename, and delete conversations. A sidebar lists all past chats per model — pick up any old thread instantly.</p>
+        </div>
+
+        <div class="feature-card reveal reveal-delay-5">
+          <div class="feature-icon ic-amber">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          </div>
+          <h3 class="feature-title">Dark &amp; Light Themes</h3>
+          <p class="feature-desc">A beautifully crafted dark mode and a clean light mode. Switch with a single toggle. Your preference is remembered across sessions.</p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SCREENSHOTS ==================== -->
+  <section id="screenshots" class="section">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-label">Screenshots</div>
+        <h2 class="section-title">See it in action</h2>
+        <p class="section-subtitle">A visual tour through every major feature — from streaming chat to vision models and live web search.</p>
+      </div>
+      <div class="screenshots-grid">
+
+        <!-- 1: Featured (full width) -->
+        <div class="screenshot-card reveal">
+          <img src="screenshots/01-chat.png"
+               alt="Main chat interface with streaming response"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Main chat interface with streaming response</p>
+          </div>
+          <div class="screenshot-caption">Main chat interface with streaming response</div>
+        </div>
+
+        <!-- 2 -->
+        <div class="screenshot-card reveal reveal-delay-1">
+          <img src="screenshots/02-model-selector.png"
+               alt="Model selector popup with capability badges (vision/reasoning icons)"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Model selector popup with capability badges (vision/reasoning icons)</p>
+          </div>
+          <div class="screenshot-caption">Model selector with capability badges</div>
+        </div>
+
+        <!-- 3 -->
+        <div class="screenshot-card reveal reveal-delay-2">
+          <img src="screenshots/03-vision-upload.png"
+               alt="Image upload — vision model with attached image preview"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Image upload — vision model with attached image preview</p>
+          </div>
+          <div class="screenshot-caption">Vision model image upload</div>
+        </div>
+
+        <!-- 4 -->
+        <div class="screenshot-card reveal reveal-delay-1">
+          <img src="screenshots/04-web-search.png"
+               alt="Web search enabled — globe icon active, search results injected"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Web search enabled — globe icon active, search results injected</p>
+          </div>
+          <div class="screenshot-caption">Web search with live results injected</div>
+        </div>
+
+        <!-- 5 -->
+        <div class="screenshot-card reveal reveal-delay-2">
+          <img src="screenshots/05-hardware-rec.png"
+               alt="Recommended for Your Hardware panel"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Recommended for Your Hardware panel</p>
+          </div>
+          <div class="screenshot-caption">Hardware-matched model recommendations</div>
+        </div>
+
+        <!-- 6 -->
+        <div class="screenshot-card reveal reveal-delay-3">
+          <img src="screenshots/06-settings.png"
+               alt="Settings modal — web search API key, theme toggle"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Settings modal — web search API key, theme toggle</p>
+          </div>
+          <div class="screenshot-caption">Settings: API keys and theme</div>
+        </div>
+
+        <!-- 7 -->
+        <div class="screenshot-card reveal reveal-delay-4">
+          <img src="screenshots/07-reasoning.png"
+               alt="Reasoning model output with collapsible think block"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Reasoning model output with collapsible think block</p>
+          </div>
+          <div class="screenshot-caption">Reasoning model with collapsible &lt;think&gt; blocks</div>
+        </div>
+
+        <!-- 8 -->
+        <div class="screenshot-card reveal reveal-delay-5">
+          <img src="screenshots/08-conversations.png"
+               alt="Conversation list sidebar with multiple saved chats"
+               class="screenshot-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="screenshot-placeholder" style="display:none">
+            <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            <p class="ph-label">Conversation list sidebar with multiple saved chats</p>
+          </div>
+          <div class="screenshot-caption">Conversation management sidebar</div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== ABOUT ==================== -->
+  <section id="about" class="section">
+    <div class="container">
+      <div class="about-inner">
+        <!-- Left: text -->
+        <div class="reveal">
+          <div class="section-label" style="margin-bottom:18px">About</div>
+          <h2 class="section-title" style="margin-bottom:28px">AI that stays<br>on your machine</h2>
+          <div class="about-body">
+            <p>OllamaBro was built for developers and power users who want the full capabilities of modern AI without sending their conversations to cloud providers. Every message, every model response, every conversation history lives entirely on your local hardware.</p>
+            <p>The extension communicates with a tiny local proxy server — a lightweight Node.js/Express app that bridges Chrome's extension sandbox with Ollama's local API. It handles CORS, enforces localhost-only connections, and automatically enables streaming.</p>
+            <p>No account. No subscription. No telemetry. No API keys required for core chat. Just you, your models, and your data.</p>
+          </div>
+          <div class="about-pills">
+            <span class="about-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              MIT License
+            </span>
+            <span class="about-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Zero Telemetry
+            </span>
+            <span class="about-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              No Account Needed
+            </span>
+            <span class="about-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Manifest V3
+            </span>
+            <span class="about-pill">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+              Open Source
+            </span>
+          </div>
+        </div>
+
+        <!-- Right: cards -->
+        <div class="about-cards reveal reveal-delay-2">
+          <div class="about-card">
+            <div class="about-card-icon" style="background:rgba(34,197,94,0.13)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <h4>Privacy by Design</h4>
+              <p>Your conversations never leave your machine. No cloud API keys, no remote storage, no third-party access to your data — ever.</p>
+            </div>
+          </div>
+          <div class="about-card">
+            <div class="about-card-icon" style="background:rgba(124,58,237,0.13)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+            </div>
+            <div>
+              <h4>Fully Open Source</h4>
+              <p>Every line of code is on GitHub. Audit it, fork it, extend it, or contribute. The community drives the roadmap.</p>
+            </div>
+          </div>
+          <div class="about-card">
+            <div class="about-card-icon" style="background:rgba(34,211,238,0.12)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#22d3ee" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            </div>
+            <div>
+              <h4>Runs Anywhere Ollama Does</h4>
+              <p>If Ollama runs on your hardware, OllamaBro works. Any OS, any GPU (or no GPU), any model in the Ollama library.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== DOCUMENTATION ==================== -->
+  <section id="docs" class="section">
+    <div class="container">
+      <div class="section-header reveal">
+        <div class="section-label">Documentation</div>
+        <h2 class="section-title">Complete feature guide</h2>
+        <p class="section-subtitle">Everything from first install to advanced features — documented in full.</p>
+      </div>
+      <div class="docs-layout">
+
+        <!-- Sidebar -->
+        <aside class="docs-sidebar">
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">Getting Started</div>
+            <ul class="docs-nav" id="docsNav">
+              <li><a href="#doc-prereqs" class="active">Prerequisites</a></li>
+              <li><a href="#doc-proxy">Install Proxy Server</a></li>
+              <li><a href="#doc-extension">Load Extension</a></li>
+              <li><a href="#doc-chat">Start Chatting</a></li>
+            </ul>
+          </div>
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">Chat & Configuration</div>
+            <ul class="docs-nav">
+              <li><a href="#doc-conversations">Conversations &amp; Drafts</a></li>
+              <li><a href="#doc-system-prompt">System Prompt</a></li>
+              <li><a href="#doc-parameters">Model Parameters</a></li>
+              <li><a href="#doc-context">Context Window</a></li>
+            </ul>
+          </div>
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">AI Features</div>
+            <ul class="docs-nav">
+              <li><a href="#doc-search">Web Search</a></li>
+              <li><a href="#doc-deep-research">Deep Research</a></li>
+              <li><a href="#doc-vision">Image Upload</a></li>
+              <li><a href="#doc-reasoning">Reasoning Display</a></li>
+            </ul>
+          </div>
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">Themes &amp; Presets</div>
+            <ul class="docs-nav">
+              <li><a href="#doc-themes">Themes</a></li>
+              <li><a href="#doc-presets">Persona Presets</a></li>
+            </ul>
+          </div>
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">Tools</div>
+            <ul class="docs-nav">
+              <li><a href="#doc-tts">Text-to-Speech</a></li>
+              <li><a href="#doc-voice">Voice Dictation</a></li>
+              <li><a href="#doc-messages">Message Actions</a></li>
+              <li><a href="#doc-analytics">Usage Analytics</a></li>
+            </ul>
+          </div>
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">Hardware</div>
+            <ul class="docs-nav">
+              <li><a href="#doc-llmfit">LLMFit Integration</a></li>
+              <li><a href="#doc-model-mgmt">Model Management</a></li>
+            </ul>
+          </div>
+          <div class="docs-nav-group">
+            <div class="docs-nav-group-label">Reference</div>
+            <ul class="docs-nav">
+              <li><a href="#doc-shortcuts">Keyboard Shortcuts</a></li>
+            </ul>
+          </div>
+        </aside>
+
+        <!-- Content -->
+        <div class="docs-content">
+
+          <!-- Prerequisites -->
+          <div class="doc-section" id="doc-prereqs">
+            <h3>Prerequisites</h3>
+            <p class="doc-desc">Before installing OllamaBro, ensure you have these three components set up on your machine.</p>
+            <div class="prereq-grid">
+              <div class="prereq-card">
+                <div class="icon">🦙</div>
+                <h4>Ollama</h4>
+                <p>Running locally on port 11434</p>
+              </div>
+              <div class="prereq-card">
+                <div class="icon">⬢</div>
+                <h4>Node.js</h4>
+                <p>v18 or later, for the proxy server</p>
+              </div>
+              <div class="prereq-card">
+                <div class="icon">🌐</div>
+                <h4>Chrome</h4>
+                <p>Any modern version with developer mode available</p>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text"><strong>Verify Ollama is running:</strong> Navigate to <code>http://localhost:11434</code> in your browser. You should see <code>Ollama is running</code>. If not, start it with <code>ollama serve</code>.</p>
+            </div>
+          </div>
+
+          <!-- Proxy Server -->
+          <div class="doc-section" id="doc-proxy">
+            <h3>Install the Proxy Server</h3>
+            <p class="doc-desc">A lightweight Express app bridges Chrome's sandbox with Ollama's API, handling CORS, request filtering, and web context injection.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">1</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Clone the repository</div>
+                <div class="code-block"><span class="cmd">git clone</span> https://github.com/BorisHrzenjak/OllamaBro<br><span class="cmd">cd</span> OllamaBro</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">2</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Install dependencies</div>
+                <div class="code-block"><span class="cmd">cd</span> proxy_server<br><span class="cmd">npm install</span></div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">3</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Configure environment (optional)</div>
+                <div class="doc-step-desc">Create a <code>.env</code> file for your Tavily API key to enable web search.</div>
+                <div class="code-block"><span class="comment"># proxy_server/.env</span><br>TAVILY_API_KEY=your_tavily_key_here</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">4</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Start the proxy server</div>
+                <div class="code-block"><span class="comment"># Direct start</span><br><span class="cmd">npm start</span><br><br><span class="comment"># PM2 — persists across reboots (recommended)</span><br><span class="cmd">pm2 start</span> server.js <span class="cmd">--name</span> ollama-proxy<br><span class="cmd">pm2 save</span> &amp;&amp; <span class="cmd">pm2 startup</span></div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text">The proxy listens on <strong>port 3000</strong>, accepts only localhost connections, and proxies only <code>/api/tags</code>, <code>/api/chat</code>, <code>/api/generate</code>, <code>/api/show</code>, and <code>/api/pull</code>. Nothing else passes through.</p>
+            </div>
+          </div>
+
+          <!-- Load Extension -->
+          <div class="doc-section" id="doc-extension">
+            <h3>Load the Chrome Extension</h3>
+            <p class="doc-desc">Install OllamaBro as an unpacked developer extension — no Chrome Web Store required.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">1</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Open Extensions</div>
+                <div class="doc-step-desc">Navigate to <code>chrome://extensions/</code> in Chrome.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">2</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Enable Developer Mode</div>
+                <div class="doc-step-desc">Toggle <strong>Developer mode</strong> in the top-right corner of the Extensions page.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">3</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Load Unpacked</div>
+                <div class="doc-step-desc">Click <strong>Load unpacked</strong> and select the <code>chrome_extension/</code> directory from the repository root.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">4</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Pin to toolbar</div>
+                <div class="doc-step-desc">Click the puzzle-piece icon 🧩 in the Chrome toolbar, find OllamaBro, and pin it for easy access.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Start Chatting -->
+          <div class="doc-section" id="doc-chat">
+            <h3>Start Chatting</h3>
+            <p class="doc-desc">With Ollama and the proxy server running, you're ready to go.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">1</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Click the OllamaBro icon</div>
+                <div class="doc-step-desc">Opens the model selector popup listing all your installed Ollama models with capability badges.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">2</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Select a model</div>
+                <div class="doc-step-desc">Choose any model. Badges appear automatically: 👁️ vision, 🧠 reasoning, 🔧 tools, ☁️ cloud.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">3</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Start a conversation</div>
+                <div class="doc-step-desc">Click <strong>New Chat</strong> in the sidebar or start typing. Press <kbd>Enter</kbd> to send.</div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <p class="tip-text"><strong>Abort generation</strong> any time by pressing <kbd>Escape</kbd>. The model stops streaming immediately.</p>
+            </div>
+          </div>
+
+          <!-- Conversations & Drafts -->
+          <div class="doc-section" id="doc-conversations">
+            <h3>Conversations &amp; Drafts</h3>
+            <p class="doc-desc">Each model maintains independent conversations. OllamaBro stores up to 200 messages per conversation and auto-renders the last 50 for performance.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Multiple conversations per model</div>
+                <div class="doc-step-desc">Use the left sidebar to create, switch, rename, and delete conversations. Titles are auto-generated from your first message.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Search conversations</div>
+                <div class="doc-step-desc">A search field at the top of the sidebar filters conversations by title in real time.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Draft persistence</div>
+                <div class="doc-step-desc">Unsent messages are automatically saved as drafts per conversation. When you switch back to a conversation, your draft is restored exactly as you left it.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Collapsible sidebar</div>
+                <div class="doc-step-desc">Click the arrow toggle (← / →) to collapse the sidebar and maximize chat space. State persists across sessions.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- System Prompt -->
+          <div class="doc-section" id="doc-system-prompt">
+            <h3>System Prompt</h3>
+            <p class="doc-desc">Give the model a persistent persona, set of instructions, or context that applies to every message in a conversation.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Access via Settings</div>
+                <div class="doc-step-desc">Open the Settings modal (gear icon ⚙️) and expand the <strong>System Prompt</strong> section. Type or paste any instructions.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Live token count</div>
+                <div class="doc-step-desc">A token counter updates as you type, so you can plan your system prompt against the model's context window budget.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Per-model persistence</div>
+                <div class="doc-step-desc">Each model stores its own system prompt independently. Switch models without losing your carefully crafted instructions.</div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text">You can also apply a <strong>Persona Preset</strong> (see below) to set the system prompt automatically from a template.</p>
+            </div>
+          </div>
+
+          <!-- Model Parameters -->
+          <div class="doc-section" id="doc-parameters">
+            <h3>Model Parameters</h3>
+            <p class="doc-desc">Fine-tune every generation with six configurable parameters. All parameters are per-model and persist across sessions. Find them in Settings → Model Parameters.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Temperature <span style="color:var(--text-dim);font-weight:400;font-size:0.8125rem">(0.0 – 2.0, default 0.8)</span></div>
+                <div class="doc-step-desc">Controls randomness. Lower values (e.g. 0.2) make output more deterministic and factual. Higher values (e.g. 1.4) make it more creative and varied.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Top P <span style="color:var(--text-dim);font-weight:400;font-size:0.8125rem">(0.0 – 1.0, default 0.9)</span></div>
+                <div class="doc-step-desc">Nucleus sampling threshold. The model only samples from the top tokens whose cumulative probability reaches this value. Lower = more focused output.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Top K <span style="color:var(--text-dim);font-weight:400;font-size:0.8125rem">(integer, default 40)</span></div>
+                <div class="doc-step-desc">Limits the sampling pool to the top K most probable tokens. Reduces incoherence without sacrificing too much variety.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Repeat Penalty <span style="color:var(--text-dim);font-weight:400;font-size:0.8125rem">(0.0 – 2.0, default 1.1)</span></div>
+                <div class="doc-step-desc">Penalises recently generated tokens to discourage repetition. Increase if the model loops on the same phrases.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Seed <span style="color:var(--text-dim);font-weight:400;font-size:0.8125rem">(integer)</span></div>
+                <div class="doc-step-desc">Set a fixed seed for fully reproducible outputs. Useful for testing or sharing exact responses. Leave blank for random seeding.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Num Predict <span style="color:var(--text-dim);font-weight:400;font-size:0.8125rem">(integer)</span></div>
+                <div class="doc-step-desc">Maximum tokens the model will generate per response. Cap this to keep responses concise or budget context space for long conversations.</div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text">Each parameter has a paired slider and number input that stay in sync. Click <strong>Reset</strong> to clear all overrides and return to model defaults.</p>
+            </div>
+          </div>
+
+          <!-- Context Window -->
+          <div class="doc-section" id="doc-context">
+            <h3>Context Window</h3>
+            <p class="doc-desc">OllamaBro tracks how much of the model's context window is in use and warns you before you run out.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Visual context indicator</div>
+                <div class="doc-step-desc">A usage bar in the header shows the percentage of context consumed. Turns <strong style="color:#fbbf24">yellow at 75%</strong> and <strong style="color:#f87171">red at 90%</strong> — both with a tooltip showing exact token breakdown.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Manual override</div>
+                <div class="doc-step-desc">In Settings → Context Window, enter a custom context limit for the active model. Local models default to 4 096 tokens; cloud models default to 128 000.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Clear context</div>
+                <div class="doc-step-desc">Use the clear context button to wipe conversation history while keeping the system prompt intact. A confirmation dialog prevents accidental loss. Shortcut: <kbd>Ctrl</kbd><kbd>D</kbd>.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Web Search -->
+          <div class="doc-section" id="doc-search">
+            <h3>Web Search</h3>
+            <p class="doc-desc">Inject live search results as context so your local model can answer questions about current events, prices, news, and more.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">1</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Get a free Tavily API key</div>
+                <div class="doc-step-desc">Sign up at <strong>tavily.com</strong>. The free tier is generous for personal use.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">2</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Add the key</div>
+                <div class="doc-step-desc">Open Settings ⚙️ → Web Search and paste your Tavily key. Or add <code>TAVILY_API_KEY=…</code> to <code>proxy_server/.env</code>.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">3</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Toggle the globe icon</div>
+                <div class="doc-step-desc">Click 🌐 in the input bar. It turns purple when active. Every message you send will be augmented with up to 5 live search results from Tavily.</div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text"><strong>Always-on URL fetching:</strong> Paste any URL in your message and OllamaBro fetches the full page via Jina Reader automatically — no toggle or API key needed.</p>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text"><strong>Smart heuristics:</strong> Even without the toggle, the proxy triggers a search automatically if your message contains time-sensitive keywords like "today", "latest", "breaking", specific years, stock tickers, or weather queries.</p>
+            </div>
+          </div>
+
+          <!-- Deep Research -->
+          <div class="doc-section" id="doc-deep-research">
+            <h3>Deep Research</h3>
+            <p class="doc-desc">Deep Research uses Tavily's multi-step research API to pull from many sources, synthesise findings, and inject a full cited report as context — far more comprehensive than basic web search.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Activate with the brain icon</div>
+                <div class="doc-step-desc">Click the 🔬 brain icon in the input bar (next to the web search globe). Deep Research and Web Search are mutually exclusive — enabling one disables the other.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">How it works</div>
+                <div class="doc-step-desc">The proxy calls Tavily's Research API with <strong>max depth 3</strong> and <strong>breadth 4</strong>, traversing multiple search layers. The resulting report — including source citations — is prepended to the model's context as "Deep Research Report:".</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Best for</div>
+                <div class="doc-step-desc">Complex research questions, literature overviews, comparative analyses, or any query where you need depth rather than a quick answer. Expect a few extra seconds of latency while the research runs.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Vision / Image Upload -->
+          <div class="doc-section" id="doc-vision">
+            <h3>Image Upload (Vision Models)</h3>
+            <p class="doc-desc">Send images alongside text to vision-capable models for analysis, description, or visual Q&amp;A.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">1</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Select a vision model</div>
+                <div class="doc-step-desc">Choose a model with the green 👁️ badge. Supported: LLaVA (all variants), Llama 3.2-Vision (11b, 90b), BakLLaVA, Moondream, Gemma3. The image upload button appears automatically for these models.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">2</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Attach an image</div>
+                <div class="doc-step-desc">Click the 🖼️ icon in the input bar, or drag &amp; drop anywhere in the chat window. Supports JPEG, PNG, GIF, WebP up to 20 MB. Images above 1024×1024 are automatically compressed to 0.8 quality before sending.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">3</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Review and send</div>
+                <div class="doc-step-desc">A thumbnail preview appears above the input. Add any question, then press <kbd>Enter</kbd>. The image is base64-encoded and sent in the Ollama <code>images</code> array alongside your text. Images are preserved in conversation history.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Reasoning Display -->
+          <div class="doc-section" id="doc-reasoning">
+            <h3>Reasoning Display</h3>
+            <p class="doc-desc">Reasoning models (DeepSeek, Qwen2.5, etc.) emit their chain-of-thought inside <code>&lt;think&gt;</code> tags. OllamaBro parses and renders these separately so you can inspect the model's thinking process.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Collapsible think blocks</div>
+                <div class="doc-step-desc">Each <code>&lt;think&gt;…&lt;/think&gt;</code> block renders as a collapsible section with a chevron toggle. The first block is auto-expanded; previous blocks collapse when a new response arrives.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Thinking token count</div>
+                <div class="doc-step-desc">The message metadata footer shows thinking tokens separately from completion tokens, so you can see how much reasoning "cost" went into an answer.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Automatic detection</div>
+                <div class="doc-step-desc">Models are auto-detected as reasoning-capable (purple 🧠 badge) based on name patterns, template analysis, and parameter count — no manual configuration needed.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Themes -->
+          <div class="doc-section" id="doc-themes">
+            <h3>Themes</h3>
+            <p class="doc-desc">OllamaBro ships with six hand-crafted themes — four dark, two light — each with its own colour palette and syntax highlighting style. Switch anytime in Settings → Themes.</p>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px">
+              <div class="prereq-card" style="text-align:left;display:flex;gap:12px;align-items:center">
+                <span style="font-size:1.25rem">🌑</span>
+                <div><h4 style="font-size:0.875rem">Default Dark</h4><p>Orange accent, deep background</p></div>
+              </div>
+              <div class="prereq-card" style="text-align:left;display:flex;gap:12px;align-items:center">
+                <span style="font-size:1.25rem">🧛</span>
+                <div><h4 style="font-size:0.875rem">Dracula</h4><p>Purple accent, classic dark</p></div>
+              </div>
+              <div class="prereq-card" style="text-align:left;display:flex;gap:12px;align-items:center">
+                <span style="font-size:1.25rem">🌃</span>
+                <div><h4 style="font-size:0.875rem">Tokyo Night</h4><p>Blue accent, deep navy</p></div>
+              </div>
+              <div class="prereq-card" style="text-align:left;display:flex;gap:12px;align-items:center">
+                <span style="font-size:1.25rem">☀️</span>
+                <div><h4 style="font-size:0.875rem">GitHub Light</h4><p>Blue accent, clean white</p></div>
+              </div>
+              <div class="prereq-card" style="text-align:left;display:flex;gap:12px;align-items:center">
+                <span style="font-size:1.25rem">🌤️</span>
+                <div><h4 style="font-size:0.875rem">Solarized Light</h4><p>Warm tones, easy on eyes</p></div>
+              </div>
+              <div class="prereq-card" style="text-align:left;display:flex;gap:12px;align-items:center">
+                <span style="font-size:1.25rem">☕</span>
+                <div><h4 style="font-size:0.875rem">Catppuccin Latte</h4><p>Pastel light theme</p></div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text">Theme selection also switches the syntax highlighting style for code blocks — dark themes use a dark highlighter, light themes use a light one. Your choice is saved to Chrome storage.</p>
+            </div>
+          </div>
+
+          <!-- Persona Presets -->
+          <div class="doc-section" id="doc-presets">
+            <h3>Persona Presets</h3>
+            <p class="doc-desc">Presets are named system-prompt templates that let you switch the model's personality with one click. Four defaults are included; you can create unlimited custom presets.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Built-in presets</div>
+                <div class="doc-step-desc">
+                  <strong>Code Reviewer</strong> — strict code review with best-practice focus<br>
+                  <strong>Translator</strong> — translate and explain nuance between languages<br>
+                  <strong>Tutor</strong> — patient, step-by-step teaching with analogies<br>
+                  <strong>Storyteller</strong> — creative narrative writing assistant
+                </div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Apply a preset</div>
+                <div class="doc-step-desc">Open Settings ⚙️ → Persona Presets and click any preset card. It immediately sets the system prompt and shows an active badge on the card.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Create &amp; edit custom presets</div>
+                <div class="doc-step-desc">Click <strong>Add Preset</strong>, enter a name and system prompt, then save. All presets support inline editing and deletion with a confirmation step. Presets are stored in Chrome storage and persist across sessions.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Text-to-Speech -->
+          <div class="doc-section" id="doc-tts">
+            <h3>Text-to-Speech</h3>
+            <p class="doc-desc">OllamaBro supports two TTS engines: the browser's built-in Web Speech API and the high-quality local <strong>Kokoro TTS</strong> model (runs entirely in-browser via ONNX).</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Kokoro TTS (recommended)</div>
+                <div class="doc-step-desc">A ~86 MB ONNX model loaded on first use. Offers <strong>28 voice profiles</strong> (14 female, 14 male) in English US and GB variants, each graded A+ to F for quality. Generates audio sentence-by-sentence for fast streaming playback.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Web Speech API</div>
+                <div class="doc-step-desc">Uses Chrome's built-in voices — no download required. Voices are grouped by language. Quality varies by OS and Chrome version. Good fallback if you don't want to load Kokoro.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Using TTS</div>
+                <div class="doc-step-desc">Click the speaker 🔊 icon on any assistant message to read it aloud. Or press <kbd>Ctrl</kbd><kbd>R</kbd> to read the last response. A stop button appears during playback. Markdown, code blocks, and <code>&lt;think&gt;</code> tags are stripped before synthesis.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Setup</div>
+                <div class="doc-step-desc">Open Settings ⚙️ → TTS Settings. Select your engine and voice. For Kokoro, click <strong>Pre-load Model</strong> to warm it up before your first use — subsequent uses load instantly from cache.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Voice Dictation -->
+          <div class="doc-section" id="doc-voice">
+            <h3>Voice Dictation</h3>
+            <p class="doc-desc">Speak your messages instead of typing. OllamaBro uses Chrome's Web Speech Recognition API for real-time transcription.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Start dictating</div>
+                <div class="doc-step-desc">Click the microphone 🎤 icon in the input bar. The icon turns red while listening. Speak naturally — interim results appear in the textarea as you talk.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Submit</div>
+                <div class="doc-step-desc">Stop speaking and the final transcription fills the input. Press <kbd>Enter</kbd> to send, or edit the text first.</div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text">Voice dictation requires microphone permission. Chrome will prompt you on first use. If denied, go to <code>chrome://settings/content/microphone</code> to grant access.</p>
+            </div>
+          </div>
+
+          <!-- Message Actions & Export -->
+          <div class="doc-section" id="doc-messages">
+            <h3>Message Actions &amp; Export</h3>
+            <p class="doc-desc">Every message has action buttons. You can copy, download, or export entire conversations.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Per-message actions</div>
+                <div class="doc-step-desc">Hover a message to reveal: <strong>Copy</strong> (clipboard), <strong>Download .txt</strong>, and <strong>Download .md</strong>. Code blocks also have their own copy button with a "Copied!" confirmation flash.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Export full conversation</div>
+                <div class="doc-step-desc">Click the export button in the toolbar to download the entire conversation as a Markdown file. Filename format: <code>YYYYMMDD_HHMM_{title}_{model}.md</code>. Thinking blocks and formatting are preserved.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Message metadata</div>
+                <div class="doc-step-desc">Each assistant message footer shows: estimated token count, thinking tokens (if applicable), generation speed (tokens/sec), and a timestamp.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Usage Analytics -->
+          <div class="doc-section" id="doc-analytics">
+            <h3>Usage Analytics</h3>
+            <p class="doc-desc">A statistics dashboard gives you a complete picture of how you're using OllamaBro across all models and conversations.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Open the dashboard</div>
+                <div class="doc-step-desc">Click the chart icon in the toolbar to open the analytics modal. Stats are computed in real-time from your local conversation history.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">What's tracked</div>
+                <div class="doc-step-desc">
+                  Total tokens used (prompt + completion) &nbsp;·&nbsp;
+                  Total messages and conversations &nbsp;·&nbsp;
+                  Average generation speed &nbsp;·&nbsp;
+                  Total images processed &nbsp;·&nbsp;
+                  Longest conversation &nbsp;·&nbsp;
+                  Most active day &nbsp;·&nbsp;
+                  Top model by usage &nbsp;·&nbsp;
+                  Local vs. cloud model breakdown &nbsp;·&nbsp;
+                  Per-model statistics table
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- LLMFit Integration -->
+          <div class="doc-section" id="doc-llmfit">
+            <h3>LLMFit Integration</h3>
+            <p class="doc-desc">LLMFit is a separate CLI tool that analyses your hardware and recommends Ollama models that will fit in your VRAM/RAM. OllamaBro integrates directly with it.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">1</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Install LLMFit</div>
+                <div class="doc-step-desc">Install the <code>llmfit</code> CLI on your system. OllamaBro calls it via <code>llmfit --json fit</code> — it must be on your system <code>PATH</code>.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">2</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Open Recommended for Your Hardware</div>
+                <div class="doc-step-desc">Click the CPU icon or open Settings → Hardware Recommendations. OllamaBro spawns <code>llmfit</code> with a 30-second timeout and parses the JSON output.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">3</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Browse recommendations</div>
+                <div class="doc-step-desc">Model cards display: name &amp; organisation, estimated tokens/sec, VRAM usage %, best quantization, run mode (CPU/GPU), parameter count, category (code / chat / reasoning), and a 0–100 fit score bar. Filter by fit level: <strong>Perfect</strong>, <strong>Good</strong>, <strong>Marginal</strong>, <strong>Too Tight</strong>.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">4</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Pull recommended models</div>
+                <div class="doc-step-desc">Each card has a <strong>Pull</strong> button. Click it and OllamaBro auto-fills the model name in Model Management and starts the download. HuggingFace model names are automatically converted to Ollama pull names.</div>
+              </div>
+            </div>
+            <div class="tip-box">
+              <svg class="tip-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <p class="tip-text">If <code>llmfit</code> is not installed, the panel gracefully shows "llmfit not available" with a link to install it. Core chat features are completely unaffected.</p>
+            </div>
+          </div>
+
+          <!-- Model Management -->
+          <div class="doc-section" id="doc-model-mgmt">
+            <h3>Model Management</h3>
+            <p class="doc-desc">Download new Ollama models and manage existing ones without leaving OllamaBro.</p>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">View installed models</div>
+                <div class="doc-step-desc">Open Settings ⚙️ → Model Management. The panel lists all downloaded models with their size (GB) and capability badges. Click Refresh to reload after pulling outside OllamaBro.</div>
+              </div>
+            </div>
+            <div class="doc-step">
+              <div class="doc-step-num">✦</div>
+              <div class="doc-step-body">
+                <div class="doc-step-title">Pull a new model</div>
+                <div class="doc-step-desc">Type a model name (e.g. <code>llama3.2:3b</code>, <code>gemma3:12b</code>) in the pull input and click <strong>Pull</strong>. A live progress bar tracks the download. The model list refreshes automatically when done.</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Keyboard Shortcuts -->
+          <div class="doc-section" id="doc-shortcuts">
+            <h3>Keyboard Shortcuts</h3>
+            <p class="doc-desc">Full keyboard control — press <kbd>Alt</kbd><kbd>H</kbd> at any time to show the shortcuts reference panel in-app.</p>
+            <div class="kbd-grid">
+              <div class="kbd-row">
+                <span class="kbd-desc">Send message</span>
+                <div class="kbd-combo"><kbd>Enter</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">New line in message</span>
+                <div class="kbd-combo"><kbd>Shift</kbd><kbd>Enter</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">New conversation</span>
+                <div class="kbd-combo"><kbd>Alt</kbd><kbd>N</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Delete current conversation</span>
+                <div class="kbd-combo"><kbd>Ctrl</kbd><kbd>D</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Abort generation</span>
+                <div class="kbd-combo"><kbd>Esc</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Read last response (TTS)</span>
+                <div class="kbd-combo"><kbd>Ctrl</kbd><kbd>R</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Focus input field</span>
+                <div class="kbd-combo"><kbd>/</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Close modal / abort</span>
+                <div class="kbd-combo"><kbd>Esc</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Show shortcuts panel</span>
+                <div class="kbd-combo"><kbd>Alt</kbd><kbd>H</kbd></div>
+              </div>
+              <div class="kbd-row">
+                <span class="kbd-desc">Send (alternate)</span>
+                <div class="kbd-combo"><kbd>Ctrl</kbd><kbd>Enter</kbd></div>
+              </div>
+            </div>
+          </div>
+
+        </div><!-- /docs-content -->
+      </div><!-- /docs-layout -->
+    </div>
+  </section>
+
+  <!-- ==================== GITHUB CTA ==================== -->
+  <section id="github">
+    <div class="container">
+      <div class="github-inner reveal">
+        <h2>Ready to try local AI<br>in your browser?</h2>
+        <p>Free, open source, and takes about 5 minutes to set up. No accounts. No subscriptions. No cloud.</p>
+        <a href="https://github.com/BorisHrzenjak/OllamaBro" target="_blank" rel="noopener" class="github-btn">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+          View on GitHub
+        </a>
+        <p class="github-note">⭐ If OllamaBro helps you, a star on GitHub goes a long way</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== FOOTER ==================== -->
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-brand">
+          <div class="footer-logo">
+            <div class="nav-dot" style="width:7px;height:7px;animation:none"></div>
+            Ollama<span>Bro</span>
+          </div>
+          <div class="footer-tagline">Local AI. Your browser. Your data.</div>
+        </div>
+        <ul class="footer-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#screenshots">Screenshots</a></li>
+          <li><a href="#docs">Docs</a></li>
+          <li><a href="https://github.com/BorisHrzenjak/OllamaBro" target="_blank" rel="noopener">GitHub</a></li>
+        </ul>
+        <div class="footer-copy">MIT License &nbsp;·&nbsp; Open Source</div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    // ── Nav scroll state ──────────────────────────────
+    const nav = document.getElementById('nav');
+    window.addEventListener('scroll', () => {
+      nav.classList.toggle('scrolled', window.scrollY > 24);
+    }, { passive: true });
+
+    // ── Mobile hamburger ──────────────────────────────
+    const hamburger = document.getElementById('hamburger');
+    const navLinks  = document.getElementById('navLinks');
+    hamburger.addEventListener('click', () => navLinks.classList.toggle('open'));
+    navLinks.querySelectorAll('a').forEach(a => a.addEventListener('click', () => navLinks.classList.remove('open')));
+
+    // ── Scroll reveal (Intersection Observer) ─────────
+    const revealObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('revealed');
+          revealObserver.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -44px 0px' });
+
+    document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+    // ── Docs sidebar active state ─────────────────────
+    const docSections = document.querySelectorAll('.doc-section[id]');
+    const docLinks    = document.querySelectorAll('.docs-nav a');
+
+    const docObserver = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          const href = '#' + e.target.id;
+          docLinks.forEach(a => a.classList.toggle('active', a.getAttribute('href') === href));
+        }
+      });
+    }, { threshold: 0.45, rootMargin: '-80px 0px -38% 0px' });
+
+    docSections.forEach(s => docObserver.observe(s));
+
+    // ── Smooth scroll for all hash links ─────────────
+    document.querySelectorAll('a[href^="#"]').forEach(a => {
+      a.addEventListener('click', e => {
+        const target = document.querySelector(a.getAttribute('href'));
+        if (target) {
+          e.preventDefault();
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
