@@ -1069,6 +1069,73 @@
     }
 
     /* ================================
+       LIGHTBOX
+    ================================ */
+    #lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 10000;
+      background: rgba(0, 0, 0, 0.92);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 16px;
+      padding: 24px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.22s ease;
+    }
+    #lightbox.open {
+      opacity: 1;
+      pointer-events: all;
+    }
+    #lightboxImg {
+      max-width: min(92vw, 1200px);
+      max-height: 82vh;
+      width: auto;
+      height: auto;
+      border-radius: var(--radius-lg);
+      box-shadow: 0 40px 120px rgba(0,0,0,0.8), 0 0 60px rgba(124,58,237,0.2);
+      transform: scale(0.94);
+      transition: transform 0.25s ease;
+      display: block;
+    }
+    #lightbox.open #lightboxImg {
+      transform: scale(1);
+    }
+    #lightboxCap {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: rgba(148, 163, 184, 0.7);
+      letter-spacing: 0.04em;
+      text-align: center;
+      max-width: 600px;
+    }
+    #lightboxClose {
+      position: fixed;
+      top: 20px;
+      right: 24px;
+      width: 40px;
+      height: 40px;
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+    }
+    #lightboxClose:hover {
+      background: rgba(255,255,255,0.15);
+      transform: scale(1.1);
+    }
+
+    /* ================================
        SCROLLBAR
     ================================ */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -1313,108 +1380,108 @@
       </div>
       <div class="screenshots-grid">
 
-        <!-- 1: Featured (full width) -->
+        <!-- 1: Featured (full width) — main chat, thinking block, web search response -->
         <div class="screenshot-card reveal">
-          <img src="screenshots/01-chat.png"
-               alt="Main chat interface with streaming response"
+          <img src="screenshots/Screenshot_1.jpg"
+               alt="Main chat interface — reasoning model with thinking block and web search context"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Main chat interface with streaming response</p>
+            <p class="ph-label">Main chat interface — reasoning model with thinking block and web search context</p>
           </div>
-          <div class="screenshot-caption">Main chat interface with streaming response</div>
+          <div class="screenshot-caption">Main chat — reasoning model, web search context, streaming response</div>
         </div>
 
-        <!-- 2 -->
+        <!-- 2 — model selector dropdown with cloud badges and sizes -->
         <div class="screenshot-card reveal reveal-delay-1">
-          <img src="screenshots/02-model-selector.png"
-               alt="Model selector popup with capability badges (vision/reasoning icons)"
+          <img src="screenshots/Screenshot_2.jpg"
+               alt="Model selector showing all installed models with cloud badges and file sizes"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Model selector popup with capability badges (vision/reasoning icons)</p>
+            <p class="ph-label">Model selector showing all installed models with cloud badges and file sizes</p>
           </div>
-          <div class="screenshot-caption">Model selector with capability badges</div>
+          <div class="screenshot-caption">Model selector — installed models with cloud badges and sizes</div>
         </div>
 
-        <!-- 3 -->
+        <!-- 3 — vision model analyzing an uploaded image -->
         <div class="screenshot-card reveal reveal-delay-2">
-          <img src="screenshots/03-vision-upload.png"
-               alt="Image upload — vision model with attached image preview"
+          <img src="screenshots/Screenshot_3.jpg"
+               alt="Vision model (qwen3-vl) analyzing an uploaded image with detailed description"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Image upload — vision model with attached image preview</p>
+            <p class="ph-label">Vision model analyzing an uploaded image with detailed description</p>
           </div>
-          <div class="screenshot-caption">Vision model image upload</div>
+          <div class="screenshot-caption">Vision model (qwen3-vl) — image upload and analysis</div>
         </div>
 
-        <!-- 4 -->
+        <!-- 4 — web search split view with fetched results panel -->
         <div class="screenshot-card reveal reveal-delay-1">
-          <img src="screenshots/04-web-search.png"
-               alt="Web search enabled — globe icon active, search results injected"
+          <img src="screenshots/Screenshot_4.jpg"
+               alt="Web search in action — chat and live results panel showing fetched Ollama blog articles"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Web search enabled — globe icon active, search results injected</p>
+            <p class="ph-label">Web search — live results panel alongside chat response</p>
           </div>
-          <div class="screenshot-caption">Web search with live results injected</div>
+          <div class="screenshot-caption">Web search — live results fetched and injected as context</div>
         </div>
 
-        <!-- 5 -->
+        <!-- 5 — LLMFit recommended for your hardware -->
         <div class="screenshot-card reveal reveal-delay-2">
-          <img src="screenshots/05-hardware-rec.png"
-               alt="Recommended for Your Hardware panel"
+          <img src="screenshots/Screenshot_5.jpg"
+               alt="Recommended for Your Hardware — LLMFit modal with scored model cards showing speed, VRAM and quantization"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Recommended for Your Hardware panel</p>
+            <p class="ph-label">Recommended for Your Hardware — LLMFit scored model cards</p>
           </div>
-          <div class="screenshot-caption">Hardware-matched model recommendations</div>
+          <div class="screenshot-caption">LLMFit integration — hardware-matched recommendations with scores</div>
         </div>
 
-        <!-- 6 -->
+        <!-- 6 — settings modal with 6 themes + all sections -->
         <div class="screenshot-card reveal reveal-delay-3">
-          <img src="screenshots/06-settings.png"
-               alt="Settings modal — web search API key, theme toggle"
+          <img src="screenshots/Screenshot_6.jpg"
+               alt="Settings modal showing 6 theme options (Default, Dracula, Tokyo Night, GitHub Light, Solarized, Catppuccin) plus all configuration sections"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Settings modal — web search API key, theme toggle</p>
+            <p class="ph-label">Settings — 6 themes, persona presets, parameters, model management</p>
           </div>
-          <div class="screenshot-caption">Settings: API keys and theme</div>
+          <div class="screenshot-caption">Settings — 6 themes, presets, parameters, model management &amp; more</div>
         </div>
 
-        <!-- 7 -->
+        <!-- 7 — usage analytics dashboard -->
         <div class="screenshot-card reveal reveal-delay-4">
-          <img src="screenshots/07-reasoning.png"
-               alt="Reasoning model output with collapsible think block"
+          <img src="screenshots/Screenshot_7.jpg"
+               alt="Usage Dashboard — token stats, conversation counts, model breakdown table and generation speed"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Reasoning model output with collapsible think block</p>
+            <p class="ph-label">Usage Dashboard — tokens, conversations, model breakdown and speed stats</p>
           </div>
-          <div class="screenshot-caption">Reasoning model with collapsible &lt;think&gt; blocks</div>
+          <div class="screenshot-caption">Usage Dashboard — tokens, conversations, speed and per-model stats</div>
         </div>
 
-        <!-- 8 -->
+        <!-- 8 — reasoning / thinking block expanded -->
         <div class="screenshot-card reveal reveal-delay-5">
-          <img src="screenshots/08-conversations.png"
-               alt="Conversation list sidebar with multiple saved chats"
+          <img src="screenshots/Screenshot_8.jpg"
+               alt="Reasoning model with expanded thinking block showing chain-of-thought reasoning process"
                class="screenshot-img"
                onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
           <div class="screenshot-placeholder" style="display:none">
             <svg class="ph-icon" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-            <p class="ph-label">Conversation list sidebar with multiple saved chats</p>
+            <p class="ph-label">Reasoning model with expanded thinking block showing chain-of-thought</p>
           </div>
-          <div class="screenshot-caption">Conversation management sidebar</div>
+          <div class="screenshot-caption">Reasoning display — expanded &lt;think&gt; block with chain-of-thought</div>
         </div>
 
       </div>
@@ -2265,6 +2332,15 @@
     </div>
   </section>
 
+  <!-- ==================== LIGHTBOX ==================== -->
+  <div id="lightbox" role="dialog" aria-modal="true" aria-label="Screenshot viewer">
+    <button id="lightboxClose" aria-label="Close">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <img id="lightboxImg" src="" alt="">
+    <p id="lightboxCap"></p>
+  </div>
+
   <!-- ==================== FOOTER ==================== -->
   <footer>
     <div class="container">
@@ -2337,6 +2413,36 @@
         }
       });
     });
+
+    // ── Lightbox ──────────────────────────────────────
+    const lb      = document.getElementById('lightbox');
+    const lbImg   = document.getElementById('lightboxImg');
+    const lbCap   = document.getElementById('lightboxCap');
+    const lbClose = document.getElementById('lightboxClose');
+
+    function openLightbox(src, alt) {
+      lbImg.src = src;
+      lbImg.alt = alt;
+      lbCap.textContent = alt;
+      lb.classList.add('open');
+      document.body.style.overflow = 'hidden';
+    }
+    function closeLightbox() {
+      lb.classList.remove('open');
+      document.body.style.overflow = '';
+    }
+
+    document.querySelectorAll('.screenshot-card .screenshot-img').forEach(img => {
+      img.style.cursor = 'zoom-in';
+      img.addEventListener('click', () => {
+        const caption = img.closest('.screenshot-card').querySelector('.screenshot-caption');
+        openLightbox(img.src, caption ? caption.textContent : img.alt);
+      });
+    });
+
+    lbClose.addEventListener('click', closeLightbox);
+    lb.addEventListener('click', e => { if (e.target === lb) closeLightbox(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox(); });
   </script>
 </body>
 </html>
