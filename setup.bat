@@ -81,40 +81,12 @@ echo.
 :: ── 5. Register native messaging host (for Kokoro TTS) ───────────────────────
 echo [5/5] Registering native messaging host for Kokoro TTS...
 
-set "HOST_BAT=%PROXY_DIR%\native-host.bat"
-set "MANIFEST_PATH=%PROXY_DIR%\com.ollamabro.proxy.json"
-set "HOST_NAME=com.ollamabro.proxy"
-set "EXT_ID=gkpfpdekobmonacdgjgbfehilnloaacm"
-
-if not exist "%HOST_BAT%" (
-    echo   ERROR: native-host.bat not found at:
-    echo     %HOST_BAT%
-    pause
-    exit /b 1
-)
-
-set "HOST_BAT_ESCAPED=%HOST_BAT:\=\\%"
-
-(
-echo {
-echo   "name": "%HOST_NAME%",
-echo   "description": "OllamaBro Proxy Server Manager",
-echo   "path": "%HOST_BAT_ESCAPED%",
-echo   "type": "stdio",
-echo   "allowed_origins": [
-echo     "chrome-extension://%EXT_ID%/"
-echo   ]
-echo }
-) > "%MANIFEST_PATH%"
-
-set "REG_KEY=HKCU\Software\Google\Chrome\NativeMessagingHosts\%HOST_NAME%"
-REG ADD "%REG_KEY%" /ve /t REG_SZ /d "%MANIFEST_PATH%" /f >nul 2>&1
+node "%ROOT%\install.js"
 if %errorlevel% neq 0 (
-    echo   ERROR: Failed to add registry entry. Try running as Administrator.
+    echo   ERROR: Native messaging host registration failed.
     pause
     exit /b 1
 )
-echo   Done.
 echo.
 
 :: ── Done ─────────────────────────────────────────────────────────────────────

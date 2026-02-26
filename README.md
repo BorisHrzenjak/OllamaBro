@@ -113,22 +113,26 @@ Theme is applied instantly and persisted across sessions. Code blocks automatica
 
 ## Setup
 
-### Quick setup (recommended)
+### 1. Run the setup script
 
-Run the one-time setup script from the project root:
+Double-click **`setup.bat`** (or run it in a terminal) from the project root. That's it — no command-line flags, no manual steps.
 
-```
-setup.bat
-```
+It will automatically:
 
-This single script will:
-1. Install proxy server npm dependencies
-2. Install PM2 globally (if not already present) and start the proxy server as a managed background process that survives reboots
-3. Register the native messaging host required by Kokoro TTS
+1. **Check Node.js** — exits with a clear error and download link if Node isn't found
+2. **Install dependencies** — runs `npm install` inside `proxy_server/`
+3. **Install PM2** — installs the process manager globally if it isn't already present
+4. **Start the proxy server** — launches it under PM2 so it runs in the background and restarts automatically after a reboot
+5. **Register the native messaging host** — runs `install.js`, which:
+   - Writes `proxy_server/com.ollamabro.proxy.json` with the **correct absolute path** for your machine (no hardcoded paths)
+   - Adds a registry entry under `HKCU` for both **Chrome** and **Edge** — no administrator rights required
 
-> **Note:** If you ever move the project folder, re-run `setup.bat` to update the paths.
+> **Moved the folder?** Just re-run `setup.bat` to update the paths.
+> **Only need to re-register the native host?** Run `install-native-host.bat` instead — it skips the npm/PM2 steps.
 
-### Load the Chrome Extension
+---
+
+### 2. Load the Chrome extension
 
 1. Open Chrome and go to `chrome://extensions`
 2. Enable **Developer mode** (top-right toggle)
@@ -136,9 +140,11 @@ This single script will:
 
 The OllamaBro icon will appear in the toolbar. Click it to pick a model and start chatting.
 
+---
+
 ### Web Search (optional)
 
-To enable Tavily-powered search, add your API key to `proxy_server/.env`:
+To enable Tavily-powered search, create `proxy_server/.env` and add your API key:
 
 ```
 TAVILY_API_KEY=your_key_here
@@ -185,7 +191,6 @@ The server runs on `http://localhost:3000`. Keep the terminal open while using t
 npm install pm2 -g
 cd proxy_server
 pm2 start server.js --name ollama-proxy
-pm2 startup   # follow the printed instructions
 pm2 save
 ```
 
@@ -205,6 +210,6 @@ pm2 delete ollama-proxy
 install-native-host.bat
 ```
 
-Writes a manifest to `proxy_server/` and adds a registry entry under `HKCU` (no administrator rights needed).
+Runs `install.js`, which writes `proxy_server/com.ollamabro.proxy.json` with the correct absolute path for your machine and registers it in the Windows registry under `HKCU` for both Chrome and Edge (no administrator rights needed).
 
 </details>
