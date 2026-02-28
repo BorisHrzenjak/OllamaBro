@@ -4,6 +4,8 @@ const http = require('http');
 const cors = require('cors');
 const { URL } = require('url');
 const { spawn } = require('child_process');
+const fs = require('fs');
+const path = require('path');
 
 // --- Web Search (Tavily + Jina Reader) ---
 
@@ -96,6 +98,15 @@ let kokoroTTS = null;
 let kokoroStatus = 'not_loaded'; // 'not_loaded' | 'loading' | 'ready' | 'error'
 let kokoroLoadError = null;
 
+// llama.cpp state
+let llamaProcess = null;
+let llamaCurrentModel = null;
+let llamaStatus = 'idle'; // 'idle' | 'loading' | 'ready' | 'error'
+let llamaPort = parseInt(process.env.LLAMACPP_PORT || '8080', 10);
+let llamaExecutable = process.env.LLAMACPP_EXECUTABLE || 'C:\\llama.cpp\\llama-server.exe';
+let llamaModelsDir = process.env.LLAMACPP_MODELS_DIR || 'C:\\llama.cpp';
+let llamaGpuLayers = process.env.LLAMACPP_GPU_LAYERS || '-1';
+
 // Static Kokoro voice metadata (from kokoro-js VOICES constant)
 const KOKORO_VOICES = [
     { id: 'af_heart', name: 'Heart', language: 'en-us', gender: 'Female', grade: 'A' },
@@ -186,6 +197,7 @@ let serverInstance = null;
 app.post('/api/shutdown', (req, res) => {
     res.json({ status: 'shutting_down' });
     setTimeout(() => {
+        if (llamaProcess) try { llamaProcess.kill(); } catch (e) {}
         if (serverInstance) serverInstance.close();
         process.exit(0);
     }, 200);
@@ -354,6 +366,248 @@ app.post('/api/research', async (req, res) => {
     } catch (err) {
         console.error('[Research] Error:', err.message);
         res.status(500).json({ error: err.message });
+    }
+});
+
+// --- llama.cpp ---
+
+async function waitForLlamaServer(timeoutMs) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        try {
+            const resp = await fetch(`http://127.0.0.1:${llamaPort}/health`, {
+                signal: AbortSignal.timeout(2000)
+            });
+            if (resp.ok) return true;
+        } catch (e) { /* not ready yet */ }
+        await new Promise(r => setTimeout(r, 500));
+    }
+    return false;
+}
+
+app.get('/api/llamacpp/status', (req, res) => {
+    res.json({
+        status: llamaStatus,
+        model: llamaCurrentModel ? path.basename(llamaCurrentModel) : null,
+        modelPath: llamaCurrentModel,
+        port: llamaPort,
+        executable: llamaExecutable,
+        modelsDir: llamaModelsDir,
+        gpuLayers: llamaGpuLayers
+    });
+});
+
+app.post('/api/llamacpp/config', (req, res) => {
+    const { executable, modelsDir, gpuLayers, port } = req.body || {};
+    if (executable) llamaExecutable = executable;
+    if (modelsDir) llamaModelsDir = modelsDir;
+    if (gpuLayers !== undefined && gpuLayers !== null) llamaGpuLayers = String(gpuLayers);
+    if (port) llamaPort = parseInt(port, 10);
+    console.log(`[llama.cpp] Config updated: exe=${llamaExecutable}, dir=${llamaModelsDir}, gpu=${llamaGpuLayers}, port=${llamaPort}`);
+    res.json({ ok: true });
+});
+
+app.get('/api/llamacpp/models', (req, res) => {
+    try {
+        const dirs = llamaModelsDir.split(',').map(d => d.trim()).filter(Boolean);
+        const models = [];
+        for (const dir of dirs) {
+            if (!fs.existsSync(dir)) continue;
+            const files = fs.readdirSync(dir);
+            for (const file of files) {
+                if (file.toLowerCase().endsWith('.gguf')) {
+                    const fullPath = path.join(dir, file);
+                    try {
+                        const stat = fs.statSync(fullPath);
+                        models.push({ name: file, path: fullPath, size: stat.size });
+                    } catch (e) { /* skip inaccessible files */ }
+                }
+            }
+        }
+        res.json({ models, currentModel: llamaCurrentModel, status: llamaStatus });
+    } catch (err) {
+        console.error('[llama.cpp] Error scanning models:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/llamacpp/load', async (req, res) => {
+    const { modelPath } = req.body || {};
+    if (!modelPath) return res.status(400).json({ error: 'modelPath required' });
+    if (!fs.existsSync(modelPath)) return res.status(404).json({ error: `Model not found: ${modelPath}` });
+
+    // Kill existing process
+    if (llamaProcess) {
+        console.log('[llama.cpp] Killing existing process...');
+        try { llamaProcess.kill('SIGTERM'); } catch (e) {}
+        await new Promise(r => setTimeout(r, 800));
+        if (llamaProcess && !llamaProcess.killed) {
+            try { llamaProcess.kill('SIGKILL'); } catch (e) {}
+        }
+        llamaProcess = null;
+    }
+
+    llamaStatus = 'loading';
+    llamaCurrentModel = modelPath;
+
+    const args = [
+        '--model', modelPath,
+        '--port', String(llamaPort),
+        '--ctx-size', '4096',
+        '-ngl', llamaGpuLayers,
+        '--host', '127.0.0.1'
+    ];
+
+    console.log(`[llama.cpp] Spawning: ${llamaExecutable} ${args.join(' ')}`);
+    try {
+        llamaProcess = spawn(llamaExecutable, args, {
+            stdio: ['ignore', 'pipe', 'pipe'],
+            windowsHide: true
+        });
+
+        llamaProcess.stdout.on('data', d => console.log('[llama.cpp]', d.toString().trimEnd()));
+        llamaProcess.stderr.on('data', d => console.log('[llama.cpp]', d.toString().trimEnd()));
+
+        llamaProcess.on('error', err => {
+            console.error('[llama.cpp] Process error:', err.message);
+            llamaStatus = 'error';
+            llamaCurrentModel = null;
+            llamaProcess = null;
+        });
+
+        llamaProcess.on('exit', (code, signal) => {
+            console.log(`[llama.cpp] Process exited (code=${code}, signal=${signal})`);
+            llamaProcess = null;
+            if (llamaStatus === 'ready') llamaStatus = 'idle';
+        });
+
+        const ready = await waitForLlamaServer(60000);
+        if (ready) {
+            llamaStatus = 'ready';
+            console.log(`[llama.cpp] Server ready on port ${llamaPort}`);
+            res.json({ ok: true, model: path.basename(modelPath) });
+        } else {
+            llamaStatus = 'error';
+            llamaCurrentModel = null;
+            console.error('[llama.cpp] Server did not become ready in time');
+            res.status(504).json({ error: 'llama-server did not start within 60 seconds' });
+        }
+    } catch (err) {
+        llamaStatus = 'error';
+        llamaCurrentModel = null;
+        console.error('[llama.cpp] Spawn error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/llamacpp/stop', async (req, res) => {
+    if (llamaProcess) {
+        try { llamaProcess.kill('SIGTERM'); } catch (e) {}
+        llamaProcess = null;
+    }
+    llamaStatus = 'idle';
+    llamaCurrentModel = null;
+    res.json({ ok: true });
+});
+
+app.post('/api/llamacpp/chat', async (req, res) => {
+    if (llamaStatus !== 'ready') {
+        return res.status(503).json({ error: `llama.cpp not ready (status: ${llamaStatus})` });
+    }
+
+    const { messages, options } = req.body || {};
+    const opts = options || {};
+    const openaiBody = {
+        model: 'local',
+        messages,
+        stream: true,
+        stream_options: { include_usage: true } // request token counts in final chunk
+    };
+    if (opts.temperature != null) openaiBody.temperature = opts.temperature;
+    if (opts.top_p != null) openaiBody.top_p = opts.top_p;
+    if (opts.seed != null) openaiBody.seed = opts.seed;
+    if (opts.num_predict != null) openaiBody.max_tokens = opts.num_predict;
+
+    const reqStartTime = Date.now();
+    let firstResponseMs = null; // wall-clock ms when first response (non-thinking) token arrives
+
+    try {
+        const upstream = await fetch(`http://127.0.0.1:${llamaPort}/v1/chat/completions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(openaiBody),
+            signal: AbortSignal.timeout(120000)
+        });
+
+        if (!upstream.ok) {
+            const errText = await upstream.text().catch(() => '');
+            return res.status(upstream.status).json({ error: errText });
+        }
+
+        res.setHeader('Content-Type', 'application/x-ndjson');
+        const modelBaseName = path.basename(llamaCurrentModel || 'unknown');
+        const reader = upstream.body.getReader();
+        const decoder = new TextDecoder();
+        let buf = '';
+        let usageData = null;
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const data = line.slice(6).trim();
+                if (data === '[DONE]') {
+                    // Emit final done chunk with stats
+                    const doneChunk = { model: modelBaseName, done: true };
+                    if (usageData) {
+                        doneChunk.eval_count = usageData.completion_tokens;
+                        doneChunk.prompt_eval_count = usageData.prompt_tokens;
+                        // eval_duration in nanoseconds, measured from first response token
+                        if (firstResponseMs !== null) {
+                            doneChunk.eval_duration = (Date.now() - firstResponseMs) * 1e6;
+                        }
+                    }
+                    res.write(JSON.stringify(doneChunk) + '\n');
+                    continue;
+                }
+                try {
+                    const chunk = JSON.parse(data);
+
+                    // Capture usage from any chunk that has it (stream_options puts it in the last data chunk)
+                    if (chunk.usage) usageData = chunk.usage;
+
+                    const choice = chunk.choices?.[0];
+                    if (!choice) continue;
+
+                    const rawContent = choice.delta?.content || '';
+                    const reasoning = choice.delta?.reasoning_content ?? null;
+                    const isDone = choice.finish_reason === 'stop';
+                    const hasActiveThinking = reasoning !== null && reasoning !== '';
+
+                    // Track when the first real response token (not thinking) arrives for timing
+                    if (rawContent && !hasActiveThinking && firstResponseMs === null) {
+                        firstResponseMs = Date.now();
+                    }
+
+                    // Use Ollama's native `thinking` field so the extension streams
+                    // thinking tokens into the thinking box in real time, matching Ollama behaviour.
+                    const msg = { role: 'assistant', content: rawContent };
+                    if (hasActiveThinking) msg.thinking = reasoning;
+
+                    const out = { model: modelBaseName, message: msg, done: isDone };
+                    res.write(JSON.stringify(out) + '\n');
+                } catch (e) { /* skip malformed chunk */ }
+            }
+        }
+        res.end();
+    } catch (err) {
+        console.error('[llama.cpp] Chat error:', err);
+        if (!res.headersSent) res.status(500).json({ error: err.message });
+        else res.end();
     }
 });
 

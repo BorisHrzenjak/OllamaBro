@@ -975,6 +975,56 @@
             white-space: nowrap;
         }
 
+        .model-dropdown-separator {
+            padding: 5px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border-subtle);
+            border-bottom: 1px solid var(--border-subtle);
+            margin: 2px 0;
+            cursor: default;
+            list-style: none;
+        }
+
+        .llamacpp-input {
+            width: 100%;
+            box-sizing: border-box;
+            display: block;
+            padding: var(--space-sm) var(--space-md);
+            background-color: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: var(--font-size-sm);
+            outline: none;
+            transition: border-color var(--transition);
+        }
+
+        .llamacpp-input:focus {
+            border-color: var(--accent);
+            background-color: var(--bg-quaternary);
+        }
+
+        .llamacpp-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .llamacpp-field {
+            margin-bottom: var(--space-sm);
+        }
+
+        .llamacpp-field-label {
+            display: block;
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
         /* Context Indicator */
         .context-indicator {
             display: flex;
@@ -3338,6 +3388,49 @@
                         <div class="context-limit-info">
                             <span id="contextLimitInfo">Auto-detecting: 4K (local) or 128K (cloud)</span>
                         </div>
+                    </div>
+                </div>
+
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="llamaCppSectionToggle">
+                        ⚡ llama.cpp
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="llamaCppSectionBody" class="settings-section-body">
+                        <p class="modal-description">Run GGUF models directly via llama.cpp. Models in the configured
+                            directory appear in the model switcher automatically.</p>
+
+                        <div class="llamacpp-field">
+                            <label class="llamacpp-field-label" for="llamaCppExecutable">Binary path (llama-server.exe)</label>
+                            <input type="text" id="llamaCppExecutable" class="llamacpp-input"
+                                placeholder="C:\llama.cpp\llama-server.exe">
+                        </div>
+                        <div class="llamacpp-field">
+                            <label class="llamacpp-field-label" for="llamaCppModelsDir">Models directory (comma-separated for
+                                multiple)</label>
+                            <input type="text" id="llamaCppModelsDir" class="llamacpp-input"
+                                placeholder="C:\llama.cpp">
+                        </div>
+                        <div style="display:flex;gap:var(--space-md)">
+                            <div class="llamacpp-field" style="flex:1">
+                                <label class="llamacpp-field-label" for="llamaCppGpuLayers">GPU layers (-1 = all)</label>
+                                <input type="number" id="llamaCppGpuLayers" class="llamacpp-input" value="-1" min="-1">
+                            </div>
+                            <div class="llamacpp-field" style="flex:1">
+                                <label class="llamacpp-field-label" for="llamaCppPort">Server port</label>
+                                <input type="number" id="llamaCppPort" class="llamacpp-input" value="8080" min="1024"
+                                    max="65535">
+                            </div>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:var(--space-md);margin-top:var(--space-sm)">
+                            <button id="saveLlamaCppConfig" class="modal-button primary">Save</button>
+                            <button id="stopLlamaCppServer" class="modal-button secondary" title="Kill the running llama-server process">Stop server</button>
+                            <span id="llamaCppConfigStatus"
+                                style="font-size:var(--font-size-xs);color:var(--text-muted)"></span>
+                        </div>
+                        <div id="llamaCppServerStatus"
+                            style="margin-top:var(--space-sm);font-size:var(--font-size-xs);color:var(--text-muted)">
+                            Server: checking...</div>
                     </div>
                 </div>
 

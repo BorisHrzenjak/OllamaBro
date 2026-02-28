@@ -202,6 +202,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     ];
     // Store available models as objects with name and size
     let availableModels = [];
+    let llamaCppModels = []; // [{name, path, size}] — from /api/llamacpp/models
+    let currentModelBackend = 'ollama'; // 'ollama' | 'llamacpp'
+    let currentLlamaCppPath = null;
     let currentAbortController = null; // Track current request for aborting
     let selectedImages = []; // Store selected images for sending
 
@@ -2502,7 +2505,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             console.log('Request body for Ollama:', JSON.stringify(requestBody, null, 2));
 
-            const response = await fetch('http://localhost:3000/proxy/api/chat', {
+            const chatEndpoint = currentModelBackend === 'llamacpp'
+                ? 'http://localhost:3000/api/llamacpp/chat'
+                : 'http://localhost:3000/proxy/api/chat';
+
+            const response = await fetch(chatEndpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2911,6 +2918,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function switchModel(newModelName) {
         const oldModelName = currentModelName;
         if (newModelName === oldModelName) return;
+        currentModelBackend = 'ollama';
+        currentLlamaCppPath = null;
         console.log('[OllamaBro] switchModel - Switching from:', oldModelName, 'to:', newModelName);
         console.log(`Switching model to: ${newModelName}`);
 
@@ -2948,31 +2957,120 @@ document.addEventListener('DOMContentLoaded', async () => {
         messageInput.focus();
     }
 
-    async function fetchAvailableModels() {
-        if (availableModels.length > 0) return availableModels;
-        const proxyUrl = 'http://localhost:3000/proxy/api/tags';
-        try {
-            const response = await fetch(proxyUrl);
-            if (!response.ok) {
-                console.error('Failed to fetch models:', response.status, await response.text());
-                return [];
-            }
-            const data = await response.json();
-            // Store full model objects with name and size
-            availableModels = data.models ? data.models : [];
+    async function switchToLlamaCpp(cppModel) {
+        // Save draft for current conversation
+        const oldModelData = await loadModelChatState(currentModelName);
+        if (oldModelData.activeConversationId && messageInput.value.trim()) {
+            await saveDraft(oldModelData.activeConversationId, messageInput.value);
+        }
 
-            return availableModels;
-        } catch (error) {
-            console.error('Error fetching available models:', error);
-            return [];
+        // Disable web search / deep research (Ollama-only features)
+        if (webSearchEnabled) {
+            webSearchEnabled = false;
+            webSearchButton.classList.remove('active');
+            webSearchButton.title = 'Web Search: OFF';
+        }
+        if (deepResearchEnabled) {
+            deepResearchEnabled = false;
+            deepResearchButton.classList.remove('active');
+            deepResearchButton.title = 'Deep Research: OFF';
+        }
+
+        // Show loading state
+        messageInput.disabled = true;
+        sendButton.disabled = true;
+        const prevDisplay = modelNameDisplay.textContent;
+        modelNameDisplay.textContent = 'Starting model...';
+
+        try {
+            const resp = await fetch('http://localhost:3000/api/llamacpp/load', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ modelPath: cppModel._path })
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.error || `HTTP ${resp.status}`);
+            }
+
+            // Switch succeeded — update state
+            currentModelBackend = 'llamacpp';
+            currentLlamaCppPath = cppModel._path;
+            currentModelName = cppModel.name;
+            sidebarSearchQuery = '';
+            conversationSearchInput.value = '';
+            clearSearchButton.style.display = 'none';
+            updateModelDisplay(currentModelName);
+            clearSelectedImages();
+            toggleImageUploadUI(false); // vision not supported via llama.cpp yet
+
+            let modelData = await loadModelChatState(currentModelName);
+            if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
+                await startNewConversation(currentModelName);
+            } else {
+                displayConversationMessages(modelData, modelData.activeConversationId);
+                populateConversationSidebar(currentModelName, modelData);
+                const draftText = await loadDraft(modelData.activeConversationId);
+                messageInput.value = draftText || '';
+            }
+        } catch (err) {
+            console.error('[llama.cpp] Failed to load model:', err);
+            modelNameDisplay.textContent = prevDisplay;
+            addMessageToChatUI('System', `⚡ Failed to start llama.cpp model: ${err.message}`, 'bot-message');
+        } finally {
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+            messageInput.focus();
         }
     }
 
+    async function fetchAvailableModels() {
+        availableModels = [];
+        llamaCppModels = [];
+
+        // Fetch Ollama models
+        try {
+            const response = await fetch('http://localhost:3000/proxy/api/tags');
+            if (response.ok) {
+                const data = await response.json();
+                availableModels = (data.models || []).map(m => ({ ...m, _backend: 'ollama' }));
+            } else {
+                console.error('Failed to fetch Ollama models:', response.status);
+            }
+        } catch (e) {
+            console.warn('[OllamaBro] Could not fetch Ollama models:', e);
+        }
+
+        // Fetch llama.cpp models
+        try {
+            const lcResp = await fetch('http://localhost:3000/api/llamacpp/models');
+            if (lcResp.ok) {
+                const lcData = await lcResp.json();
+                llamaCppModels = lcData.models || [];
+                // Merge into availableModels with backend tag
+                const cppEntries = llamaCppModels.map(m => ({
+                    name: m.name,
+                    size: m.size,
+                    _backend: 'llamacpp',
+                    _path: m.path
+                }));
+                availableModels = availableModels.concat(cppEntries);
+            }
+        } catch (e) {
+            console.warn('[OllamaBro] Could not fetch llama.cpp models:', e);
+        }
+
+        return availableModels;
+    }
+
     function populateModelDropdown(models, currentModel) {
-        modelSwitcherDropdown.innerHTML = ''; // Clear previous items
+        modelSwitcherDropdown.innerHTML = '';
         const ul = document.createElement('ul');
 
-        if (models.length === 0) {
+        const ollamaModels = models.filter(m => m._backend !== 'llamacpp');
+        const cppModels = models.filter(m => m._backend === 'llamacpp');
+
+        if (ollamaModels.length === 0 && cppModels.length === 0) {
             const noModelsItem = document.createElement('li');
             noModelsItem.textContent = 'No models found.';
             noModelsItem.classList.add('model-dropdown-item', 'no-models');
@@ -2981,38 +3079,19 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        models.forEach(model => {
-            const modelName = model.name || model; // Support both object and string format
-            const modelSize = model.size;
-
-            const li = document.createElement('li');
-            const a = document.createElement('a');
-            a.href = '#';
-
-            // Create model name container
+        function buildModelRow(modelName, modelSize, isCloud) {
             const modelNameContainer = document.createElement('div');
-            modelNameContainer.style.display = 'flex';
-            modelNameContainer.style.alignItems = 'center';
-            modelNameContainer.style.justifyContent = 'space-between';
-            modelNameContainer.style.width = '100%';
+            modelNameContainer.style.cssText = 'display:flex;align-items:center;justify-content:space-between;width:100%';
 
-            // Left side: model name
             const modelNameSpan = document.createElement('span');
             modelNameSpan.textContent = modelName;
             modelNameContainer.appendChild(modelNameSpan);
 
-            // Right side: cloud icon and size
             const detailsContainer = document.createElement('div');
-            detailsContainer.style.display = 'flex';
-            detailsContainer.style.alignItems = 'center';
-            detailsContainer.style.gap = '8px';
+            detailsContainer.style.cssText = 'display:flex;align-items:center;gap:8px';
 
-            // Add cloud icon for cloud models
-            if (isCloudModel(modelName)) {
-                detailsContainer.appendChild(makeCloudBadge(14));
-            }
+            if (isCloud) detailsContainer.appendChild(makeCloudBadge(14));
 
-            // Add size display
             if (modelSize) {
                 const sizeSpan = document.createElement('span');
                 sizeSpan.classList.add('model-size');
@@ -3023,31 +3102,56 @@ document.addEventListener('DOMContentLoaded', async () => {
                 detailsContainer.appendChild(sizeSpan);
             }
 
-            if (detailsContainer.children.length > 0) {
-                modelNameContainer.appendChild(detailsContainer);
-            }
+            if (detailsContainer.children.length > 0) modelNameContainer.appendChild(detailsContainer);
+            return modelNameContainer;
+        }
 
-            a.appendChild(modelNameContainer);
+        // Ollama models
+        ollamaModels.forEach(model => {
+            const modelName = model.name || model;
+            const li = document.createElement('li');
+            const a = document.createElement('a');
+            a.href = '#';
+            a.appendChild(buildModelRow(modelName, model.size, isCloudModel(modelName)));
             a.dataset.modelName = modelName;
-
             li.classList.add('model-dropdown-item');
-            if (modelName === currentModel) {
-                li.classList.add('active-model');
-            }
-
+            if (modelName === currentModel) li.classList.add('active-model');
             a.addEventListener('click', async (e) => {
                 e.preventDefault();
-                if (modelName !== currentModelName) {
-                    await switchModel(modelName);
-                }
+                if (modelName !== currentModelName) await switchModel(modelName);
                 modelSwitcherDropdown.style.display = 'none';
-                const allItems = ul.querySelectorAll('li.model-dropdown-item');
-                allItems.forEach(item => item.classList.remove('active-model'));
+                ul.querySelectorAll('li.model-dropdown-item').forEach(i => i.classList.remove('active-model'));
                 li.classList.add('active-model');
             });
             li.appendChild(a);
             ul.appendChild(li);
         });
+
+        // llama.cpp section
+        if (cppModels.length > 0) {
+            const sep = document.createElement('li');
+            sep.className = 'model-dropdown-separator';
+            sep.innerHTML = '<span>⚡ llama.cpp</span>';
+            ul.appendChild(sep);
+
+            cppModels.forEach(model => {
+                const li = document.createElement('li');
+                const a = document.createElement('a');
+                a.href = '#';
+                a.appendChild(buildModelRow(model.name, model.size, false));
+                a.dataset.modelName = model.name;
+                li.classList.add('model-dropdown-item');
+                if (model.name === currentModel) li.classList.add('active-model');
+                a.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    modelSwitcherDropdown.style.display = 'none';
+                    await switchToLlamaCpp(model);
+                });
+                li.appendChild(a);
+                ul.appendChild(li);
+            });
+        }
+
         modelSwitcherDropdown.appendChild(ul);
     }
 
@@ -3326,6 +3430,30 @@ document.addEventListener('DOMContentLoaded', async () => {
     const ttsSectionToggle = document.getElementById('ttsSectionToggle');
     if (ttsSectionToggle) {
         ttsSectionToggle.addEventListener('click', () => toggleSection('ttsSectionToggle', 'ttsSectionBody'));
+    }
+
+    const llamaCppSectionToggle = document.getElementById('llamaCppSectionToggle');
+    if (llamaCppSectionToggle) {
+        llamaCppSectionToggle.addEventListener('click', () => {
+            toggleSection('llamaCppSectionToggle', 'llamaCppSectionBody');
+            const body = document.getElementById('llamaCppSectionBody');
+            if (body && body.classList.contains('expanded')) loadLlamaCppSettings();
+        });
+    }
+
+    const saveLlamaCppConfigBtn = document.getElementById('saveLlamaCppConfig');
+    if (saveLlamaCppConfigBtn) {
+        saveLlamaCppConfigBtn.addEventListener('click', saveLlamaCppSettings);
+    }
+
+    const stopLlamaCppBtn = document.getElementById('stopLlamaCppServer');
+    if (stopLlamaCppBtn) {
+        stopLlamaCppBtn.addEventListener('click', async () => {
+            await fetch('http://localhost:3000/api/llamacpp/stop', { method: 'POST' }).catch(() => {});
+            currentModelBackend = 'ollama';
+            currentLlamaCppPath = null;
+            loadLlamaCppSettings();
+        });
     }
 
     // Persona preset event listeners
@@ -4136,6 +4264,66 @@ document.addEventListener('DOMContentLoaded', async () => {
         stopKokoroStatusPoll();
     }
 
+    // ─── llama.cpp Settings ───────────────────────────────────────────────────
+
+    async function loadLlamaCppSettings() {
+        const stored = await chrome.storage.local.get('llamaCppConfig');
+        const config = stored.llamaCppConfig || {};
+
+        try {
+            const resp = await fetch('http://localhost:3000/api/llamacpp/status');
+            if (resp.ok) {
+                const status = await resp.json();
+                const exeInput = document.getElementById('llamaCppExecutable');
+                const dirInput = document.getElementById('llamaCppModelsDir');
+                const gpuInput = document.getElementById('llamaCppGpuLayers');
+                const portInput = document.getElementById('llamaCppPort');
+                const statusEl = document.getElementById('llamaCppServerStatus');
+
+                if (exeInput) exeInput.value = config.executable || status.executable || 'C:\\llama.cpp\\llama-server.exe';
+                if (dirInput) dirInput.value = config.modelsDir || status.modelsDir || 'C:\\llama.cpp';
+                if (gpuInput) gpuInput.value = config.gpuLayers ?? status.gpuLayers ?? '-1';
+                if (portInput) portInput.value = config.port || status.port || '8080';
+
+                if (statusEl) {
+                    const modelName = status.model ? ` — ${status.model}` : '';
+                    statusEl.textContent = `Server: ${status.status}${modelName}`;
+                }
+            }
+        } catch (e) {
+            const statusEl = document.getElementById('llamaCppServerStatus');
+            if (statusEl) statusEl.textContent = 'Server: proxy not running';
+        }
+    }
+
+    async function saveLlamaCppSettings() {
+        const config = {
+            executable: (document.getElementById('llamaCppExecutable')?.value || '').trim(),
+            modelsDir: (document.getElementById('llamaCppModelsDir')?.value || '').trim(),
+            gpuLayers: document.getElementById('llamaCppGpuLayers')?.value || '-1',
+            port: document.getElementById('llamaCppPort')?.value || '8080'
+        };
+
+        await chrome.storage.local.set({ llamaCppConfig: config });
+
+        const statusEl = document.getElementById('llamaCppConfigStatus');
+        try {
+            const resp = await fetch('http://localhost:3000/api/llamacpp/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+            if (resp.ok) {
+                if (statusEl) { statusEl.textContent = 'Saved!'; statusEl.style.color = 'var(--success)'; setTimeout(() => { statusEl.textContent = ''; }, 2000); }
+                availableModels = []; // bust model cache so dropdown re-fetches
+            } else {
+                if (statusEl) { statusEl.textContent = 'Error'; statusEl.style.color = 'var(--error-text)'; }
+            }
+        } catch (e) {
+            if (statusEl) { statusEl.textContent = 'Proxy unreachable'; statusEl.style.color = 'var(--error-text)'; }
+        }
+    }
+
     // ─── Dashboard ────────────────────────────────────────────────────────────
 
     function dashFmt(n) {
@@ -4523,6 +4711,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     await loadSavedTheme();
+
+    // Sync saved llama.cpp config to proxy so settings survive extension reload
+    chrome.storage.local.get('llamaCppConfig').then(stored => {
+        const config = stored.llamaCppConfig;
+        if (config && Object.keys(config).length > 0) {
+            fetch('http://localhost:3000/api/llamacpp/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            }).catch(e => console.warn('[llama.cpp] Could not sync config to proxy:', e));
+        }
+    });
 
     // ─────────────────────────────────────────────────────────────────────────
 
