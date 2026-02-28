@@ -1,9 +1,9 @@
-# OllamaBro
+# OllamaBro `v1.0.2`
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
 
-OllamaBro is a Chrome extension that provides a full-featured chat interface for your local Ollama models — directly in the browser, no cloud required.
+OllamaBro is a Chrome extension that provides a full-featured chat interface for your local Ollama models — directly in the browser, no cloud required. It also supports **llama.cpp** as a second backend, letting you run any GGUF model alongside your Ollama models without touching a terminal.
 
 ## Features
 
@@ -20,6 +20,15 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
   - 🔴 **Too Large** — won't fit on current hardware
   - Each card shows estimated speed (t/s), VRAM usage %, best quantisation, run mode, and a **Pull** button that pre-fills the model name in the Pull Model input
   - Requires llmfit to be installed (optional — the rest of the extension works fine without it)
+
+### ⚡ llama.cpp Support *(new in v1.0.2)*
+- Run any **GGUF model** directly via llama.cpp alongside your Ollama models — no config file editing required
+- The model switcher shows a dedicated **⚡ llama.cpp** section listing every `.gguf` file found in your configured models directory
+- Clicking a GGUF model loads it automatically — the proxy starts and manages the `llama-server` process, polls until it is ready, and then enables the input
+- Switching to a different GGUF model kills the old process and starts a fresh one, all from inside OllamaBro
+- **Thinking model support** — `reasoning_content` tokens stream directly into the collapsible thinking box in real time (identical behaviour to Ollama reasoning models)
+- **Generation stats** — token count, prompt tokens, tokens/second, and generation time appear after each response, same as Ollama
+- Configure everything from Settings → **⚡ llama.cpp**: binary path, models directory, GPU layers (`-1` = all), and server port
 
 ### Chat Interface
 - Dedicated browser tab chat window with a collapsible conversation sidebar
@@ -110,6 +119,7 @@ Theme is applied instantly and persisted across sessions. Code blocks automatica
 - Google Chrome
 - *(Optional)* [Tavily](https://tavily.com/) free API key for web search (1,000 searches/month, no credit card)
 - *(Optional)* [llmfit](https://github.com/notBradPitt/llmfit) for hardware-aware model recommendations
+- *(Optional)* [llama.cpp](https://github.com/ggerganov/llama.cpp/releases) — `llama-server` binary for running GGUF models
 
 ## Setup
 
@@ -167,6 +177,22 @@ cargo install llmfit
 ```
 
 > Requires the [Rust toolchain](https://rustup.rs/). Once installed, no further configuration is needed — OllamaBro detects it automatically via the proxy server.
+
+---
+
+### ⚡ llama.cpp (optional)
+
+1. Download the latest `llama-server` binary from the [llama.cpp releases page](https://github.com/ggerganov/llama.cpp/releases) and place it alongside your GGUF models (or anywhere you like).
+
+2. In OllamaBro, open **Settings → ⚡ llama.cpp** and set:
+   - **Binary path** — full path to `llama-server.exe` (e.g. `C:\llama.cpp\llama-server.exe`)
+   - **Models directory** — folder containing your `.gguf` files (e.g. `C:\llama.cpp`)
+   - **GPU layers** — `-1` to offload all layers to GPU, or a specific number for partial offload
+   - **Port** — defaults to `8080`; change if something else is already using it
+
+3. Click **Save**. Your GGUF files will appear under **⚡ llama.cpp** in the model switcher. Click any model to load it — OllamaBro handles starting and stopping `llama-server` automatically.
+
+> Settings are saved across sessions. The proxy server must be running (`pm2 restart ollama-proxy` once after any proxy update).
 
 ---
 
