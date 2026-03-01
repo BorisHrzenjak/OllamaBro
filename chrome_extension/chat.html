@@ -2732,6 +2732,34 @@
             flex-shrink: 0;
         }
 
+        .mgmt-delete-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            flex-shrink: 0;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s, background 0.15s;
+            padding: 0;
+        }
+        .mgmt-model-row:hover .mgmt-delete-btn {
+            opacity: 1;
+        }
+        .mgmt-delete-btn:hover {
+            color: var(--error-text);
+            background: rgba(239, 68, 68, 0.1);
+        }
+        .mgmt-delete-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         .cap-badge {
             display: inline-flex;
             align-items: center;
@@ -3399,6 +3427,13 @@
                     <div id="llamaCppSectionBody" class="settings-section-body">
                         <p class="modal-description">Run GGUF models directly via llama.cpp. Models in the configured
                             directory appear in the model switcher automatically.</p>
+
+                        <div class="mgmt-panel-header" style="margin-bottom:4px;">
+                            <span class="mgmt-panel-title">GGUF Models</span>
+                        </div>
+                        <div id="llamaCppModelList" class="mgmt-model-list" style="margin-bottom:var(--space-md)">
+                            <span class="mgmt-loading">Loading...</span>
+                        </div>
 
                         <div class="llamacpp-field">
                             <label class="llamacpp-field-label" for="llamaCppExecutable">Binary path (llama-server.exe)</label>

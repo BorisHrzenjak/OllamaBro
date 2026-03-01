@@ -524,6 +524,28 @@ app.post('/api/llamacpp/stop', async (req, res) => {
     res.json({ ok: true });
 });
 
+app.delete('/api/llamacpp/delete', (req, res) => {
+    const { modelPath } = req.body || {};
+    if (!modelPath) return res.status(400).json({ error: 'modelPath required' });
+    if (!modelPath.toLowerCase().endsWith('.gguf')) return res.status(400).json({ error: 'Only .gguf files can be deleted' });
+
+    const dirs = llamaModelsDir.split(',').map(d => path.resolve(d.trim())).filter(Boolean);
+    const resolvedPath = path.resolve(modelPath);
+    const inAllowedDir = dirs.some(d => resolvedPath.startsWith(d + path.sep) || resolvedPath === d);
+    if (!inAllowedDir) return res.status(403).json({ error: 'Path not in configured models directory' });
+
+    if (llamaCurrentModel && path.resolve(llamaCurrentModel) === resolvedPath) {
+        return res.status(409).json({ error: 'Cannot delete the currently running model. Stop the server first.' });
+    }
+
+    try {
+        fs.unlinkSync(resolvedPath);
+        res.json({ ok: true });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 app.post('/api/llamacpp/chat', async (req, res) => {
     if (llamaStatus !== 'ready') {
         return res.status(503).json({ error: `llama.cpp not ready (status: ${llamaStatus})` });
@@ -633,7 +655,7 @@ app.all('/proxy/*', async (req, res) => {
     const originalPath = req.params[0];
     const ollamaPath = '/' + originalPath;
     const targetUrlString = OLLAMA_API_BASE_URL + ollamaPath;
-    const ALLOWED_OLLAMA_PATHS = ['/api/tags', '/api/chat', '/api/generate', '/api/show', '/api/pull'];
+    const ALLOWED_OLLAMA_PATHS = ['/api/tags', '/api/chat', '/api/generate', '/api/show', '/api/pull', '/api/delete'];
 
     console.log(`Proxying request: ${req.method} ${req.originalUrl} -> ${targetUrlString}`);
 

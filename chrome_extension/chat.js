@@ -1699,7 +1699,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             listEl.innerHTML = '';
-            if (typeof lucide !== 'undefined') lucide.createIcons({ el: listEl });
 
             for (const model of models) {
                 const row = document.createElement('div');
@@ -1722,6 +1721,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 }
                 row.appendChild(sizeSpan);
 
+                const delBtn = document.createElement('button');
+                delBtn.className = 'mgmt-delete-btn';
+                delBtn.title = `Delete ${model.name}`;
+                delBtn.innerHTML = '<i data-lucide="trash-2"></i>';
+                delBtn.addEventListener('click', async () => {
+                    if (!confirm(`Delete "${model.name}"?\n\nThis will permanently remove the model from disk.`)) return;
+                    delBtn.disabled = true;
+                    await deleteOllamaModel(model.name, row);
+                });
+                row.appendChild(delBtn);
+
                 listEl.appendChild(row);
 
                 // Show cloud badge synchronously
@@ -1729,6 +1739,98 @@ document.addEventListener('DOMContentLoaded', async () => {
                     capsSpan.appendChild(makeCloudBadge(13));
                 }
             }
+            if (typeof lucide !== 'undefined') lucide.createIcons({ el: listEl });
+        } catch (err) {
+            listEl.innerHTML = `<span class="mgmt-error">Error: ${err.message}</span>`;
+        }
+    }
+
+    async function deleteOllamaModel(name, rowEl) {
+        try {
+            const res = await fetch('http://localhost:3000/proxy/api/delete', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            if (res.ok) {
+                rowEl.remove();
+                availableModels = availableModels.filter(m => m.name !== name);
+                populateModelDropdown();
+            } else {
+                const err = await res.json().catch(() => ({}));
+                alert(`Failed to delete "${name}": ${err.error || res.statusText}`);
+                const btn = rowEl.querySelector('.mgmt-delete-btn');
+                if (btn) btn.disabled = false;
+            }
+        } catch (e) {
+            alert(`Error deleting model: ${e.message}`);
+            const btn = rowEl.querySelector('.mgmt-delete-btn');
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    async function populateLlamaCppModelList() {
+        const listEl = document.getElementById('llamaCppModelList');
+        if (!listEl) return;
+        listEl.innerHTML = '<span class="mgmt-loading">Loading...</span>';
+        try {
+            const res = await fetch('http://localhost:3000/api/llamacpp/models');
+            if (!res.ok) throw new Error('Could not fetch llama.cpp models');
+            const data = await res.json();
+            const models = data.models || [];
+            if (models.length === 0) {
+                listEl.innerHTML = '<span class="mgmt-empty">No .gguf files found in configured directory.</span>';
+                return;
+            }
+            listEl.innerHTML = '';
+            for (const model of models) {
+                const row = document.createElement('div');
+                row.className = 'mgmt-model-row';
+
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'mgmt-model-name';
+                nameSpan.textContent = model.name;
+                nameSpan.title = model.path;
+                row.appendChild(nameSpan);
+
+                const sizeSpan = document.createElement('span');
+                sizeSpan.className = 'mgmt-model-size';
+                if (model.size > 0) sizeSpan.textContent = (model.size / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
+                row.appendChild(sizeSpan);
+
+                const isRunning = data.currentModel && data.currentModel === model.path;
+                const delBtn = document.createElement('button');
+                delBtn.className = 'mgmt-delete-btn';
+                delBtn.title = isRunning ? 'Stop the server before deleting' : `Delete ${model.name}`;
+                delBtn.disabled = isRunning;
+                delBtn.innerHTML = '<i data-lucide="trash-2"></i>';
+                delBtn.addEventListener('click', async () => {
+                    if (!confirm(`Delete "${model.name}"?\n\nThis will permanently remove the file from disk.`)) return;
+                    delBtn.disabled = true;
+                    try {
+                        const r = await fetch('http://localhost:3000/api/llamacpp/delete', {
+                            method: 'DELETE',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ modelPath: model.path })
+                        });
+                        if (r.ok) {
+                            row.remove();
+                            availableModels = availableModels.filter(m => m._path !== model.path);
+                            populateModelDropdown();
+                        } else {
+                            const err = await r.json().catch(() => ({}));
+                            alert(`Failed to delete: ${err.error || r.statusText}`);
+                            delBtn.disabled = false;
+                        }
+                    } catch (e) {
+                        alert(`Error: ${e.message}`);
+                        delBtn.disabled = false;
+                    }
+                });
+                row.appendChild(delBtn);
+                listEl.appendChild(row);
+            }
+            if (typeof lucide !== 'undefined') lucide.createIcons({ el: listEl });
         } catch (err) {
             listEl.innerHTML = `<span class="mgmt-error">Error: ${err.message}</span>`;
         }
@@ -4297,6 +4399,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const statusEl = document.getElementById('llamaCppServerStatus');
             if (statusEl) statusEl.textContent = 'Server: proxy not running';
         }
+
+        populateLlamaCppModelList();
     }
 
     async function saveLlamaCppSettings() {
