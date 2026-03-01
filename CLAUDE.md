@@ -126,6 +126,15 @@ Visual indicators help identify model capabilities using intelligent detection:
 - **Reasoning**: Checks for think/reason/code keywords, large parameter counts (>7B), coding-specific templates
 - **Flexible Matching**: Handles model name variations and custom tags
 
+## Release Process
+
+After every feature implementation, feature update, or major change:
+
+1. **Bump the version** in `chrome_extension/manifest.json` using patch increments (e.g. `1.0.4` → `1.0.5`). Do not bump for minor fixes, typos, or refactors.
+2. **Update `README.md`** — add a description of the new feature under the appropriate section (or create a new section). Include setup steps if the feature requires configuration.
+
+Do not bump the version or update the README for bug fixes or internal refactors unless they significantly change user-facing behaviour.
+
 ## Development Notes
 
 - The proxy server runs on port 3000 and expects Ollama on port 11434
