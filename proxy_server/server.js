@@ -106,7 +106,7 @@ let llamaPort = parseInt(process.env.LLAMACPP_PORT || '8080', 10);
 let llamaExecutable = process.env.LLAMACPP_EXECUTABLE || 'C:\\llama.cpp\\llama-server.exe';
 let llamaModelsDir = process.env.LLAMACPP_MODELS_DIR || 'C:\\llama.cpp';
 let llamaGpuLayers = process.env.LLAMACPP_GPU_LAYERS || '-1';
-let llamaCtxSize = parseInt(process.env.LLAMACPP_CTX_SIZE || '16384', 10);
+let llamaCtxSize = parseInt(process.env.LLAMACPP_CTX_SIZE || '32768', 10);
 
 // Static Kokoro voice metadata (from kokoro-js VOICES constant)
 const KOKORO_VOICES = [
@@ -172,7 +172,7 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use((req, res, next) => {
-    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') {
         let data = '';
         req.on('data', chunk => {
             data += chunk;
@@ -623,7 +623,9 @@ app.post('/api/llamacpp/chat', async (req, res) => {
 
                     const rawContent = choice.delta?.content || '';
                     const reasoning = choice.delta?.reasoning_content ?? null;
-                    const isDone = choice.finish_reason === 'stop';
+                    const finishReason = choice.finish_reason;
+                    const isDone = finishReason === 'stop' || finishReason === 'length';
+                    const hitContextLimit = finishReason === 'length';
                     const hasActiveThinking = reasoning !== null && reasoning !== '';
 
                     // Track when the first real response token (not thinking) arrives for timing
@@ -635,6 +637,7 @@ app.post('/api/llamacpp/chat', async (req, res) => {
                     // thinking tokens into the thinking box in real time, matching Ollama behaviour.
                     const msg = { role: 'assistant', content: rawContent };
                     if (hasActiveThinking) msg.thinking = reasoning;
+                    if (hitContextLimit) msg.content += '\n\n⚠️ *Response cut off: context window full. Increase Context Size in Settings → ⚡ llama.cpp.*';
 
                     const out = { model: modelBaseName, message: msg, done: isDone };
                     res.write(JSON.stringify(out) + '\n');
@@ -697,8 +700,12 @@ app.all('/proxy/*', async (req, res) => {
             proxyRes.on('error', (err) => console.error('Proxy to Ollama: Error on response stream from Ollama:', err));
         });
 
-        // Pull requests can take many minutes to download large models
-        const OLLAMA_REQUEST_TIMEOUT = ollamaPath.startsWith('/api/pull') ? 1800000 : 60000;
+        // Pull requests can take many minutes; cloud models route through external APIs so also need more headroom
+        const reqModelName = req.body?.model || '';
+        const isCloudModelReq = reqModelName.includes(':cloud') || reqModelName.includes('.cloud');
+        const OLLAMA_REQUEST_TIMEOUT = ollamaPath.startsWith('/api/pull') ? 1800000
+            : isCloudModelReq ? 300000  // 5 min for cloud models (they call external APIs)
+            : 60000;
         proxyReq.setTimeout(OLLAMA_REQUEST_TIMEOUT, () => {
             console.error(`Proxy to Ollama: Request timed out after ${OLLAMA_REQUEST_TIMEOUT / 1000}s. Aborting.`);
             proxyReq.abort();
@@ -716,7 +723,7 @@ app.all('/proxy/*', async (req, res) => {
             socket.on('timeout', () => console.error('Proxy to Ollama: Socket timeout event.'));
         });
 
-        if ((req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') && req.rawBody) {
+        if ((req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') && req.rawBody) {
             let bodyToSend = req.rawBody;
             let contentType = req.headers['content-type'] || 'application/json';
 
@@ -840,7 +847,7 @@ app.all('/proxy/*', async (req, res) => {
             
             proxyReq.write(bodyToSend);
             proxyReq.end();
-        } else if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH') {
+        } else if (req.method === 'POST' || req.method === 'PUT' || req.method === 'PATCH' || req.method === 'DELETE') {
             console.warn('Proxy to Ollama: POST/PUT/PATCH request, but req.rawBody is not set. Attempting to pipe.');
             // This path should ideally not be hit if rawBody middleware works.
             // If piping, Node will set Content-Length and Content-Type if possible, but it can be less reliable.

@@ -1773,7 +1773,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (res.ok) {
                 rowEl.remove();
                 availableModels = availableModels.filter(m => m.name !== name);
-                populateModelDropdown();
+                populateModelDropdown(availableModels, currentModelName);
             } else {
                 const err = await res.json().catch(() => ({}));
                 alert(`Failed to delete "${name}": ${err.error || res.statusText}`);
@@ -2899,6 +2899,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (p.repeat_penalty != null) options.repeat_penalty = p.repeat_penalty;
             if (p.num_predict != null) options.num_predict = p.num_predict;
             if (p.seed != null && p.seed !== 0) options.seed = p.seed;
+            // Send context window override to Ollama so it's enforced server-side, not just in UI
+            if (modelData.contextLimitOverride && modelData.contextLimitOverride > 0) {
+                options.num_ctx = modelData.contextLimitOverride;
+            }
             if (Object.keys(options).length > 0) requestBody.options = options;
 
             console.log('Request body for Ollama:', JSON.stringify(requestBody, null, 2));
@@ -4744,7 +4748,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (exeInput) exeInput.value = config.executable || status.executable || 'C:\\llama.cpp\\llama-server.exe';
                 if (dirInput) dirInput.value = config.modelsDir || status.modelsDir || 'C:\\llama.cpp';
                 if (gpuInput) gpuInput.value = config.gpuLayers ?? status.gpuLayers ?? '-1';
-                if (ctxInput) ctxInput.value = config.ctxSize ?? status.ctxSize ?? '16384';
+                if (ctxInput) ctxInput.value = config.ctxSize ?? status.ctxSize ?? '32768';
                 if (portInput) portInput.value = config.port || status.port || '8080';
 
                 if (statusEl) {
@@ -4765,7 +4769,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             executable: (document.getElementById('llamaCppExecutable')?.value || '').trim(),
             modelsDir: (document.getElementById('llamaCppModelsDir')?.value || '').trim(),
             gpuLayers: document.getElementById('llamaCppGpuLayers')?.value || '-1',
-            ctxSize: document.getElementById('llamaCppCtxSize')?.value || '16384',
+            ctxSize: document.getElementById('llamaCppCtxSize')?.value || '32768',
             port: document.getElementById('llamaCppPort')?.value || '8080'
         };
 
@@ -4778,11 +4782,28 @@ document.addEventListener('DOMContentLoaded', async () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
             });
-            if (resp.ok) {
-                if (statusEl) { statusEl.textContent = 'Saved!'; statusEl.style.color = 'var(--success)'; setTimeout(() => { statusEl.textContent = ''; }, 2000); }
-                availableModels = []; // bust model cache so dropdown re-fetches
-            } else {
+            if (!resp.ok) {
                 if (statusEl) { statusEl.textContent = 'Error'; statusEl.style.color = 'var(--error-text)'; }
+                return;
+            }
+
+            availableModels = []; // bust model cache so dropdown re-fetches
+
+            // If a llama.cpp model is currently loaded, reload it so new settings take effect
+            if (currentLlamaCppPath && currentModelBackend === 'llamacpp') {
+                if (statusEl) { statusEl.textContent = 'Reloading model...'; statusEl.style.color = 'var(--text-muted)'; }
+                const loadResp = await fetch('http://localhost:3000/api/llamacpp/load', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ modelPath: currentLlamaCppPath })
+                });
+                if (loadResp.ok) {
+                    if (statusEl) { statusEl.textContent = 'Saved & reloaded!'; statusEl.style.color = 'var(--success)'; setTimeout(() => { statusEl.textContent = ''; }, 3000); }
+                } else {
+                    if (statusEl) { statusEl.textContent = 'Saved, but reload failed'; statusEl.style.color = 'var(--error-text)'; }
+                }
+            } else {
+                if (statusEl) { statusEl.textContent = 'Saved!'; statusEl.style.color = 'var(--success)'; setTimeout(() => { statusEl.textContent = ''; }, 2000); }
             }
         } catch (e) {
             if (statusEl) { statusEl.textContent = 'Proxy unreachable'; statusEl.style.color = 'var(--error-text)'; }
