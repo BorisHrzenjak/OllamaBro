@@ -744,6 +744,89 @@
             display: flex;
             align-items: flex-end;
             gap: var(--space-sm);
+            position: relative;
+        }
+
+        /* Slash Command Popup */
+        #slashCommandPopup {
+            position: absolute;
+            bottom: 100%;
+            left: var(--space-xl);
+            right: var(--space-xl);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            max-height: 280px;
+            overflow-y: auto;
+            z-index: 200;
+            box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
+            margin-bottom: 6px;
+            display: none;
+        }
+
+        #slashCommandPopup.visible {
+            display: block;
+        }
+
+        .slash-cmd-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 9px 14px;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-subtle);
+            transition: background 0.1s;
+        }
+
+        .slash-cmd-item:last-child {
+            border-bottom: none;
+        }
+
+        .slash-cmd-item:hover,
+        .slash-cmd-item.selected {
+            background: var(--bg-tertiary);
+        }
+
+        .slash-cmd-item.selected {
+            background: var(--accent-subtle);
+        }
+
+        .slash-cmd-trigger {
+            font-family: monospace;
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--accent);
+            min-width: 110px;
+            white-space: nowrap;
+        }
+
+        .slash-cmd-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .slash-cmd-name {
+            font-size: var(--font-size-sm);
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .slash-cmd-preview {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+
+        .slash-cmd-hint {
+            font-size: 11px;
+            color: var(--text-muted);
+            padding: 5px 14px;
+            border-top: 1px solid var(--border-subtle);
+            background: var(--bg-tertiary);
+            border-radius: 0 0 var(--radius-md) var(--radius-md);
         }
 
         #messageInput {
@@ -3107,6 +3190,7 @@
             <div id="imagePreviewArea"></div>
 
             <div id="inputArea">
+                <div id="slashCommandPopup"></div>
                 <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
                 <button id="imageButton" class="input-icon-button" title="Add image" style="display: none;">
                     <i data-lucide="image-plus"></i>
@@ -3216,6 +3300,33 @@
                         <button id="addNewPresetButton" class="add-preset-button">
                             <i data-lucide="plus"></i>
                             New Preset
+                        </button>
+                    </div>
+                </div>
+
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="slashCmdSectionToggle">
+                        Prompt Templates
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="slashCmdSectionBody" class="settings-section-body">
+                        <p class="modal-description">Type <code style="font-size:11px;background:var(--bg-quaternary);padding:1px 5px;border-radius:3px;">/</code> in the message box to quickly insert a template. Select a template then add your content.</p>
+                        <div id="slashCommandsList" class="persona-presets-list"></div>
+                        <div id="newSlashCmdForm" class="new-preset-form" style="display: none;">
+                            <input type="text" id="newSlashCmdTrigger" class="preset-name-input"
+                                placeholder="Trigger word (e.g., translate)" maxlength="30">
+                            <input type="text" id="newSlashCmdName" class="preset-name-input"
+                                placeholder="Display name (e.g., Translate text)" maxlength="50">
+                            <textarea id="newSlashCmdBody" class="preset-prompt-input"
+                                placeholder="Template text..." rows="3"></textarea>
+                            <div class="new-preset-actions">
+                                <button id="cancelNewSlashCmdButton" class="modal-button secondary">Cancel</button>
+                                <button id="saveNewSlashCmdButton" class="modal-button primary">Save</button>
+                            </div>
+                        </div>
+                        <button id="addNewSlashCmdButton" class="add-preset-button">
+                            <i data-lucide="plus"></i>
+                            New Template
                         </button>
                     </div>
                 </div>

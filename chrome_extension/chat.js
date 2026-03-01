@@ -79,6 +79,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Slash command state
+    const SLASH_COMMANDS_KEY = 'slashCommands';
+    const SLASH_COMMANDS_INIT_KEY = 'slashCommands_init';
+    const DEFAULT_SLASH_COMMANDS = [
+        { id: 'translate',  trigger: 'translate',  name: 'Translate',        body: 'Translate the following text to English:\n\n' },
+        { id: 'summarize',  trigger: 'summarize',  name: 'Summarize',        body: 'Summarize the following in 3–5 concise bullet points:\n\n' },
+        { id: 'fix-code',   trigger: 'fix-code',   name: 'Fix Code',         body: 'Find and fix any bugs in the following code. Explain what was wrong:\n\n' },
+        { id: 'explain',    trigger: 'explain',    name: 'Explain',          body: 'Explain the following concept in simple, clear terms:\n\n' },
+        { id: 'improve',    trigger: 'improve',    name: 'Improve Writing',  body: 'Improve the writing quality, clarity, and style of the following text:\n\n' },
+        { id: 'eli5',       trigger: 'eli5',       name: 'ELI5',             body: "Explain this like I'm 5 years old:\n\n" },
+        { id: 'brainstorm', trigger: 'brainstorm', name: 'Brainstorm',       body: 'Brainstorm 5–10 creative ideas for the following:\n\n' },
+        { id: 'proofread',  trigger: 'proofread',  name: 'Proofread',        body: 'Proofread the following text for grammar, spelling, and punctuation errors:\n\n' },
+    ];
+    let slashCommands = [];
+    let slashPopupFiltered = [];
+    let slashPopupSelectedIndex = -1;
+    const slashCommandPopup = document.getElementById('slashCommandPopup');
+
     // Deep research state
     const deepResearchButton = document.getElementById('deepResearchButton');
     let deepResearchEnabled = false;
@@ -2480,6 +2498,284 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (promptInput) promptInput.value = '';
     }
 
+    // ── Slash Commands ───────────────────────────────────────────────────────
+
+    async function loadSlashCommands() {
+        try {
+            const result = await chrome.storage.local.get([SLASH_COMMANDS_KEY, SLASH_COMMANDS_INIT_KEY]);
+            if (!result[SLASH_COMMANDS_INIT_KEY]) {
+                await chrome.storage.local.set({
+                    [SLASH_COMMANDS_KEY]: DEFAULT_SLASH_COMMANDS,
+                    [SLASH_COMMANDS_INIT_KEY]: true
+                });
+                return [...DEFAULT_SLASH_COMMANDS];
+            }
+            return result[SLASH_COMMANDS_KEY] || [];
+        } catch (e) {
+            console.error('[OllamaBro] Error loading slash commands:', e);
+            return [...DEFAULT_SLASH_COMMANDS];
+        }
+    }
+
+    async function saveSlashCommands(cmds) {
+        try {
+            await chrome.storage.local.set({ [SLASH_COMMANDS_KEY]: cmds });
+            slashCommands = cmds;
+        } catch (e) {
+            console.error('[OllamaBro] Error saving slash commands:', e);
+        }
+    }
+
+    function getSlashQuery() {
+        const val = messageInput.value;
+        const m = val.match(/^\/(\S*)$/);
+        return m ? m[1] : null;
+    }
+
+    function showSlashPopup(filtered) {
+        slashPopupFiltered = filtered;
+        slashCommandPopup.innerHTML = '';
+        slashPopupSelectedIndex = -1;
+        if (filtered.length === 0) { hideSlashPopup(); return; }
+
+        filtered.forEach((cmd, i) => {
+            const item = document.createElement('div');
+            item.className = 'slash-cmd-item';
+            item.dataset.index = i;
+
+            const trigger = document.createElement('span');
+            trigger.className = 'slash-cmd-trigger';
+            trigger.textContent = `/${cmd.trigger}`;
+
+            const info = document.createElement('div');
+            info.className = 'slash-cmd-info';
+
+            const name = document.createElement('div');
+            name.className = 'slash-cmd-name';
+            name.textContent = cmd.name;
+
+            const preview = document.createElement('div');
+            preview.className = 'slash-cmd-preview';
+            preview.textContent = cmd.body.replace(/\n/g, ' ');
+
+            info.appendChild(name);
+            info.appendChild(preview);
+            item.appendChild(trigger);
+            item.appendChild(info);
+
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                applySlashCommand(cmd);
+            });
+            slashCommandPopup.appendChild(item);
+        });
+
+        const hint = document.createElement('div');
+        hint.className = 'slash-cmd-hint';
+        hint.textContent = '↑↓ navigate  ·  Enter / Tab to insert  ·  Esc to close';
+        slashCommandPopup.appendChild(hint);
+
+        slashCommandPopup.classList.add('visible');
+    }
+
+    function hideSlashPopup() {
+        slashCommandPopup.classList.remove('visible');
+        slashCommandPopup.innerHTML = '';
+        slashPopupFiltered = [];
+        slashPopupSelectedIndex = -1;
+    }
+
+    function setSlashPopupSelected(index) {
+        const items = slashCommandPopup.querySelectorAll('.slash-cmd-item');
+        items.forEach((el, i) => el.classList.toggle('selected', i === index));
+        slashPopupSelectedIndex = index;
+        if (items[index]) items[index].scrollIntoView({ block: 'nearest' });
+    }
+
+    function applySlashCommand(cmd) {
+        messageInput.value = cmd.body;
+        messageInput.focus();
+        messageInput.setSelectionRange(messageInput.value.length, messageInput.value.length);
+        messageInput.dispatchEvent(new Event('input'));
+        hideSlashPopup();
+    }
+
+    function handleSlashInput() {
+        const query = getSlashQuery();
+        if (query === null) { hideSlashPopup(); return; }
+        const filtered = slashCommands.filter(cmd =>
+            cmd.trigger.toLowerCase().startsWith(query.toLowerCase())
+        );
+        showSlashPopup(filtered);
+    }
+
+    // ── Slash Commands Settings ──────────────────────────────────────────────
+
+    function initSlashCommandsSettings() {
+        const sectionToggle = document.getElementById('slashCmdSectionToggle');
+        if (!sectionToggle) return;
+
+        sectionToggle.addEventListener('click', () => {
+            toggleSection('slashCmdSectionToggle', 'slashCmdSectionBody');
+            const body = document.getElementById('slashCmdSectionBody');
+            if (body && body.classList.contains('expanded')) renderSlashCommandsList();
+        });
+
+        const addNewButton = document.getElementById('addNewSlashCmdButton');
+        const newForm = document.getElementById('newSlashCmdForm');
+        const cancelBtn = document.getElementById('cancelNewSlashCmdButton');
+        const saveBtn = document.getElementById('saveNewSlashCmdButton');
+        const triggerInput = document.getElementById('newSlashCmdTrigger');
+        const nameInput = document.getElementById('newSlashCmdName');
+        const bodyInput = document.getElementById('newSlashCmdBody');
+
+        addNewButton.addEventListener('click', () => {
+            newForm.style.display = 'flex';
+            addNewButton.style.display = 'none';
+            triggerInput.focus();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            newForm.style.display = 'none';
+            addNewButton.style.display = 'flex';
+            triggerInput.value = '';
+            nameInput.value = '';
+            bodyInput.value = '';
+        });
+
+        saveBtn.addEventListener('click', async () => {
+            const trigger = triggerInput.value.trim().replace(/^\//, '').replace(/\s+/g, '-').toLowerCase();
+            const name = nameInput.value.trim();
+            const body = bodyInput.value;
+            if (!trigger || !name || !body.trim()) return;
+            const newCmd = { id: `cmd_${Date.now()}`, trigger, name, body };
+            await saveSlashCommands([...slashCommands, newCmd]);
+            newForm.style.display = 'none';
+            addNewButton.style.display = 'flex';
+            triggerInput.value = '';
+            nameInput.value = '';
+            bodyInput.value = '';
+            renderSlashCommandsList();
+        });
+    }
+
+    function renderSlashCommandsList() {
+        const list = document.getElementById('slashCommandsList');
+        if (!list) return;
+        list.innerHTML = '';
+        if (slashCommands.length === 0) {
+            const empty = document.createElement('p');
+            empty.style.cssText = 'font-size:var(--font-size-xs);color:var(--text-muted);padding:var(--space-sm) 0;';
+            empty.textContent = 'No prompt templates. Add one below.';
+            list.appendChild(empty);
+            return;
+        }
+        for (const cmd of slashCommands) {
+            list.appendChild(createSlashCommandRow(cmd));
+        }
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+    }
+
+    function createSlashCommandRow(cmd) {
+        const item = document.createElement('div');
+        item.className = 'preset-item';
+        item.dataset.cmdId = cmd.id;
+
+        const info = document.createElement('div');
+        info.className = 'preset-info';
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'preset-item-name';
+        nameEl.innerHTML = `<code style="font-size:11px;color:var(--accent);">/${cmd.trigger}</code> — ${cmd.name}`;
+
+        const preview = document.createElement('div');
+        preview.className = 'preset-item-preview';
+        preview.textContent = cmd.body.replace(/\n/g, ' ');
+        preview.title = cmd.body;
+
+        info.appendChild(nameEl);
+        info.appendChild(preview);
+
+        const actions = document.createElement('div');
+        actions.className = 'preset-item-actions';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'preset-edit-button';
+        editBtn.title = 'Edit';
+        editBtn.appendChild(createLucideIcon('pencil', 13));
+        editBtn.addEventListener('click', () => startEditSlashCommand(cmd, item));
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'preset-edit-button';
+        deleteBtn.title = 'Delete';
+        deleteBtn.style.color = 'var(--error-text)';
+        deleteBtn.appendChild(createLucideIcon('trash-2', 13));
+        deleteBtn.addEventListener('click', async () => {
+            await saveSlashCommands(slashCommands.filter(c => c.id !== cmd.id));
+            renderSlashCommandsList();
+        });
+
+        actions.appendChild(editBtn);
+        actions.appendChild(deleteBtn);
+        item.appendChild(info);
+        item.appendChild(actions);
+        return item;
+    }
+
+    function startEditSlashCommand(cmd, rowEl) {
+        rowEl.classList.add('preset-item-editing');
+        rowEl.innerHTML = '';
+
+        const triggerInput = document.createElement('input');
+        triggerInput.type = 'text';
+        triggerInput.className = 'preset-name-input';
+        triggerInput.placeholder = 'Trigger (e.g., translate)';
+        triggerInput.value = cmd.trigger;
+        triggerInput.maxLength = 30;
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.className = 'preset-name-input';
+        nameInput.placeholder = 'Display name';
+        nameInput.value = cmd.name;
+        nameInput.maxLength = 50;
+
+        const bodyInput = document.createElement('textarea');
+        bodyInput.className = 'preset-prompt-input';
+        bodyInput.placeholder = 'Template text...';
+        bodyInput.value = cmd.body;
+        bodyInput.rows = 3;
+
+        const editActions = document.createElement('div');
+        editActions.className = 'preset-edit-actions';
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'modal-button secondary';
+        cancelBtn.textContent = 'Cancel';
+        cancelBtn.addEventListener('click', renderSlashCommandsList);
+
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'modal-button primary';
+        saveBtn.textContent = 'Save';
+        saveBtn.addEventListener('click', async () => {
+            const newTrigger = triggerInput.value.trim().replace(/^\//, '').replace(/\s+/g, '-').toLowerCase();
+            const newName = nameInput.value.trim();
+            const newBody = bodyInput.value;
+            if (!newTrigger || !newName || !newBody.trim()) return;
+            await saveSlashCommands(slashCommands.map(c =>
+                c.id === cmd.id ? { ...c, trigger: newTrigger, name: newName, body: newBody } : c
+            ));
+            renderSlashCommandsList();
+        });
+
+        editActions.appendChild(cancelBtn);
+        editActions.appendChild(saveBtn);
+        rowEl.appendChild(triggerInput);
+        rowEl.appendChild(nameInput);
+        rowEl.appendChild(bodyInput);
+        rowEl.appendChild(editActions);
+    }
+
     // Clear context modal functions
     function openClearContextModal() {
         clearContextModal.classList.add('active');
@@ -3316,6 +3612,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             lucide.createIcons();
         }
 
+        // Load slash commands
+        slashCommands = await loadSlashCommands();
+
         // Setup scroll detection
         chatContainer.addEventListener('scroll', handleScroll, { passive: true });
     }
@@ -3342,6 +3641,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     messageInput.addEventListener('keydown', (e) => {
+        // Slash command popup navigation takes priority
+        if (slashCommandPopup.classList.contains('visible')) {
+            const items = slashCommandPopup.querySelectorAll('.slash-cmd-item');
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSlashPopupSelected(Math.min(slashPopupSelectedIndex + 1, items.length - 1));
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSlashPopupSelected(Math.max(slashPopupSelectedIndex - 1, 0));
+                return;
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                const idx = slashPopupSelectedIndex >= 0 ? slashPopupSelectedIndex : 0;
+                if (slashPopupFiltered[idx]) applySlashCommand(slashPopupFiltered[idx]);
+                return;
+            }
+            if (e.key === 'Escape') {
+                hideSlashPopup();
+                return;
+            }
+        }
+
         if (e.key === 'Enter' && e.ctrlKey) {
             e.preventDefault();
             pushToHistory(messageInput.value);
@@ -3376,11 +3700,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Event Listeners
     sendButton.addEventListener('click', () => { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); });
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); } });
+    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !slashCommandPopup.classList.contains('visible')) { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); } });
 
-    // Save draft as user types (debounced)
+    // Save draft as user types (debounced) + slash command detection
     let draftSaveTimeout;
     messageInput.addEventListener('input', () => {
+        handleSlashInput();
         clearTimeout(draftSaveTimeout);
         draftSaveTimeout = setTimeout(async () => {
             const modelData = await loadModelChatState(currentModelName);
@@ -3568,6 +3893,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadLlamaCppSettings();
         });
     }
+
+    // Slash command popup: close when input loses focus (unless clicking popup itself)
+    messageInput.addEventListener('blur', () => {
+        setTimeout(hideSlashPopup, 150);
+    });
+
+    // Init slash commands settings section
+    initSlashCommandsSettings();
 
     // Persona preset event listeners
     const personaSectionToggle = document.getElementById('personaSectionToggle');

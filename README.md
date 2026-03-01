@@ -1,4 +1,4 @@
-# OllamaBro `v1.0.2`
+# OllamaBro `v1.0.5`
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
@@ -29,6 +29,13 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Thinking model support** — `reasoning_content` tokens stream directly into the collapsible thinking box in real time (identical behaviour to Ollama reasoning models)
 - **Generation stats** — token count, prompt tokens, tokens/second, and generation time appear after each response, same as Ollama
 - Configure everything from Settings → **⚡ llama.cpp**: binary path, models directory, GPU layers (`-1` = all), and server port
+
+### Prompt Templates (Slash Commands) *(new in v1.0.5)*
+- Type `/` at the start of the message box to open a **command palette** of saved prompt templates
+- Filter in real time as you type (e.g. `/sum` narrows to `/summarize`)
+- Navigate with **↑ ↓**, insert with **Enter** or **Tab**, dismiss with **Esc**, or click any item
+- Eight built-in templates: `/translate`, `/summarize`, `/fix-code`, `/explain`, `/improve`, `/eli5`, `/brainstorm`, `/proofread`
+- Fully customisable — **Settings → Prompt Templates** to add, edit, or delete templates
 
 ### Chat Interface
 - Dedicated browser tab chat window with a collapsible conversation sidebar
