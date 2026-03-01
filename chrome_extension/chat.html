@@ -3417,6 +3417,10 @@
                                 <input type="number" id="llamaCppGpuLayers" class="llamacpp-input" value="-1" min="-1">
                             </div>
                             <div class="llamacpp-field" style="flex:1">
+                                <label class="llamacpp-field-label" for="llamaCppCtxSize">Context size (tokens)</label>
+                                <input type="number" id="llamaCppCtxSize" class="llamacpp-input" value="16384" min="512" step="512">
+                            </div>
+                            <div class="llamacpp-field" style="flex:1">
                                 <label class="llamacpp-field-label" for="llamaCppPort">Server port</label>
                                 <input type="number" id="llamaCppPort" class="llamacpp-input" value="8080" min="1024"
                                     max="65535">

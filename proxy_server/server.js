@@ -106,6 +106,7 @@ let llamaPort = parseInt(process.env.LLAMACPP_PORT || '8080', 10);
 let llamaExecutable = process.env.LLAMACPP_EXECUTABLE || 'C:\\llama.cpp\\llama-server.exe';
 let llamaModelsDir = process.env.LLAMACPP_MODELS_DIR || 'C:\\llama.cpp';
 let llamaGpuLayers = process.env.LLAMACPP_GPU_LAYERS || '-1';
+let llamaCtxSize = parseInt(process.env.LLAMACPP_CTX_SIZE || '16384', 10);
 
 // Static Kokoro voice metadata (from kokoro-js VOICES constant)
 const KOKORO_VOICES = [
@@ -393,17 +394,19 @@ app.get('/api/llamacpp/status', (req, res) => {
         port: llamaPort,
         executable: llamaExecutable,
         modelsDir: llamaModelsDir,
-        gpuLayers: llamaGpuLayers
+        gpuLayers: llamaGpuLayers,
+        ctxSize: llamaCtxSize
     });
 });
 
 app.post('/api/llamacpp/config', (req, res) => {
-    const { executable, modelsDir, gpuLayers, port } = req.body || {};
+    const { executable, modelsDir, gpuLayers, port, ctxSize } = req.body || {};
     if (executable) llamaExecutable = executable;
     if (modelsDir) llamaModelsDir = modelsDir;
     if (gpuLayers !== undefined && gpuLayers !== null) llamaGpuLayers = String(gpuLayers);
     if (port) llamaPort = parseInt(port, 10);
-    console.log(`[llama.cpp] Config updated: exe=${llamaExecutable}, dir=${llamaModelsDir}, gpu=${llamaGpuLayers}, port=${llamaPort}`);
+    if (ctxSize) llamaCtxSize = parseInt(ctxSize, 10);
+    console.log(`[llama.cpp] Config updated: exe=${llamaExecutable}, dir=${llamaModelsDir}, gpu=${llamaGpuLayers}, port=${llamaPort}, ctx=${llamaCtxSize}`);
     res.json({ ok: true });
 });
 
@@ -453,7 +456,7 @@ app.post('/api/llamacpp/load', async (req, res) => {
     const args = [
         '--model', modelPath,
         '--port', String(llamaPort),
-        '--ctx-size', '4096',
+        '--ctx-size', String(llamaCtxSize),
         '-ngl', llamaGpuLayers,
         '--host', '127.0.0.1'
     ];
@@ -502,8 +505,19 @@ app.post('/api/llamacpp/load', async (req, res) => {
 
 app.post('/api/llamacpp/stop', async (req, res) => {
     if (llamaProcess) {
-        try { llamaProcess.kill('SIGTERM'); } catch (e) {}
+        const proc = llamaProcess;
         llamaProcess = null;
+        try { proc.kill('SIGTERM'); } catch (e) {}
+        await new Promise(r => setTimeout(r, 800));
+        if (!proc.killed) {
+            try { proc.kill('SIGKILL'); } catch (e) {}
+            // On Windows, force-kill by PID as a last resort
+            if (proc.pid) {
+                try {
+                    spawn('taskkill', ['/F', '/PID', String(proc.pid)], { stdio: 'ignore', windowsHide: true });
+                } catch (e) {}
+            }
+        }
     }
     llamaStatus = 'idle';
     llamaCurrentModel = null;
@@ -525,8 +539,10 @@ app.post('/api/llamacpp/chat', async (req, res) => {
     };
     if (opts.temperature != null) openaiBody.temperature = opts.temperature;
     if (opts.top_p != null) openaiBody.top_p = opts.top_p;
+    if (opts.top_k != null) openaiBody.top_k = opts.top_k;
     if (opts.seed != null) openaiBody.seed = opts.seed;
     if (opts.num_predict != null) openaiBody.max_tokens = opts.num_predict;
+    if (opts.repeat_penalty != null) openaiBody.repeat_penalty = opts.repeat_penalty;
 
     const reqStartTime = Date.now();
     let firstResponseMs = null; // wall-clock ms when first response (non-thinking) token arrives

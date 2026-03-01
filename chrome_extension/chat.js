@@ -2537,16 +2537,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             let accumulatedContent = '';
             let hasThinking = false;
             let messageMetadata = null;
+            let streamBuf = '';
 
             while (!done) {
                 const { value, done: readerDone } = await reader.read();
                 done = readerDone;
                 if (value) {
-                    const chunk = decoder.decode(value, { stream: true });
-                    console.log('Raw chunk from stream:', chunk); // Log raw chunk
-                    const jsonResponses = chunk.split('\n').filter(Boolean);
-                    jsonResponses.forEach(jsonStr => {
-                        console.log('Processing JSON string:', jsonStr); // Log JSON string before parsing
+                    streamBuf += decoder.decode(value, { stream: true });
+                    const lines = streamBuf.split('\n');
+                    streamBuf = lines.pop(); // hold back any incomplete trailing line
+                    for (const jsonStr of lines) {
+                        if (!jsonStr.trim()) continue;
                         try {
                             const jsonResponse = JSON.parse(jsonStr);
                             console.log('Parsed JSON response:', jsonResponse); // Log parsed object
@@ -2643,7 +2644,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         } catch (e) {
                             console.warn('Failed to parse JSON chunk from stream:', jsonStr, e);
                         }
-                    });
+                    }
                 }
             }
             console.log('Stream reading complete.');
@@ -4277,12 +4278,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const exeInput = document.getElementById('llamaCppExecutable');
                 const dirInput = document.getElementById('llamaCppModelsDir');
                 const gpuInput = document.getElementById('llamaCppGpuLayers');
+                const ctxInput = document.getElementById('llamaCppCtxSize');
                 const portInput = document.getElementById('llamaCppPort');
                 const statusEl = document.getElementById('llamaCppServerStatus');
 
                 if (exeInput) exeInput.value = config.executable || status.executable || 'C:\\llama.cpp\\llama-server.exe';
                 if (dirInput) dirInput.value = config.modelsDir || status.modelsDir || 'C:\\llama.cpp';
                 if (gpuInput) gpuInput.value = config.gpuLayers ?? status.gpuLayers ?? '-1';
+                if (ctxInput) ctxInput.value = config.ctxSize ?? status.ctxSize ?? '16384';
                 if (portInput) portInput.value = config.port || status.port || '8080';
 
                 if (statusEl) {
@@ -4301,6 +4304,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             executable: (document.getElementById('llamaCppExecutable')?.value || '').trim(),
             modelsDir: (document.getElementById('llamaCppModelsDir')?.value || '').trim(),
             gpuLayers: document.getElementById('llamaCppGpuLayers')?.value || '-1',
+            ctxSize: document.getElementById('llamaCppCtxSize')?.value || '16384',
             port: document.getElementById('llamaCppPort')?.value || '8080'
         };
 
