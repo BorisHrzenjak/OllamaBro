@@ -56,3 +56,6 @@ build/
 *.zip
 *.gz
 *.tgz
+
+# Local notes / upgrade ideas (not for public repo)
+upgrade_ideas/
