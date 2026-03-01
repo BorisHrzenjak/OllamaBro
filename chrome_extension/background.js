@@ -1,24 +1,11 @@
 
-// Listen for messages from other parts of the extension (e.g., popup.js)
+// Open chat.html directly when the extension icon is clicked
+chrome.action.onClicked.addListener(() => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('chat.html') });
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === "openChatTab" && message.modelName) {
-        const chatPageUrl = chrome.runtime.getURL('chat.html');
-        const urlWithModel = `${chatPageUrl}?model=${encodeURIComponent(message.modelName)}`;
-
-        // Open chat.html in a new tab
-        chrome.tabs.create({ url: urlWithModel }, (tab) => {
-            if (chrome.runtime.lastError) {
-                console.error('Error creating tab:', chrome.runtime.lastError.message);
-                sendResponse({ status: "error", message: chrome.runtime.lastError.message });
-            } else {
-                console.log(`Opened chat tab for model ${message.modelName}: ${tab.id}`);
-                sendResponse({ status: "success", tabId: tab.id });
-            }
-        });
-
-        // Return true to indicate that sendResponse will be called asynchronously
-        return true;
-    } else if (message.action === "getTabModel") {
+    if (message.action === "getTabModel") {
         // This part is for chat.js to get its model if needed,
         // though chat.js will primarily get it from URL params.
         // This is more of a fallback or alternative.

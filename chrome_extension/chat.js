@@ -3033,6 +3033,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         currentModelName = newModelName;
+        chrome.storage.local.set({ lastUsedOllamaModel: newModelName });
         sidebarSearchQuery = '';
         conversationSearchInput.value = '';
         clearSearchButton.style.display = 'none';
@@ -3259,12 +3260,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function init() {
-        const urlModel = new URLSearchParams(window.location.search).get('model');
+        let urlModel = new URLSearchParams(window.location.search).get('model');
         if (!urlModel) {
-            modelNameDisplay.textContent = 'Error: Model name not specified.';
-            addMessageToChatUI('System', 'No model specified. Select a model.', 'bot-message');
-            messageInput.disabled = true; sendButton.disabled = true;
-            return;
+            // No model in URL — pick last used Ollama model, or fall back to first available
+            const models = await fetchAvailableModels();
+            const ollamaModels = models.filter(m => m._backend !== 'llamacpp');
+            const stored = await chrome.storage.local.get('lastUsedOllamaModel');
+            const lastUsed = stored.lastUsedOllamaModel;
+            const match = lastUsed && ollamaModels.find(m => m.name === lastUsed);
+            urlModel = match ? lastUsed : (ollamaModels[0] ? ollamaModels[0].name : null);
+            if (!urlModel) {
+                modelNameDisplay.textContent = 'No models found.';
+                addMessageToChatUI('System', 'No Ollama models found. Make sure Ollama is running.', 'bot-message');
+                messageInput.disabled = true; sendButton.disabled = true;
+                return;
+            }
         }
         currentModelName = urlModel;
         console.log('[OllamaBro] init - Initializing chat for model from URL:', currentModelName);
