@@ -506,6 +506,11 @@
             color: var(--text-muted);
         }
 
+        @keyframes statusPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.25; }
+        }
+
         .server-status-dot {
             width: 8px;
             height: 8px;
@@ -519,6 +524,10 @@
         .server-status-dot.status-connected { background-color: var(--success); }
         .server-status-dot.status-degraded  { background-color: var(--warning); }
         .server-status-dot.status-disconnected { background-color: var(--error-text); }
+        .server-status-dot.status-checking  {
+            background-color: var(--text-muted);
+            animation: statusPulse 1s ease-in-out infinite;
+        }
 
         .header-icon-button {
             width: 36px;

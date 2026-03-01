@@ -10,6 +10,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         lucide.createIcons();
     }
 
+    const PROXY_BASE = 'http://localhost:3000';
+
     const modelNameDisplay = document.getElementById('modelNameDisplay');
     const chatContainer = document.getElementById('chatContainer');
     const messageInput = document.getElementById('messageInput');
@@ -1548,7 +1550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (barEl) barEl.style.width = '0%';
 
         try {
-            const response = await fetch('http://localhost:3000/proxy/api/pull', {
+            const response = await fetch(`${PROXY_BASE}/proxy/api/pull`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: modelName, stream: true })
@@ -1623,7 +1625,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         statusEl.className = 'update-status';
 
         try {
-            const res = await fetch('http://localhost:3000/proxy/api/tags');
+            const res = await fetch(`${PROXY_BASE}/proxy/api/tags`);
             if (!res.ok) throw new Error('Could not fetch model list');
             const data = await res.json();
             const models = (data.models || []).map(m => m.name);
@@ -1639,7 +1641,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 statusEl.className = 'update-status';
 
                 try {
-                    const response = await fetch('http://localhost:3000/proxy/api/pull', {
+                    const response = await fetch(`${PROXY_BASE}/proxy/api/pull`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ name, stream: true })
@@ -1705,7 +1707,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             let models = availableModels.length > 0 ? availableModels : [];
             if (models.length === 0) {
-                const res = await fetch('http://localhost:3000/proxy/api/tags');
+                const res = await fetch(`${PROXY_BASE}/proxy/api/tags`);
                 if (!res.ok) throw new Error('Could not fetch model list');
                 const data = await res.json();
                 models = data.models || [];
@@ -1765,7 +1767,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function deleteOllamaModel(name, rowEl) {
         try {
-            const res = await fetch('http://localhost:3000/proxy/api/delete', {
+            const res = await fetch(`${PROXY_BASE}/proxy/api/delete`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name })
@@ -1792,7 +1794,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!listEl) return;
         listEl.innerHTML = '<span class="mgmt-loading">Loading...</span>';
         try {
-            const res = await fetch('http://localhost:3000/api/llamacpp/models');
+            const res = await fetch(`${PROXY_BASE}/api/llamacpp/models`);
             if (!res.ok) throw new Error('Could not fetch llama.cpp models');
             const data = await res.json();
             const models = data.models || [];
@@ -1826,7 +1828,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (!confirm(`Delete "${model.name}"?\n\nThis will permanently remove the file from disk.`)) return;
                     delBtn.disabled = true;
                     try {
-                        const r = await fetch('http://localhost:3000/api/llamacpp/delete', {
+                        const r = await fetch(`${PROXY_BASE}/api/llamacpp/delete`, {
                             method: 'DELETE',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ modelPath: model.path })
@@ -2001,7 +2003,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof lucide !== 'undefined') lucide.createIcons({ el: loading });
 
         try {
-            const res = await fetch('http://localhost:3000/api/llmfit/recommend');
+            const res = await fetch(`${PROXY_BASE}/api/llmfit/recommend`);
             if (!res.ok) {
                 const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
                 throw new Error(err.error || `HTTP ${res.status}`);
@@ -2908,8 +2910,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log('Request body for Ollama:', JSON.stringify(requestBody, null, 2));
 
             const chatEndpoint = currentModelBackend === 'llamacpp'
-                ? 'http://localhost:3000/api/llamacpp/chat'
-                : 'http://localhost:3000/proxy/api/chat';
+                ? `${PROXY_BASE}/api/llamacpp/chat`
+                : `${PROXY_BASE}/proxy/api/chat`;
 
             const response = await fetch(chatEndpoint, {
                 method: 'POST',
@@ -3321,9 +3323,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function switchModel(newModelName) {
         const oldModelName = currentModelName;
         if (newModelName === oldModelName) return;
+        const wasLlamaCpp = currentModelBackend === 'llamacpp';
         currentModelBackend = 'ollama';
         currentLlamaCppPath = null;
-        checkServerStatus();
+        if (wasLlamaCpp) checkServerStatus();
         console.log('[OllamaBro] switchModel - Switching from:', oldModelName, 'to:', newModelName);
         console.log(`Switching model to: ${newModelName}`);
 
@@ -3386,9 +3389,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         sendButton.disabled = true;
         const prevDisplay = modelNameDisplay.textContent;
         modelNameDisplay.textContent = 'Starting model...';
+        updateServerStatusDot('degraded', 'llama.cpp: loading...');
 
         try {
-            const resp = await fetch('http://localhost:3000/api/llamacpp/load', {
+            const resp = await fetch(`${PROXY_BASE}/api/llamacpp/load`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ modelPath: cppModel._path })
@@ -3423,6 +3427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.error('[llama.cpp] Failed to load model:', err);
             modelNameDisplay.textContent = prevDisplay;
             addMessageToChatUI('System', `⚡ Failed to start llama.cpp model: ${err.message}`, 'bot-message');
+            checkServerStatus();
         } finally {
             messageInput.disabled = false;
             sendButton.disabled = false;
@@ -3436,7 +3441,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Fetch Ollama models
         try {
-            const response = await fetch('http://localhost:3000/proxy/api/tags');
+            const response = await fetch(`${PROXY_BASE}/proxy/api/tags`);
             if (response.ok) {
                 const data = await response.json();
                 availableModels = (data.models || []).map(m => ({ ...m, _backend: 'ollama' }));
@@ -3449,7 +3454,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Fetch llama.cpp models
         try {
-            const lcResp = await fetch('http://localhost:3000/api/llamacpp/models');
+            const lcResp = await fetch(`${PROXY_BASE}/api/llamacpp/models`);
             if (lcResp.ok) {
                 const lcData = await lcResp.json();
                 llamaCppModels = lcData.models || [];
@@ -3896,7 +3901,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const stopLlamaCppBtn = document.getElementById('stopLlamaCppServer');
     if (stopLlamaCppBtn) {
         stopLlamaCppBtn.addEventListener('click', async () => {
-            await fetch('http://localhost:3000/api/llamacpp/stop', { method: 'POST' }).catch(() => {});
+            await fetch(`${PROXY_BASE}/api/llamacpp/stop`, { method: 'POST' }).catch(() => {});
             currentModelBackend = 'ollama';
             currentLlamaCppPath = null;
             loadLlamaCppSettings();
@@ -4141,8 +4146,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     let kokoroAudioContext = null;
     let kokoroSources = [];
     let kokoroVoicesCache = null;
-
-    const PROXY_BASE = 'http://localhost:3000';
 
     // Load available Web Speech voices
     function loadWebSpeechVoices() {
@@ -4619,6 +4622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function checkServerStatus() {
+        updateServerStatusDot('checking', 'Checking server...');
         if (currentModelBackend === 'llamacpp') {
             await checkLlamaCppStatusIndicator();
             return;
@@ -4626,7 +4630,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 5000);
         try {
-            const resp = await fetch('http://localhost:3000/proxy/api/tags', { signal: controller.signal });
+            const resp = await fetch(`${PROXY_BASE}/proxy/api/tags`, { signal: controller.signal });
             clearTimeout(timer);
             if (resp.ok) {
                 const data = await resp.json();
@@ -4650,15 +4654,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function checkLlamaCppStatusIndicator() {
+        updateServerStatusDot('checking', 'Checking server...');
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 5000);
         try {
-            const resp = await fetch('http://localhost:3000/api/llamacpp/status', { signal: controller.signal });
+            const resp = await fetch(`${PROXY_BASE}/api/llamacpp/status`, { signal: controller.signal });
             clearTimeout(timer);
             if (resp.ok) {
                 const data = await resp.json();
-                const state = data.status === 'running' ? 'connected' : 'degraded';
-                const label = data.status === 'running'
+                const state = data.status === 'ready' ? 'connected' : 'degraded';
+                const label = data.status === 'ready'
                     ? `llama.cpp running · ${data.model || 'model loaded'}`
                     : `llama.cpp: ${data.status}`;
                 updateServerStatusDot(state, label);
@@ -4817,7 +4822,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const config = stored.llamaCppConfig || {};
 
         try {
-            const resp = await fetch('http://localhost:3000/api/llamacpp/status');
+            const resp = await fetch(`${PROXY_BASE}/api/llamacpp/status`);
             if (resp.ok) {
                 const status = await resp.json();
                 const exeInput = document.getElementById('llamaCppExecutable');
@@ -4859,7 +4864,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const statusEl = document.getElementById('llamaCppConfigStatus');
         try {
-            const resp = await fetch('http://localhost:3000/api/llamacpp/config', {
+            const resp = await fetch(`${PROXY_BASE}/api/llamacpp/config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
@@ -4874,7 +4879,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             // If a llama.cpp model is currently loaded, reload it so new settings take effect
             if (currentLlamaCppPath && currentModelBackend === 'llamacpp') {
                 if (statusEl) { statusEl.textContent = 'Reloading model...'; statusEl.style.color = 'var(--text-muted)'; }
-                const loadResp = await fetch('http://localhost:3000/api/llamacpp/load', {
+                const loadResp = await fetch(`${PROXY_BASE}/api/llamacpp/load`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ modelPath: currentLlamaCppPath })
@@ -5284,7 +5289,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     chrome.storage.local.get('llamaCppConfig').then(stored => {
         const config = stored.llamaCppConfig;
         if (config && Object.keys(config).length > 0) {
-            fetch('http://localhost:3000/api/llamacpp/config', {
+            fetch(`${PROXY_BASE}/api/llamacpp/config`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(config)
