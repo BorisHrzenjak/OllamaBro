@@ -3323,6 +3323,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (newModelName === oldModelName) return;
         currentModelBackend = 'ollama';
         currentLlamaCppPath = null;
+        checkServerStatus();
         console.log('[OllamaBro] switchModel - Switching from:', oldModelName, 'to:', newModelName);
         console.log(`Switching model to: ${newModelName}`);
 
@@ -3407,6 +3408,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateModelDisplay(currentModelName);
             clearSelectedImages();
             toggleImageUploadUI(false); // vision not supported via llama.cpp yet
+            checkServerStatus();
 
             let modelData = await loadModelChatState(currentModelName);
             if (!modelData.activeConversationId || !modelData.conversations[modelData.activeConversationId]) {
@@ -3621,6 +3623,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Setup scroll detection
         chatContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+        // Start persistent server status indicator
+        startServerStatusPoll();
     }
 
     // Message history navigation (persistent via chrome.storage.local)
@@ -4599,6 +4604,83 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (kokoroStatusPollTimer) {
             clearInterval(kokoroStatusPollTimer);
             kokoroStatusPollTimer = null;
+        }
+    }
+
+    // ─── Server Status Indicator ──────────────────────────────────────────────
+
+    let serverStatusPollTimer = null;
+
+    function updateServerStatusDot(state, tooltip) {
+        const dot = document.getElementById('serverStatusDot');
+        if (!dot) return;
+        dot.className = 'server-status-dot status-' + state;
+        dot.title = tooltip;
+    }
+
+    async function checkServerStatus() {
+        if (currentModelBackend === 'llamacpp') {
+            await checkLlamaCppStatusIndicator();
+            return;
+        }
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+            const resp = await fetch('http://localhost:3000/proxy/api/tags', { signal: controller.signal });
+            clearTimeout(timer);
+            if (resp.ok) {
+                const data = await resp.json();
+                const count = (data.models || []).length;
+                if (count > 0) {
+                    updateServerStatusDot('connected', `Ollama connected · ${count} model${count !== 1 ? 's' : ''}`);
+                } else {
+                    updateServerStatusDot('degraded', 'Ollama running but no models found');
+                }
+            } else {
+                updateServerStatusDot('degraded', `Ollama error (HTTP ${resp.status})`);
+            }
+        } catch (e) {
+            clearTimeout(timer);
+            if (e.name === 'AbortError') {
+                updateServerStatusDot('degraded', 'Ollama not responding (timeout)');
+            } else {
+                updateServerStatusDot('disconnected', 'Proxy server not running (port 3000)');
+            }
+        }
+    }
+
+    async function checkLlamaCppStatusIndicator() {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 5000);
+        try {
+            const resp = await fetch('http://localhost:3000/api/llamacpp/status', { signal: controller.signal });
+            clearTimeout(timer);
+            if (resp.ok) {
+                const data = await resp.json();
+                const state = data.status === 'running' ? 'connected' : 'degraded';
+                const label = data.status === 'running'
+                    ? `llama.cpp running · ${data.model || 'model loaded'}`
+                    : `llama.cpp: ${data.status}`;
+                updateServerStatusDot(state, label);
+            } else {
+                updateServerStatusDot('degraded', 'llama.cpp status unavailable');
+            }
+        } catch (e) {
+            clearTimeout(timer);
+            updateServerStatusDot('disconnected', 'Proxy server not running (port 3000)');
+        }
+    }
+
+    function startServerStatusPoll() {
+        stopServerStatusPoll();
+        checkServerStatus();
+        serverStatusPollTimer = setInterval(checkServerStatus, 15000);
+    }
+
+    function stopServerStatusPoll() {
+        if (serverStatusPollTimer) {
+            clearInterval(serverStatusPollTimer);
+            serverStatusPollTimer = null;
         }
     }
 

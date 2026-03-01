@@ -493,12 +493,32 @@
             margin-left: var(--space-sm);
         }
 
-        #modelNameDisplay {
-            font-size: var(--font-size-sm);
-            color: var(--text-muted);
+        #modelStatusGroup {
+            display: flex;
+            align-items: center;
+            gap: 6px;
             margin-left: auto;
             margin-right: var(--space-md);
         }
+
+        #modelNameDisplay {
+            font-size: var(--font-size-sm);
+            color: var(--text-muted);
+        }
+
+        .server-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--text-muted);
+            flex-shrink: 0;
+            cursor: default;
+            transition: background-color 0.3s ease;
+        }
+
+        .server-status-dot.status-connected { background-color: var(--success); }
+        .server-status-dot.status-degraded  { background-color: var(--warning); }
+        .server-status-dot.status-disconnected { background-color: var(--error-text); }
 
         .header-icon-button {
             width: 36px;
@@ -2779,6 +2799,8 @@
             display: flex;
             flex-direction: column;
             gap: 2px;
+            max-height: 180px;
+            overflow-y: auto;
         }
 
         .mgmt-model-row {
@@ -3152,8 +3174,11 @@
                 </button>
                 <h1>Ollama<span style="color:var(--accent)">Bro</span></h1>
                 <span id="appVersion" class="app-version"></span>
-                <div id="modelNameDisplay">Loading...</div>
-                <span id="personaBadge" class="persona-badge" style="display: none;" title="Active persona"></span>
+                <div id="modelStatusGroup">
+                    <div id="modelNameDisplay">Loading...</div>
+                    <span id="personaBadge" class="persona-badge" style="display: none;" title="Active persona"></span>
+                    <span id="serverStatusDot" class="server-status-dot" title="Checking server status..."></span>
+                </div>
                 <button id="clearChatButton" class="header-icon-button" title="Clear conversation">
                     <i data-lucide="trash-2"></i>
                 </button>
