@@ -3725,6 +3725,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Clipboard paste — images (screenshots etc.) land in the preview, text pastes normally
+    messageInput.addEventListener('paste', async (e) => {
+        const items = Array.from(e.clipboardData?.items || []);
+        const imageItems = items.filter(item => item.kind === 'file' && item.type.startsWith('image/'));
+        if (imageItems.length === 0) return; // let default text paste through
+        e.preventDefault();
+        const files = imageItems.map(item => {
+            const blob = item.getAsFile();
+            const ext = item.type === 'image/jpeg' ? 'jpg' : 'png';
+            return new File([blob], `clipboard-${Date.now()}.${ext}`, { type: item.type });
+        });
+        await handleImageFiles(files);
+    });
+
     modelSwitcherButton.addEventListener('click', async (e) => {
         e.stopPropagation();
         if (modelSwitcherDropdown.style.display === 'block') {
