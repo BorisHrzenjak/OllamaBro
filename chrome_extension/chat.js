@@ -3053,6 +3053,29 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             console.log('Stream reading complete.');
 
+            // Detect "only thinking, no response" — Qwen3 and similar reasoning models on
+            // llama.cpp sometimes stop after the thinking phase without generating actual content.
+            // Handles both paths: reasoning_content field (hasThinking) and raw <think> tags in content.
+            const contentMinusThink = accumulatedContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            const onlyThinkingGenerated = (hasThinking && accumulatedThinking && !accumulatedContent.trim())
+                || (!hasThinking && !contentMinusThink && /<think>/i.test(accumulatedContent));
+            if (onlyThinkingGenerated) {
+                console.warn('[Stream] Only thinking generated — no actual content from model. Showing fallback note.');
+                const note = '*(No response was generated — the model stopped after its thinking phase. Try rephrasing your message or reducing context length.)*';
+                // Set accumulatedContent so finalBotMessageToSave builds cleanly
+                if (hasThinking) {
+                    accumulatedContent = note; // thinking is in accumulatedThinking
+                } else {
+                    accumulatedContent += '\n\n' + note; // raw <think> path — keep tags for saving
+                }
+                const displayText = hasThinking
+                    ? `<think>\n${accumulatedThinking}\n</think>\n\n${note}`
+                    : accumulatedContent;
+                botTextElement.innerHTML = '';
+                botTextElement.appendChild(renderMarkdownWithThinking(displayText, false));
+                botTextElement.dataset.fullMessage = displayText;
+            }
+
             // Add metadata display to the message
             if (messageMetadata && botMessageDiv) {
                 addMetadataToMessage(botMessageDiv, messageMetadata);

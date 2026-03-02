@@ -553,9 +553,92 @@ app.post('/api/llamacpp/chat', async (req, res) => {
 
     const { messages, options } = req.body || {};
     const opts = options || {};
+
+    // Strip <think>...</think> blocks from assistant messages in conversation history.
+    // Qwen3 and other reasoning models treat these as special template tokens; sending them
+    // back in history confuses the model and causes it to generate only thinking on subsequent turns.
+    const cleanedMessages = (messages || []).map(msg => {
+        if (msg.role === 'assistant' && typeof msg.content === 'string') {
+            const stripped = msg.content.replace(/<think>[\s\S]*?<\/think>\n*/gi, '').trim();
+            return stripped === msg.content ? msg : { ...msg, content: stripped };
+        }
+        return msg;
+    });
+
+    // Web search / URL context injection — same logic as the Ollama proxy path
+    const webSearchRequested = req.body?._webSearch === true;
+    const deepResearchRequested = req.body?._deepResearch === true;
+    let finalMessages = cleanedMessages;
+    const lastUserMsg = cleanedMessages.filter(m => m.role === 'user').pop();
+    if (lastUserMsg) {
+        const messageContent = lastUserMsg.content || '';
+        const contextParts = [];
+        const today = new Date().toISOString().split('T')[0];
+
+        // Track 1: fetch any URLs via Jina Reader
+        const urls = extractUrls(messageContent);
+        for (const url of urls.slice(0, 2)) {
+            try {
+                const content = await fetchPageViaJina(url);
+                contextParts.push(`Retrieved page (${url}):\n${content}`);
+                console.log(`[llama.cpp/Search] Jina: got ${content.length} chars from ${url}`);
+            } catch (e) {
+                console.warn(`[llama.cpp/Search] Jina failed for ${url}:`, e.message);
+            }
+        }
+
+        // Track 2a: Deep research
+        if (deepResearchRequested) {
+            try {
+                const data = await fetchTavilyResearch(messageContent.slice(0, 500));
+                if (data?.content) {
+                    contextParts.push(`Deep Research Report:\n${data.content}`);
+                    if (data.sources?.length > 0) {
+                        contextParts.push(`Sources:\n${data.sources.map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`).join('\n')}`);
+                    }
+                    console.log(`[llama.cpp/Research] Injected deep research with ${data.sources?.length || 0} sources`);
+                }
+            } catch (e) {
+                console.warn('[llama.cpp/Research] Tavily Research failed, trying basic search:', e.message);
+                try {
+                    const data = await fetchTavilyResults(messageContent.slice(0, 300));
+                    if (data?.results?.length > 0) {
+                        contextParts.push(`Web search results:\n${data.results.map((r, i) => `[${i + 1}] ${r.title} — ${r.url}\n${r.content}`).join('\n\n')}`);
+                    }
+                } catch (e2) { /* skip */ }
+            }
+        }
+        // Track 2b: Regular Tavily search
+        else if (webSearchRequested || heuristicNeedsSearch(messageContent)) {
+            try {
+                const query = messageContent.slice(0, 300);
+                console.log(`[llama.cpp/Search] Querying Tavily for: "${query.slice(0, 80)}"`);
+                const data = await fetchTavilyResults(query);
+                if (data?.results?.length > 0) {
+                    const snippets = data.results.map((r, i) => `[${i + 1}] ${r.title} — ${r.url}\n${r.content}`).join('\n\n');
+                    contextParts.push(`Web search results:\n${snippets}`);
+                    console.log(`[llama.cpp/Search] Tavily: injected ${data.results.length} results`);
+                }
+            } catch (e) {
+                console.warn('[llama.cpp/Search] Tavily failed:', e.message);
+            }
+        }
+
+        if (contextParts.length > 0) {
+            const contextBlock = `The following information was retrieved by a tool before this conversation. Use it to answer the user directly — do not say you cannot access the internet, as this data is already provided to you.\n\n${contextParts.join('\n\n')}\n\nToday's date: ${today}.`;
+            finalMessages = [...cleanedMessages];
+            const sysIdx = finalMessages.findIndex(m => m.role === 'system');
+            if (sysIdx >= 0) {
+                finalMessages[sysIdx] = { ...finalMessages[sysIdx], content: contextBlock + '\n\n' + finalMessages[sysIdx].content };
+            } else {
+                finalMessages.unshift({ role: 'system', content: contextBlock });
+            }
+        }
+    }
+
     const openaiBody = {
         model: 'local',
-        messages,
+        messages: finalMessages,
         stream: true,
         stream_options: { include_usage: true } // request token counts in final chunk
     };
@@ -588,6 +671,9 @@ app.post('/api/llamacpp/chat', async (req, res) => {
         const decoder = new TextDecoder();
         let buf = '';
         let usageData = null;
+        let dbgThinkTokens = 0;
+        let dbgContentTokens = 0;
+        let dbgFinishReason = null;
 
         while (true) {
             const { value, done } = await reader.read();
@@ -628,6 +714,10 @@ app.post('/api/llamacpp/chat', async (req, res) => {
                     const hitContextLimit = finishReason === 'length';
                     const hasActiveThinking = reasoning !== null && reasoning !== '';
 
+                    if (reasoning) dbgThinkTokens++;
+                    if (rawContent) dbgContentTokens++;
+                    if (finishReason) dbgFinishReason = finishReason;
+
                     // Track when the first real response token (not thinking) arrives for timing
                     if (rawContent && !hasActiveThinking && firstResponseMs === null) {
                         firstResponseMs = Date.now();
@@ -644,6 +734,7 @@ app.post('/api/llamacpp/chat', async (req, res) => {
                 } catch (e) { /* skip malformed chunk */ }
             }
         }
+        console.log(`[llama.cpp] Stream done — think_chunks=${dbgThinkTokens}, content_chunks=${dbgContentTokens}, finish_reason=${dbgFinishReason}`);
         res.end();
     } catch (err) {
         console.error('[llama.cpp] Chat error:', err);
