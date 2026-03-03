@@ -79,6 +79,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             deepResearchButton.classList.remove('active');
             deepResearchButton.title = 'Deep Research: OFF';
         }
+        // Disable agent mode when web search is enabled (mutually exclusive)
+        if (webSearchEnabled && agentModeEnabled) {
+            agentModeEnabled = false;
+            agentModeButton.classList.remove('active');
+            agentModeButton.title = 'Agent Mode: OFF';
+        }
     });
 
     // Slash command state
@@ -112,6 +118,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             webSearchEnabled = false;
             webSearchButton.classList.remove('active');
             webSearchButton.title = 'Web Search: OFF';
+        }
+        // Disable agent mode when deep research is enabled (mutually exclusive)
+        if (deepResearchEnabled && agentModeEnabled) {
+            agentModeEnabled = false;
+            agentModeButton.classList.remove('active');
+            agentModeButton.title = 'Agent Mode: OFF';
         }
     });
 
@@ -220,7 +232,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const header = document.createElement('div');
         header.className = 'agent-perm-header';
-        header.innerHTML = `<span class="agent-perm-icon"><i data-lucide="shield-alert"></i></span><span class="agent-perm-tool">${chunk.tool}</span><span class="agent-perm-risk" style="color:${borderColor}">[${chunk.risk || 'confirm'}]</span>`;
+
+        const headerIcon = document.createElement('span');
+        headerIcon.className = 'agent-perm-icon';
+        const iconEl = document.createElement('i');
+        iconEl.setAttribute('data-lucide', 'shield-alert');
+        headerIcon.appendChild(iconEl);
+
+        const headerTool = document.createElement('span');
+        headerTool.className = 'agent-perm-tool';
+        headerTool.textContent = chunk.tool;
+
+        const headerRisk = document.createElement('span');
+        headerRisk.className = 'agent-perm-risk';
+        headerRisk.textContent = `[${chunk.risk || 'confirm'}]`;
+        // Only apply color if it matches a safe CSS color value
+        if (/^#[0-9a-fA-F]{3,8}$|^[a-z]+$/i.test(borderColor)) {
+            headerRisk.style.color = borderColor;
+        }
+
+        header.append(headerIcon, headerTool, headerRisk);
 
         card.appendChild(header);
 
@@ -247,14 +278,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         const respond = async (approved) => {
             allowBtn.disabled = true;
             denyBtn.disabled = true;
-            btnRow.innerHTML = `<span class="agent-perm-result">${approved ? '✓ Allowed' : '✗ Denied'}</span>`;
             try {
                 await fetch(`${PROXY_BASE}/api/agent/permission`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ id: chunk.id, approved })
                 });
-            } catch (e) { console.warn('[Agent] Permission POST failed:', e); }
+                btnRow.innerHTML = `<span class="agent-perm-result">${approved ? '✓ Allowed' : '✗ Denied'}</span>`;
+            } catch (e) {
+                console.warn('[Agent] Permission POST failed:', e);
+                allowBtn.disabled = false;
+                denyBtn.disabled = false;
+                const errSpan = document.createElement('span');
+                errSpan.className = 'agent-perm-result';
+                errSpan.style.color = 'var(--error-text)';
+                errSpan.textContent = '⚠ Request failed — try again';
+                btnRow.appendChild(errSpan);
+            }
         };
 
         allowBtn.addEventListener('click', () => respond(true));
@@ -276,7 +316,74 @@ document.addEventListener('DOMContentLoaded', async () => {
         counterEl.textContent = 'Agent running…';
         botTextElement.appendChild(counterEl);
 
-        while (true) {
+        const processAgentChunk = (chunk) => {
+            if (chunk.type === 'content' && chunk.text) {
+                if (!currentContentDiv) {
+                    currentContentDiv = document.createElement('div');
+                    currentContentDiv.className = 'agent-content-block';
+                    botTextElement.appendChild(currentContentDiv);
+                }
+                currentContentText += chunk.text;
+                currentContentDiv.innerHTML = '';
+                currentContentDiv.appendChild(renderMarkdownWithThinking(currentContentText, false));
+            }
+
+            if (chunk.type === 'tool_call') {
+                currentContentDiv = null;
+                currentContentText = '';
+                const block = createAgentStepBlock('tool_call', chunk.name, chunk.args);
+                block.dataset.toolName = chunk.name;
+                botTextElement.appendChild(block);
+                lastToolCallBlock[chunk.name] = block;
+            }
+
+            if (chunk.type === 'tool_result') {
+                const block = lastToolCallBlock[chunk.name];
+                if (block) {
+                    appendResultToStepBlock(block, chunk.result, chunk.error);
+                    // Change block class to show result type
+                    block.classList.remove('agent-step-tool_call');
+                    block.classList.add('agent-step-tool_result');
+                }
+            }
+
+            if (chunk.type === 'permission_request') {
+                currentContentDiv = null;
+                currentContentText = '';
+                const card = createPermissionCard(chunk);
+                botTextElement.appendChild(card);
+            }
+
+            if (chunk.type === 'tool_running') {
+                const block = lastToolCallBlock[chunk.name];
+                if (block) {
+                    const statusEl = block.querySelector('.agent-step-status');
+                    if (statusEl) statusEl.textContent = 'Executing…';
+                }
+            }
+
+            if (chunk.type === 'step_done') {
+                counterEl.textContent = `Step ${chunk.step} / ${chunk.maxSteps}`;
+            }
+
+            if (chunk.type === 'error') {
+                const errDiv = document.createElement('div');
+                errDiv.className = 'agent-error';
+                errDiv.textContent = 'Agent error: ' + chunk.text;
+                botTextElement.appendChild(errDiv);
+            }
+
+            if (chunk.type === 'done') {
+                counterEl.textContent = '';
+                return true; // signal caller to stop
+            }
+
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            return false;
+        };
+
+        let streamDone = false;
+        while (!streamDone) {
             const { value, done } = await reader.read();
             if (done) break;
             buf += decoder.decode(value, { stream: true });
@@ -287,70 +394,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!line.trim()) continue;
                 let chunk;
                 try { chunk = JSON.parse(line); } catch { continue; }
-
-                if (chunk.type === 'content' && chunk.text) {
-                    if (!currentContentDiv) {
-                        currentContentDiv = document.createElement('div');
-                        currentContentDiv.className = 'agent-content-block';
-                        botTextElement.appendChild(currentContentDiv);
-                    }
-                    currentContentText += chunk.text;
-                    currentContentDiv.innerHTML = '';
-                    currentContentDiv.appendChild(renderMarkdownWithThinking(currentContentText, false));
-                }
-
-                if (chunk.type === 'tool_call') {
-                    currentContentDiv = null;
-                    currentContentText = '';
-                    const block = createAgentStepBlock('tool_call', chunk.name, chunk.args);
-                    block.dataset.toolName = chunk.name;
-                    botTextElement.appendChild(block);
-                    lastToolCallBlock[chunk.name] = block;
-                }
-
-                if (chunk.type === 'tool_result') {
-                    const block = lastToolCallBlock[chunk.name];
-                    if (block) {
-                        appendResultToStepBlock(block, chunk.result, chunk.error);
-                        // Change block class to show result type
-                        block.classList.remove('agent-step-tool_call');
-                        block.classList.add('agent-step-tool_result');
-                    }
-                }
-
-                if (chunk.type === 'permission_request') {
-                    currentContentDiv = null;
-                    currentContentText = '';
-                    const card = createPermissionCard(chunk);
-                    botTextElement.appendChild(card);
-                }
-
-                if (chunk.type === 'tool_running') {
-                    const block = lastToolCallBlock[chunk.name];
-                    if (block) {
-                        const statusEl = block.querySelector('.agent-step-status');
-                        if (statusEl) statusEl.textContent = 'Executing…';
-                    }
-                }
-
-                if (chunk.type === 'step_done') {
-                    counterEl.textContent = `Step ${chunk.step} / ${chunk.maxSteps}`;
-                }
-
-                if (chunk.type === 'error') {
-                    const errDiv = document.createElement('div');
-                    errDiv.className = 'agent-error';
-                    errDiv.textContent = 'Agent error: ' + chunk.text;
-                    botTextElement.appendChild(errDiv);
-                }
-
-                if (chunk.type === 'done') {
-                    counterEl.textContent = '';
-                    break;
-                }
-
-                chatContainer.scrollTop = chatContainer.scrollHeight;
+                if (processAgentChunk(chunk)) { streamDone = true; break; }
             }
+        }
+
+        // Flush any bytes remaining in the TextDecoder and process trailing data
+        buf += decoder.decode();
+        for (const line of buf.split('\n')) {
+            if (!line.trim()) continue;
+            let chunk;
+            try { chunk = JSON.parse(line); } catch { continue; }
+            processAgentChunk(chunk);
         }
 
         return currentContentText;
@@ -3152,11 +3206,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             // --- Agent Mode Branch ---
             if (agentModeEnabled) {
+                const configuredMaxSteps = Number.isInteger(agentConfig?.maxSteps) && agentConfig.maxSteps > 0
+                    ? agentConfig.maxSteps : 15;
                 const agentBody = {
                     messages: apiMessages,
                     model: currentModelName,
                     backend: currentModelBackend,
-                    maxSteps: 15
+                    maxSteps: configuredMaxSteps
                 };
                 const agentResponse = await fetch(`${PROXY_BASE}/api/agent/chat`, {
                     method: 'POST',
@@ -3405,7 +3461,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 updateBotMessageInUI(botTextElement, `\n\n[Error: ${errorMessage}]`);
                 const currentBotContent = botTextElement.dataset.fullMessage || botTextElement.textContent || '';
-                currentConversation.messages.push({ role: 'assistant', content: currentBotContent + `\n\n[Error: ${errorMessage}]` });
+                currentConversation.messages.push({ role: 'assistant', content: currentBotContent });
                 currentConversation.lastMessageTime = Date.now();
             }
         } finally {
@@ -4635,6 +4691,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     window.addEventListener('pagehide', () => {
+        stopServerStatusPoll();
         stopKokoroStatusPoll();
         stopKokoroSpeech();
         if (recognition && isListening) { try { recognition.stop(); } catch (e) {} }

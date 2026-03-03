@@ -748,13 +748,23 @@ app.post('/api/llamacpp/chat', async (req, res) => {
 
 // Agent config (updated via POST /api/agent/config)
 let agentMaxSteps = parseInt(process.env.AGENT_MAX_STEPS || '15', 10);
-let agentAllowedDirs = (process.env.AGENT_ALLOWED_DIRS || '').split(',').map(s => s.trim()).filter(Boolean);
-let agentBlockedPaths = (process.env.AGENT_BLOCKED_PATHS || [
+
+// When AGENT_ALLOWED_DIRS is unset, default to the user's home directory as a safe boundary.
+// File tools will only operate inside these directories unless explicitly expanded via env/config.
+const _envAllowedDirs = (process.env.AGENT_ALLOWED_DIRS || '').split(',').map(s => s.trim()).filter(Boolean);
+let agentAllowedDirs = _envAllowedDirs.length > 0 ? _envAllowedDirs : [os.homedir()];
+
+// Paths that are always blocked regardless of config; cannot be removed via the API.
+const ALWAYS_BLOCKED_PATHS = [
     'C:\\Windows\\System32',
     'C:\\Windows\\SysWOW64',
     path.join(os.homedir(), '.ssh'),
     path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Credentials'),
-].join(',')).split(',').map(s => s.trim()).filter(Boolean);
+];
+let agentBlockedPaths = Array.from(new Set([
+    ...ALWAYS_BLOCKED_PATHS,
+    ...(process.env.AGENT_BLOCKED_PATHS || '').split(',').map(s => s.trim()).filter(Boolean),
+]));
 
 // Per-tool permission levels: 'auto' | 'confirm' | 'disabled'
 let agentToolPermissions = {
@@ -900,14 +910,22 @@ async function requestPermission(res, tool, args, risk) {
     // perm === 'confirm'
     const id = generatePermissionId();
     res.write(JSON.stringify({ type: 'permission_request', id, tool, args, risk }) + '\n');
-    return new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
+    return new Promise((resolve) => {
+        const cleanup = (approved) => {
+            clearTimeout(timeout);
+            res.removeListener('close', onClose);
             pendingPermissions.delete(id);
-            resolve(false); // auto-deny after 30s
-        }, 30000);
+            resolve(approved);
+        };
+
+        const timeout = setTimeout(() => cleanup(false), 30000); // auto-deny after 30s
+
+        const onClose = () => cleanup(false); // client disconnected
+        res.once('close', onClose);
+
         pendingPermissions.set(id, {
-            resolve: (approved) => { clearTimeout(timeout); pendingPermissions.delete(id); resolve(approved); },
-            reject: () => { clearTimeout(timeout); pendingPermissions.delete(id); resolve(false); }
+            resolve: (approved) => cleanup(approved),
+            reject: () => cleanup(false)
         });
     });
 }
@@ -929,9 +947,17 @@ async function executeTool(res, name, args) {
                 return { result: new Date().toLocaleString() };
             }
             case 'math': {
+                // Validate expression against a strict whitelist of safe math characters.
+                // This prevents arbitrary code execution via the Function() constructor.
+                // For a fully sandboxed evaluator, consider replacing with mathjs or expr-eval.
+                const expr = String(args.expression || '');
+                const SAFE_MATH_RE = /^[\d\s\+\-\*\/\%\(\)\.\^eMathsqrtabclogfloorilPIroundmaxin,]*$/;
+                if (!SAFE_MATH_RE.test(expr)) {
+                    return { result: 'Error: expression contains disallowed characters', error: true };
+                }
                 try {
                     // eslint-disable-next-line no-new-func
-                    const val = Function('"use strict"; return (' + String(args.expression) + ')')();
+                    const val = Function('"use strict"; return (' + expr + ')')();
                     return { result: String(val) };
                 } catch (e) {
                     return { result: 'Error: ' + e.message, error: true };
@@ -1030,7 +1056,8 @@ async function executeTool(res, name, args) {
                 return await runCodeTool(args.lang, args.code);
             }
             case 'runShell': {
-                // runShell is always confirm regardless of setting
+                // runShell respects agentToolPermissions (default: 'disabled').
+                // When enabled, permission level 'confirm' is strongly recommended.
                 const approved = await requestPermission(res, 'runShell', { cmd: args.cmd }, 'critical');
                 if (!approved) return { result: 'User denied', error: true };
                 res.write(JSON.stringify({ type: 'tool_running', name: 'runShell', preview: args.cmd }) + '\n');
@@ -1044,11 +1071,19 @@ async function executeTool(res, name, args) {
     }
 }
 
+// WARNING: runCodeTool uses Node's built-in `vm` module for JS sandboxing.
+// Node's vm module is NOT a secure sandbox — determined attackers can escape it.
+// Only enable the runCode tool (via agentToolPermissions) in trusted, controlled
+// environments. For production use, replace vm-based execution with a hardened
+// alternative such as a separate restricted child process, a containerised worker,
+// or an external isolated service (e.g., a Docker-based code runner).
 async function runCodeTool(lang, code) {
     if (lang === 'js') {
         try {
             const vm = require('vm');
             const logs = [];
+            // Note: vm.createContext / vm.runInContext is not a secure sandbox.
+            // See warning above before enabling this tool in production.
             const sandbox = { console: { log: (...a) => logs.push(a.join(' ')), error: (...a) => logs.push('[err] ' + a.join(' ')) }, Math, JSON, parseFloat, parseInt, isNaN, isFinite };
             vm.createContext(sandbox);
             vm.runInContext(code, sandbox, { timeout: 10000 });
@@ -1078,6 +1113,8 @@ async function runShellTool(cmd) {
     });
 }
 
+const AGENT_TOOL_CALL_TIMEOUT_MS = 30000; // 30s timeout for backend tool calls
+
 // Call Ollama with tools, collect full response (streaming internally, return complete message)
 async function callOllamaWithTools(messages, tools, model) {
     const body = JSON.stringify({ model, messages, tools, stream: false });
@@ -1086,13 +1123,19 @@ async function callOllamaWithTools(messages, tools, model) {
             hostname: 'localhost', port: 11434, path: '/api/chat', method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
         }, (res2) => {
+            clearTimeout(timer);
             let raw = '';
             res2.on('data', d => { raw += d; });
             res2.on('end', () => {
                 try { resolve(JSON.parse(raw)); } catch { reject(new Error('Bad Ollama response')); }
             });
+            res2.on('error', reject);
         });
-        req.on('error', reject);
+        const timer = setTimeout(() => {
+            req.destroy();
+            reject(new Error('Ollama tool call timed out after 30s'));
+        }, AGENT_TOOL_CALL_TIMEOUT_MS);
+        req.on('error', (err) => { clearTimeout(timer); reject(err); });
         req.write(body);
         req.end();
     });
@@ -1111,13 +1154,19 @@ async function callLlamaCppWithTools(messages, tools, model) {
             hostname: '127.0.0.1', port: llamaPort, path: '/v1/chat/completions', method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
         }, (res2) => {
+            clearTimeout(timer);
             let raw = '';
             res2.on('data', d => { raw += d; });
             res2.on('end', () => {
                 try { resolve(JSON.parse(raw)); } catch { reject(new Error('Bad llama.cpp response')); }
             });
+            res2.on('error', reject);
         });
-        req.on('error', reject);
+        const timer = setTimeout(() => {
+            req.destroy();
+            reject(new Error('llama.cpp tool call timed out after 30s'));
+        }, AGENT_TOOL_CALL_TIMEOUT_MS);
+        req.on('error', (err) => { clearTimeout(timer); reject(err); });
         req.write(body);
         req.end();
     });
@@ -1173,8 +1222,15 @@ app.get('/api/agent/config', (req, res) => {
 app.post('/api/agent/config', (req, res) => {
     const { maxSteps, allowedDirs, blockedPaths, toolPermissions } = req.body || {};
     if (maxSteps !== undefined) agentMaxSteps = Math.max(1, Math.min(50, parseInt(maxSteps, 10) || 15));
-    if (Array.isArray(allowedDirs)) agentAllowedDirs = allowedDirs.map(s => String(s).trim()).filter(Boolean);
-    if (Array.isArray(blockedPaths)) agentBlockedPaths = blockedPaths.map(s => String(s).trim()).filter(Boolean);
+    if (Array.isArray(allowedDirs)) {
+        const validated = allowedDirs.map(s => String(s).trim()).filter(Boolean);
+        agentAllowedDirs = validated.length > 0 ? validated : [os.homedir()];
+    }
+    if (Array.isArray(blockedPaths)) {
+        // Always merge with ALWAYS_BLOCKED_PATHS — they cannot be removed via API
+        const incoming = blockedPaths.map(s => String(s).trim()).filter(Boolean);
+        agentBlockedPaths = Array.from(new Set([...ALWAYS_BLOCKED_PATHS, ...incoming]));
+    }
     if (toolPermissions && typeof toolPermissions === 'object') {
         for (const [k, v] of Object.entries(toolPermissions)) {
             if (agentToolPermissions.hasOwnProperty(k) && ['auto', 'confirm', 'disabled'].includes(v)) {
@@ -1198,12 +1254,21 @@ app.post('/api/agent/chat', async (req, res) => {
     const messages = [...(initialMessages || [])];
 
     // Inject agent directive so the model knows to call tools instead of refusing
+    const _platform = os.platform();
+    const _isWin = _platform === 'win32';
+    const _pathSep = path.sep;
+    const _examplePath = _isWin
+        ? `C:\\Users\\${path.basename(os.homedir())}\\Documents\\file.txt`
+        : `${os.homedir()}/documents/file.txt`;
+    const _pathGuidance = _isWin
+        ? `Always use Windows-style absolute paths (e.g. ${_examplePath}), never Unix-style paths (e.g. /home/user/file).`
+        : `Always use Unix-style absolute paths (e.g. ${_examplePath}), never Windows-style paths (e.g. C:\\Users\\...).`;
     const AGENT_DIRECTIVE = 'You are operating in AGENT MODE with real, functional tools available. ' +
         'When the user asks you to do something that requires a tool (read a file, search the web, run code, etc.), ' +
         'ALWAYS call the appropriate tool — never say you cannot access the internet or file system. ' +
         'The tools are real. Use them.\n' +
-        `SYSTEM INFORMATION: OS=Windows, home directory="${os.homedir()}", path separator="\\". ` +
-        'Always use Windows-style absolute paths (e.g. C:\\Users\\Boris\\Documents\\file.txt), never Unix-style paths (e.g. /home/user/file).\n' +
+        `SYSTEM INFORMATION: OS=${_platform}, home directory="${os.homedir()}", path separator="${_pathSep}". ` +
+        _pathGuidance + '\n' +
         'TOOL GUIDANCE: To count or find files by type use findFiles (e.g. pattern=".jpg,.png" for images). ' +
         'Do NOT count lines from listDirectory output manually — call findFiles instead. ' +
         'Use runCode only when you need to process data that no other tool can return directly.';
