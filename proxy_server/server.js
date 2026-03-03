@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const memory = require('./memory');
 
 // --- Web Search (Tavily + Jina Reader) ---
 
@@ -772,6 +773,7 @@ let agentToolPermissions = {
     fetchPage: 'auto',
     getDateTime: 'auto',
     math: 'auto',
+    saveMemory: 'auto',
     readFile: 'confirm',
     writeFile: 'confirm',
     listDirectory: 'confirm',
@@ -893,6 +895,14 @@ const AGENT_TOOLS = [
             name: 'runShell',
             description: 'Run a shell command on the local machine. Use with caution.',
             parameters: { type: 'object', properties: { cmd: { type: 'string', description: 'Shell command to execute' } }, required: ['cmd'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'saveMemory',
+            description: 'Save an important fact, preference, or piece of information to persistent memory so it can be recalled in future conversations. Use this when the user asks you to remember something, or when you learn something worth preserving.',
+            parameters: { type: 'object', properties: { text: { type: 'string', description: 'The information to remember. Write it clearly in third person, e.g. "User prefers dark mode" or "User\'s project uses Python 3.11".' } }, required: ['text'] }
         }
     },
 ];
@@ -1062,6 +1072,17 @@ async function executeTool(res, name, args) {
                 if (!approved) return { result: 'User denied', error: true };
                 res.write(JSON.stringify({ type: 'tool_running', name: 'runShell', preview: args.cmd }) + '\n');
                 return await runShellTool(args.cmd);
+            }
+            case 'saveMemory': {
+                const text = String(args.text || '').trim();
+                if (!text) return { result: 'Nothing to save — text was empty.', error: true };
+                try {
+                    const id = await memory.addMemory(text, { source: 'agent' });
+                    console.log(`[Memory] Agent saved: "${text.slice(0, 80)}" (id: ${id})`);
+                    return { result: `Saved to memory: "${text}"` };
+                } catch (err) {
+                    return { result: `Memory save failed: ${err.message}`, error: true };
+                }
             }
             default:
                 return { result: `Unknown tool: ${name}`, error: true };
@@ -1239,6 +1260,114 @@ app.post('/api/agent/config', (req, res) => {
         }
     }
     res.json({ ok: true });
+});
+
+// --- Memory Endpoints ---
+
+// GET /api/memory/status — check if nomic-embed-text is available
+app.get('/api/memory/status', async (req, res) => {
+    try { res.json(await memory.getStatus()); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// GET /api/memory — list all stored memories
+app.get('/api/memory', async (req, res) => {
+    try { res.json(await memory.listMemories()); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/memory — add a memory manually
+app.post('/api/memory', async (req, res) => {
+    const { text, source } = req.body || {};
+    if (!text || !text.trim()) return res.status(400).json({ error: 'text is required' });
+    try {
+        const id = await memory.addMemory(text.trim(), { source: source || 'manual' });
+        console.log(`[Memory] Manually added: "${text.slice(0, 80)}" (id: ${id})`);
+        res.json({ id });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/memory/all — clear every memory
+app.delete('/api/memory/all', async (req, res) => {
+    try { await memory.clearMemories(); res.json({ ok: true }); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// DELETE /api/memory/:id — delete a single memory
+app.delete('/api/memory/:id', async (req, res) => {
+    try { await memory.deleteMemory(req.params.id); res.json({ ok: true }); }
+    catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// POST /api/memory/extract — run LLM-based fact extraction on a conversation exchange
+app.post('/api/memory/extract', async (req, res) => {
+    const { userMessage, assistantMessage, model } = req.body || {};
+    if (!userMessage || !assistantMessage || !model) {
+        return res.status(400).json({ error: 'userMessage, assistantMessage, and model are required' });
+    }
+
+    // Strip <think> blocks — we only want the actual response content
+    const cleanAssistant = assistantMessage.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    const extractionPrompt =
+        `You are a memory extraction assistant. Review this conversation exchange and extract any facts worth remembering for future conversations.\n\n` +
+        `Extract ONLY:\n` +
+        `- User preferences (e.g. "User prefers dark mode")\n` +
+        `- Personal facts the user shared (e.g. "User works at Acme Corp")\n` +
+        `- Ongoing project details (e.g. "User's project uses Python 3.11 and PostgreSQL")\n` +
+        `- Important decisions or conclusions\n\n` +
+        `Return ONLY a raw JSON array of short strings. If nothing is worth remembering, return []. No explanation, no markdown fences.\n\n` +
+        `User: ${userMessage.slice(0, 800)}\n` +
+        `Assistant: ${cleanAssistant.slice(0, 800)}`;
+
+    try {
+        const payload = JSON.stringify({
+            model,
+            messages: [{ role: 'user', content: extractionPrompt }],
+            stream: false,
+            options: { temperature: 0 }
+        });
+
+        const responseText = await new Promise((resolve, reject) => {
+            const req2 = http.request({
+                hostname: 'localhost', port: 11434, path: '/api/chat', method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(payload) }
+            }, (r) => {
+                let raw = '';
+                r.on('data', d => { raw += d; });
+                r.on('end', () => {
+                    try { resolve(JSON.parse(raw).message?.content || ''); }
+                    catch { reject(new Error('Bad Ollama response')); }
+                });
+                r.on('error', reject);
+            });
+            req2.setTimeout(30000, () => { req2.destroy(); reject(new Error('Extraction timed out')); });
+            req2.on('error', reject);
+            req2.write(payload);
+            req2.end();
+        });
+
+        // Pull out the first JSON array from the response
+        const match = responseText.match(/\[[\s\S]*?\]/);
+        if (!match) return res.json({ saved: 0, facts: [] });
+
+        let facts;
+        try { facts = JSON.parse(match[0]); } catch { return res.json({ saved: 0, facts: [] }); }
+        if (!Array.isArray(facts) || facts.length === 0) return res.json({ saved: 0, facts: [] });
+
+        const saved = [];
+        for (const fact of facts) {
+            if (typeof fact === 'string' && fact.trim()) {
+                await memory.addMemory(fact.trim(), { source: 'auto-extract', model });
+                saved.push(fact.trim());
+                console.log(`[Memory] Auto-extracted: "${fact.trim().slice(0, 80)}"`);
+            }
+        }
+        res.json({ saved: saved.length, facts: saved });
+    } catch (err) {
+        console.warn('[Memory] Extraction failed:', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 // POST /api/agent/chat — main agent loop endpoint
@@ -1526,8 +1655,41 @@ app.all('/proxy/*', async (req, res) => {
                             }
                         }
                     }
+                    // --- Memory context injection ---
+                    if (ollamaPayload._memory === true && lastMsg?.role === 'user') {
+                        try {
+                            const query = (lastMsg.content || '').slice(0, 500);
+                            const hits = await memory.searchMemories(query, 4);
+                            if (hits.length > 0) {
+                                const memBlock = 'Relevant memories from previous conversations:\n' +
+                                    hits.map((h, i) => `[${i + 1}] ${h.text}`).join('\n');
+                                const sysIdx = ollamaPayload.messages.findIndex(m => m.role === 'system');
+                                if (sysIdx >= 0) {
+                                    ollamaPayload.messages[sysIdx].content = memBlock + '\n\n' + ollamaPayload.messages[sysIdx].content;
+                                } else {
+                                    ollamaPayload.messages.unshift({ role: 'system', content: memBlock });
+                                }
+                                console.log(`[Memory] Injected ${hits.length} memories into context`);
+                            }
+                        } catch (memErr) {
+                            console.warn('[Memory] Context injection failed:', memErr.message);
+                        }
+                    }
+
+                    // --- Auto-save explicit memory requests ---
+                    if (ollamaPayload._saveToMemory) {
+                        const toSave = String(ollamaPayload._saveToMemory).trim();
+                        if (toSave) {
+                            memory.addMemory(toSave, { source: 'user' })
+                                .then(id => console.log(`[Memory] Auto-saved from user request (id: ${id}): "${toSave.slice(0, 80)}"`))
+                                .catch(err => console.warn('[Memory] Auto-save failed:', err.message));
+                        }
+                    }
+
                     delete ollamaPayload._webSearch; // strip internal flag before forwarding
                     delete ollamaPayload._deepResearch; // strip internal flag before forwarding
+                    delete ollamaPayload._memory; // strip internal flag before forwarding
+                    delete ollamaPayload._saveToMemory; // strip internal flag before forwarding
 
                     bodyToSend = JSON.stringify(ollamaPayload);
                 } catch (e) {
