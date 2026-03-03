@@ -3376,32 +3376,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             await updateContextIndicator(currentConversation.messages, modelData.systemPrompt, modelData);
 
         } catch (error) {
-            console.error('Error in triggerLLMCompletion:', error);
-            let errorMessage = 'Error communicating with the model. Please check the proxy server and Ollama status.';
-
-            // Handle AbortError specifically
             if (error.name === 'AbortError') {
-                errorMessage = 'Request was stopped by user.';
+                // User stopped generation — save whatever was streamed so far, no error shown
                 console.log('Request aborted by user');
-            } else if (error.message && error.message.includes('Ollama API Error')) {
-                errorMessage = error.message;
-
-                // Handle vision model specific errors
-                if (selectedImages.length > 0 && (
-                    error.message.includes('exit status 2') ||
-                    error.message.includes('runner process has terminated') ||
-                    error.message.includes('500')
-                )) {
-                    errorMessage = `This model (${currentModelName}) may not support images. Try a vision model like LLaVA instead.`;
-                    console.warn(`[Vision Error] Model ${currentModelName} failed with images:`, error.message);
+                const partialContent = botTextElement ? (botTextElement.dataset.fullMessage || '').trim() : '';
+                if (partialContent) {
+                    currentConversation.messages.push({ role: 'assistant', content: partialContent });
+                    currentConversation.summary = getConversationSummary(currentConversation.messages);
+                    currentConversation.lastMessageTime = Date.now();
                 }
-            }
+            } else {
+                console.error('Error in triggerLLMCompletion:', error);
+                let errorMessage = 'Error communicating with the model. Please check the proxy server and Ollama status.';
 
-            updateBotMessageInUI(botTextElement, `\n\n[Error: ${errorMessage}]`);
-            // Get the current content from the botTextElement to avoid using undefined variables
-            const currentBotContent = botTextElement.dataset.fullMessage || botTextElement.textContent || '';
-            currentConversation.messages.push({ role: 'assistant', content: currentBotContent + `\n\n[Error: ${errorMessage}]` });
-            currentConversation.lastMessageTime = Date.now();
+                if (error.message && error.message.includes('Ollama API Error')) {
+                    errorMessage = error.message;
+
+                    // Handle vision model specific errors
+                    if (selectedImages.length > 0 && (
+                        error.message.includes('exit status 2') ||
+                        error.message.includes('runner process has terminated') ||
+                        error.message.includes('500')
+                    )) {
+                        errorMessage = `This model (${currentModelName}) may not support images. Try a vision model like LLaVA instead.`;
+                        console.warn(`[Vision Error] Model ${currentModelName} failed with images:`, error.message);
+                    }
+                }
+
+                updateBotMessageInUI(botTextElement, `\n\n[Error: ${errorMessage}]`);
+                const currentBotContent = botTextElement.dataset.fullMessage || botTextElement.textContent || '';
+                currentConversation.messages.push({ role: 'assistant', content: currentBotContent + `\n\n[Error: ${errorMessage}]` });
+                currentConversation.lastMessageTime = Date.now();
+            }
         } finally {
             console.log('triggerLLMCompletion finally block completed');
 
