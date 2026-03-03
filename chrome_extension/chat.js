@@ -4214,6 +4214,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         readFile: 'Read File',
         writeFile: 'Write File',
         listDirectory: 'List Directory',
+        findFiles: 'Find Files',
         deleteFile: 'Delete File',
         runCode: 'Run Code',
         runShell: 'Run Shell',
@@ -4226,7 +4227,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         toolPermissions: {
             webSearch: 'auto', fetchPage: 'auto', getDateTime: 'auto', math: 'auto',
             readFile: 'confirm', writeFile: 'confirm', listDirectory: 'confirm',
-            deleteFile: 'confirm',
+            findFiles: 'confirm', deleteFile: 'confirm',
             runCode: 'disabled', runShell: 'disabled'
         }
     };

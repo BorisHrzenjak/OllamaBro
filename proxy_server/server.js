@@ -765,6 +765,7 @@ let agentToolPermissions = {
     readFile: 'confirm',
     writeFile: 'confirm',
     listDirectory: 'confirm',
+    findFiles: 'confirm',
     deleteFile: 'confirm',
     runCode: 'disabled',
     runShell: 'disabled',
@@ -840,8 +841,24 @@ const AGENT_TOOLS = [
         type: 'function',
         function: {
             name: 'listDirectory',
-            description: 'List files and folders in a directory.',
+            description: 'List files and folders in a directory. Returns names, counts, and a breakdown by file extension. Use for browsing a single directory.',
             parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path to the directory' } }, required: ['path'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'findFiles',
+            description: 'Search for files matching a pattern, optionally recursively. Returns the total count and full paths. Use this whenever the user asks to count, find, or filter files by type (e.g. "how many images", "find all PDFs").',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Directory to search in (absolute Windows path)' },
+                    pattern: { type: 'string', description: 'Comma-separated file extensions to match, e.g. ".jpg,.png,.gif" or "*" for all files' },
+                    recursive: { type: 'boolean', description: 'Search subdirectories recursively (default: false)' }
+                },
+                required: ['path', 'pattern']
+            }
         }
     },
     {
@@ -945,8 +962,56 @@ async function executeTool(res, name, args) {
                 if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
                 try {
                     const entries = fs.readdirSync(args.path, { withFileTypes: true });
-                    const list = entries.map(e => (e.isDirectory() ? '[DIR] ' : '') + e.name);
-                    return { result: list.join('\n') };
+                    const dirs = entries.filter(e => e.isDirectory());
+                    const files = entries.filter(e => !e.isDirectory());
+                    // Count by extension
+                    const extCounts = {};
+                    for (const f of files) {
+                        const ext = path.extname(f.name).toLowerCase() || '(no ext)';
+                        extCounts[ext] = (extCounts[ext] || 0) + 1;
+                    }
+                    const extSummary = Object.entries(extCounts)
+                        .sort((a, b) => b[1] - a[1])
+                        .map(([ext, n]) => `${ext}: ${n}`)
+                        .join(', ');
+                    const lines = [
+                        `Directory: ${args.path}`,
+                        `Total: ${entries.length} items (${files.length} files, ${dirs.length} dirs)`,
+                        extSummary ? `File types: ${extSummary}` : '',
+                        '',
+                        ...dirs.map(e => '[DIR] ' + e.name),
+                        ...files.map(e => e.name),
+                    ].filter(l => l !== undefined);
+                    return { result: lines.join('\n') };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+            }
+            case 'findFiles': {
+                const approved = await requestPermission(res, 'findFiles', args, 'low');
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
+                try {
+                    const exts = args.pattern === '*'
+                        ? []
+                        : String(args.pattern).split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+                    const recursive = !!args.recursive;
+                    const found = [];
+                    function walk(dir, depth) {
+                        if (depth > (recursive ? 20 : 0)) return;
+                        let entries;
+                        try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+                        for (const e of entries) {
+                            const full = path.join(dir, e.name);
+                            if (e.isDirectory() && recursive) { walk(full, depth + 1); }
+                            else if (e.isFile()) {
+                                const ext = path.extname(e.name).toLowerCase();
+                                if (exts.length === 0 || exts.includes(ext)) found.push(full);
+                            }
+                        }
+                    }
+                    walk(args.path, 0);
+                    const preview = found.slice(0, 50).join('\n');
+                    const more = found.length > 50 ? `\n... and ${found.length - 50} more` : '';
+                    return { result: `Found ${found.length} file(s) matching "${args.pattern}" in ${args.path}${recursive ? ' (recursive)' : ''}:\n${preview}${more}` };
                 } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             case 'deleteFile': {
@@ -1136,7 +1201,12 @@ app.post('/api/agent/chat', async (req, res) => {
     const AGENT_DIRECTIVE = 'You are operating in AGENT MODE with real, functional tools available. ' +
         'When the user asks you to do something that requires a tool (read a file, search the web, run code, etc.), ' +
         'ALWAYS call the appropriate tool — never say you cannot access the internet or file system. ' +
-        'The tools are real. Use them.';
+        'The tools are real. Use them.\n' +
+        `SYSTEM INFORMATION: OS=Windows, home directory="${os.homedir()}", path separator="\\". ` +
+        'Always use Windows-style absolute paths (e.g. C:\\Users\\Boris\\Documents\\file.txt), never Unix-style paths (e.g. /home/user/file).\n' +
+        'TOOL GUIDANCE: To count or find files by type use findFiles (e.g. pattern=".jpg,.png" for images). ' +
+        'Do NOT count lines from listDirectory output manually — call findFiles instead. ' +
+        'Use runCode only when you need to process data that no other tool can return directly.';
     const sysIdx = messages.findIndex(m => m.role === 'system');
     if (sysIdx >= 0) {
         messages[sysIdx] = { ...messages[sysIdx], content: messages[sysIdx].content + '\n\n' + AGENT_DIRECTIVE };
