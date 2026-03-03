@@ -1,4 +1,4 @@
-# OllamaBro `v1.0.5`
+# OllamaBro `v1.0.7`
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
@@ -29,6 +29,18 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Thinking model support** — `reasoning_content` tokens stream directly into the collapsible thinking box in real time (identical behaviour to Ollama reasoning models)
 - **Generation stats** — token count, prompt tokens, tokens/second, and generation time appear after each response, same as Ollama
 - Configure everything from Settings → **⚡ llama.cpp**: binary path, models directory, GPU layers (`-1` = all), and server port
+
+### Agent Mode *(new in v1.0.7)*
+- **Bot button** in the input bar activates Agent Mode — the model can now take actions on your behalf, not just answer questions
+- Runs a multi-step tool-calling loop: the model decides which tools to use, calls them, reads the results, and keeps going until the task is done (up to a configurable step limit)
+- Built-in tools:
+  - **Auto-approved:** web search, fetch URL, get date/time, evaluate math
+  - **Requires confirmation:** read file, write file, list directory
+  - **Always requires confirmation:** run shell command, run code (JavaScript or Python)
+- Sensitive tools show an inline **Allow / Deny** card before executing — you stay in control
+- Tool calls and results appear as collapsible step blocks in the chat, so you can inspect exactly what the agent did
+- Configure in **Settings → Agent**: max steps, allowed directories, and per-tool permission levels
+- Mutually exclusive with Web Search and Deep Research modes
 
 ### Prompt Templates (Slash Commands) *(new in v1.0.5)*
 - Type `/` at the start of the message box to open a **command palette** of saved prompt templates
