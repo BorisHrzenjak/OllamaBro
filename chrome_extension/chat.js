@@ -4475,6 +4475,36 @@ document.addEventListener('DOMContentLoaded', async () => {
             startNewConversation(currentModelName);
         }
 
+        // Alt+V — toggle voice input
+        if (e.key.toLowerCase() === 'v' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            if (micButton && micButton.style.display !== 'none') micButton.click();
+        }
+
+        // Alt+I — add image (open file picker)
+        if (e.key.toLowerCase() === 'i' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            if (imageButton && imageButton.style.display !== 'none') imageInput && imageInput.click();
+        }
+
+        // Alt+W — toggle web search
+        if (e.key.toLowerCase() === 'w' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            webSearchButton.click();
+        }
+
+        // Alt+R — toggle deep research
+        if (e.key.toLowerCase() === 'r' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            deepResearchButton.click();
+        }
+
+        // Alt+A — toggle agent mode
+        if (e.key.toLowerCase() === 'a' && e.altKey && !e.ctrlKey && !e.shiftKey && !e.metaKey) {
+            e.preventDefault();
+            agentModeButton.click();
+        }
+
         if (e.ctrlKey && !e.shiftKey && !e.metaKey) {
             switch (e.key.toLowerCase()) {
                 case 'd': {
