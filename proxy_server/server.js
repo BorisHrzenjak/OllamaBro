@@ -6,6 +6,7 @@ const { URL } = require('url');
 const { spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 // --- Web Search (Tavily + Jina Reader) ---
 
@@ -741,6 +742,475 @@ app.post('/api/llamacpp/chat', async (req, res) => {
         if (!res.headersSent) res.status(500).json({ error: err.message });
         else res.end();
     }
+});
+
+// --- Agent Mode ---
+
+// Agent config (updated via POST /api/agent/config)
+let agentMaxSteps = parseInt(process.env.AGENT_MAX_STEPS || '15', 10);
+let agentAllowedDirs = (process.env.AGENT_ALLOWED_DIRS || '').split(',').map(s => s.trim()).filter(Boolean);
+let agentBlockedPaths = (process.env.AGENT_BLOCKED_PATHS || [
+    'C:\\Windows\\System32',
+    'C:\\Windows\\SysWOW64',
+    path.join(os.homedir(), '.ssh'),
+    path.join(os.homedir(), 'AppData', 'Roaming', 'Microsoft', 'Credentials'),
+].join(',')).split(',').map(s => s.trim()).filter(Boolean);
+
+// Per-tool permission levels: 'auto' | 'confirm' | 'disabled'
+let agentToolPermissions = {
+    webSearch: 'auto',
+    fetchPage: 'auto',
+    getDateTime: 'auto',
+    math: 'auto',
+    readFile: 'confirm',
+    writeFile: 'confirm',
+    listDirectory: 'confirm',
+    deleteFile: 'confirm',
+    runCode: 'disabled',
+    runShell: 'disabled',
+};
+
+// Pending permission requests: id → { resolve, reject }
+const pendingPermissions = new Map();
+
+function generatePermissionId() {
+    return Math.random().toString(36).slice(2, 10);
+}
+
+function isPathAllowed(targetPath) {
+    let resolved;
+    try { resolved = path.resolve(targetPath); } catch { return false; }
+    const blocked = agentBlockedPaths;
+    if (blocked.some(b => resolved.toLowerCase().startsWith(b.toLowerCase()))) return false;
+    if (agentAllowedDirs.length === 0) return true;
+    return agentAllowedDirs.some(a => resolved.toLowerCase().startsWith(path.resolve(a).toLowerCase()));
+}
+
+// Tier 1 tool definitions (for the model's tools array)
+const AGENT_TOOLS = [
+    {
+        type: 'function',
+        function: {
+            name: 'webSearch',
+            description: 'Search the web for current information, news, or facts.',
+            parameters: { type: 'object', properties: { query: { type: 'string', description: 'Search query' } }, required: ['query'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'fetchPage',
+            description: 'Fetch and read the content of a web page by URL.',
+            parameters: { type: 'object', properties: { url: { type: 'string', description: 'Full URL to fetch' } }, required: ['url'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'getDateTime',
+            description: 'Get the current date and time.',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'math',
+            description: 'Evaluate a mathematical expression and return the result.',
+            parameters: { type: 'object', properties: { expression: { type: 'string', description: 'Math expression to evaluate, e.g. "2 + 2" or "Math.sqrt(144)"' } }, required: ['expression'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'readFile',
+            description: 'Read the contents of a file from disk.',
+            parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path to the file' } }, required: ['path'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'writeFile',
+            description: 'Write or overwrite a file on disk.',
+            parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path to the file' }, content: { type: 'string', description: 'Content to write' } }, required: ['path', 'content'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'listDirectory',
+            description: 'List files and folders in a directory.',
+            parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path to the directory' } }, required: ['path'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'deleteFile',
+            description: 'Delete a file from disk. This is irreversible.',
+            parameters: { type: 'object', properties: { path: { type: 'string', description: 'Absolute path to the file to delete' } }, required: ['path'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'runCode',
+            description: 'Execute a code snippet. Supports "js" (Node.js vm sandbox) and "python" (subprocess).',
+            parameters: { type: 'object', properties: { lang: { type: 'string', description: '"js" or "python"' }, code: { type: 'string', description: 'Code to execute' } }, required: ['lang', 'code'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'runShell',
+            description: 'Run a shell command on the local machine. Use with caution.',
+            parameters: { type: 'object', properties: { cmd: { type: 'string', description: 'Shell command to execute' } }, required: ['cmd'] }
+        }
+    },
+];
+
+// Returns tools filtered to those not disabled
+function getEnabledTools() {
+    return AGENT_TOOLS.filter(t => agentToolPermissions[t.function.name] !== 'disabled');
+}
+
+// Ask user permission via streaming — returns true if approved
+async function requestPermission(res, tool, args, risk) {
+    const perm = agentToolPermissions[tool];
+    if (perm === 'auto') return true;
+    if (perm === 'disabled') return false;
+    // perm === 'confirm'
+    const id = generatePermissionId();
+    res.write(JSON.stringify({ type: 'permission_request', id, tool, args, risk }) + '\n');
+    return new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            pendingPermissions.delete(id);
+            resolve(false); // auto-deny after 30s
+        }, 30000);
+        pendingPermissions.set(id, {
+            resolve: (approved) => { clearTimeout(timeout); pendingPermissions.delete(id); resolve(approved); },
+            reject: () => { clearTimeout(timeout); pendingPermissions.delete(id); resolve(false); }
+        });
+    });
+}
+
+// Execute a single tool call, streaming progress/result
+async function executeTool(res, name, args) {
+    try {
+        switch (name) {
+            case 'webSearch': {
+                const result = await fetchTavilyResults(args.query || '');
+                const text = result ? JSON.stringify(result).slice(0, 3000) : 'No results';
+                return { result: text };
+            }
+            case 'fetchPage': {
+                const text = await fetchPageViaJina(args.url || '');
+                return { result: text || 'No content' };
+            }
+            case 'getDateTime': {
+                return { result: new Date().toLocaleString() };
+            }
+            case 'math': {
+                try {
+                    // eslint-disable-next-line no-new-func
+                    const val = Function('"use strict"; return (' + String(args.expression) + ')')();
+                    return { result: String(val) };
+                } catch (e) {
+                    return { result: 'Error: ' + e.message, error: true };
+                }
+            }
+            case 'readFile': {
+                const approved = await requestPermission(res, 'readFile', args, 'medium');
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
+                try {
+                    const content = fs.readFileSync(args.path, 'utf8');
+                    return { result: content.slice(0, 8000) };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+            }
+            case 'writeFile': {
+                const approved = await requestPermission(res, 'writeFile', args, 'high');
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
+                try {
+                    fs.mkdirSync(path.dirname(args.path), { recursive: true });
+                    fs.writeFileSync(args.path, args.content || '', 'utf8');
+                    return { result: 'File written successfully' };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+            }
+            case 'listDirectory': {
+                const approved = await requestPermission(res, 'listDirectory', args, 'low');
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
+                try {
+                    const entries = fs.readdirSync(args.path, { withFileTypes: true });
+                    const list = entries.map(e => (e.isDirectory() ? '[DIR] ' : '') + e.name);
+                    return { result: list.join('\n') };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+            }
+            case 'deleteFile': {
+                const approved = await requestPermission(res, 'deleteFile', args, 'high');
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
+                try {
+                    fs.unlinkSync(args.path);
+                    return { result: 'File deleted: ' + args.path };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+            }
+            case 'runCode': {
+                const approved = await requestPermission(res, 'runCode', { lang: args.lang, code: args.code }, 'high');
+                if (!approved) return { result: 'User denied', error: true };
+                res.write(JSON.stringify({ type: 'tool_running', name: 'runCode', preview: `${args.lang}:\n${args.code}` }) + '\n');
+                return await runCodeTool(args.lang, args.code);
+            }
+            case 'runShell': {
+                // runShell is always confirm regardless of setting
+                const approved = await requestPermission(res, 'runShell', { cmd: args.cmd }, 'critical');
+                if (!approved) return { result: 'User denied', error: true };
+                res.write(JSON.stringify({ type: 'tool_running', name: 'runShell', preview: args.cmd }) + '\n');
+                return await runShellTool(args.cmd);
+            }
+            default:
+                return { result: `Unknown tool: ${name}`, error: true };
+        }
+    } catch (err) {
+        return { result: 'Unexpected error: ' + err.message, error: true };
+    }
+}
+
+async function runCodeTool(lang, code) {
+    if (lang === 'js') {
+        try {
+            const vm = require('vm');
+            const logs = [];
+            const sandbox = { console: { log: (...a) => logs.push(a.join(' ')), error: (...a) => logs.push('[err] ' + a.join(' ')) }, Math, JSON, parseFloat, parseInt, isNaN, isFinite };
+            vm.createContext(sandbox);
+            vm.runInContext(code, sandbox, { timeout: 10000 });
+            return { result: logs.join('\n') || '(no output)' };
+        } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+    } else if (lang === 'python') {
+        return new Promise((resolve) => {
+            let out = '', err = '';
+            const proc = spawn('python', ['-c', code], { timeout: 30000 });
+            proc.stdout.on('data', d => { out += d; });
+            proc.stderr.on('data', d => { err += d; });
+            proc.on('close', () => resolve({ result: (out + err).slice(0, 4000) || '(no output)' }));
+            proc.on('error', e => resolve({ result: 'Error: ' + e.message, error: true }));
+        });
+    }
+    return { result: 'Unsupported language: ' + lang, error: true };
+}
+
+async function runShellTool(cmd) {
+    return new Promise((resolve) => {
+        let out = '', err = '';
+        const proc = spawn(cmd, { shell: true, timeout: 30000 });
+        proc.stdout.on('data', d => { out += d; });
+        proc.stderr.on('data', d => { err += d; });
+        proc.on('close', () => resolve({ result: (out + err).slice(0, 4000) || '(no output)' }));
+        proc.on('error', e => resolve({ result: 'Error: ' + e.message, error: true }));
+    });
+}
+
+// Call Ollama with tools, collect full response (streaming internally, return complete message)
+async function callOllamaWithTools(messages, tools, model) {
+    const body = JSON.stringify({ model, messages, tools, stream: false });
+    return new Promise((resolve, reject) => {
+        const req = http.request({
+            hostname: 'localhost', port: 11434, path: '/api/chat', method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+        }, (res2) => {
+            let raw = '';
+            res2.on('data', d => { raw += d; });
+            res2.on('end', () => {
+                try { resolve(JSON.parse(raw)); } catch { reject(new Error('Bad Ollama response')); }
+            });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+// Call llama.cpp with tools (OpenAI format), return response object
+async function callLlamaCppWithTools(messages, tools, model) {
+    // Convert messages to OpenAI format (tool results use role:'tool')
+    const oaiMessages = messages.map(m => {
+        if (m.role === 'tool') return { role: 'tool', tool_call_id: m.tool_call_id || 'call_0', content: m.content };
+        return { role: m.role, content: m.content };
+    });
+    const body = JSON.stringify({ model, messages: oaiMessages, tools, stream: false });
+    return new Promise((resolve, reject) => {
+        const req = http.request({
+            hostname: '127.0.0.1', port: llamaPort, path: '/v1/chat/completions', method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+        }, (res2) => {
+            let raw = '';
+            res2.on('data', d => { raw += d; });
+            res2.on('end', () => {
+                try { resolve(JSON.parse(raw)); } catch { reject(new Error('Bad llama.cpp response')); }
+            });
+        });
+        req.on('error', reject);
+        req.write(body);
+        req.end();
+    });
+}
+
+// Extract tool_calls from Ollama or llama.cpp response, normalize to [{id, name, args}]
+function extractToolCalls(response, backend) {
+    if (backend === 'llamacpp') {
+        const choice = response.choices && response.choices[0];
+        if (!choice) return null;
+        const tcs = choice.message && choice.message.tool_calls;
+        if (!tcs || tcs.length === 0) return null;
+        return tcs.map(tc => ({
+            id: tc.id || 'call_0',
+            name: tc.function.name,
+            args: (() => { try { return JSON.parse(tc.function.arguments); } catch { return {}; } })()
+        }));
+    } else {
+        // Ollama
+        const msg = response.message;
+        if (!msg || !msg.tool_calls || msg.tool_calls.length === 0) return null;
+        return msg.tool_calls.map((tc, i) => ({
+            id: 'call_' + i,
+            name: tc.function.name,
+            args: tc.function.arguments || {}
+        }));
+    }
+}
+
+// Extract final text content from a model response
+function extractContent(response, backend) {
+    if (backend === 'llamacpp') {
+        return (response.choices && response.choices[0] && response.choices[0].message && response.choices[0].message.content) || '';
+    }
+    return (response.message && response.message.content) || '';
+}
+
+// POST /api/agent/permission — resolve a pending permission request
+app.post('/api/agent/permission', (req, res) => {
+    const { id, approved } = req.body || {};
+    const pending = pendingPermissions.get(id);
+    if (!pending) return res.status(404).json({ error: 'No pending permission with that id' });
+    pending.resolve(!!approved);
+    res.json({ ok: true });
+});
+
+// GET /api/agent/config — return current agent config
+app.get('/api/agent/config', (req, res) => {
+    res.json({ maxSteps: agentMaxSteps, allowedDirs: agentAllowedDirs, blockedPaths: agentBlockedPaths, toolPermissions: agentToolPermissions });
+});
+
+// POST /api/agent/config — update agent config
+app.post('/api/agent/config', (req, res) => {
+    const { maxSteps, allowedDirs, blockedPaths, toolPermissions } = req.body || {};
+    if (maxSteps !== undefined) agentMaxSteps = Math.max(1, Math.min(50, parseInt(maxSteps, 10) || 15));
+    if (Array.isArray(allowedDirs)) agentAllowedDirs = allowedDirs.map(s => String(s).trim()).filter(Boolean);
+    if (Array.isArray(blockedPaths)) agentBlockedPaths = blockedPaths.map(s => String(s).trim()).filter(Boolean);
+    if (toolPermissions && typeof toolPermissions === 'object') {
+        for (const [k, v] of Object.entries(toolPermissions)) {
+            if (agentToolPermissions.hasOwnProperty(k) && ['auto', 'confirm', 'disabled'].includes(v)) {
+                agentToolPermissions[k] = v;
+            }
+        }
+    }
+    res.json({ ok: true });
+});
+
+// POST /api/agent/chat — main agent loop endpoint
+app.post('/api/agent/chat', async (req, res) => {
+    const { messages: initialMessages, model, backend = 'ollama', maxSteps } = req.body || {};
+    const steps = Math.max(1, Math.min(50, parseInt(maxSteps, 10) || agentMaxSteps));
+    const tools = getEnabledTools();
+
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('Cache-Control', 'no-cache');
+
+    const messages = [...(initialMessages || [])];
+
+    // Inject agent directive so the model knows to call tools instead of refusing
+    const AGENT_DIRECTIVE = 'You are operating in AGENT MODE with real, functional tools available. ' +
+        'When the user asks you to do something that requires a tool (read a file, search the web, run code, etc.), ' +
+        'ALWAYS call the appropriate tool — never say you cannot access the internet or file system. ' +
+        'The tools are real. Use them.';
+    const sysIdx = messages.findIndex(m => m.role === 'system');
+    if (sysIdx >= 0) {
+        messages[sysIdx] = { ...messages[sysIdx], content: messages[sysIdx].content + '\n\n' + AGENT_DIRECTIVE };
+    } else {
+        messages.unshift({ role: 'system', content: AGENT_DIRECTIVE });
+    }
+
+    try {
+        for (let step = 1; step <= steps; step++) {
+            // Call model
+            let response;
+            try {
+                if (backend === 'llamacpp') {
+                    response = await callLlamaCppWithTools(messages, tools, model || 'default');
+                } else {
+                    response = await callOllamaWithTools(messages, tools, model || 'llama3.2');
+                }
+            } catch (err) {
+                res.write(JSON.stringify({ type: 'error', text: 'Model call failed: ' + err.message }) + '\n');
+                break;
+            }
+
+            const toolCalls = extractToolCalls(response, backend);
+            const content = extractContent(response, backend);
+
+            // Stream any text content from this step
+            if (content && content.trim()) {
+                res.write(JSON.stringify({ type: 'content', text: content }) + '\n');
+            }
+
+            // If no tool calls, we're done
+            if (!toolCalls || toolCalls.length === 0) {
+                res.write(JSON.stringify({ type: 'step_done', step, maxSteps: steps }) + '\n');
+                break;
+            }
+
+            // Execute each tool call
+            for (const tc of toolCalls) {
+                res.write(JSON.stringify({ type: 'tool_call', name: tc.name, args: tc.args }) + '\n');
+                const { result, error } = await executeTool(res, tc.name, tc.args);
+                res.write(JSON.stringify({ type: 'tool_result', name: tc.name, result, error: !!error }) + '\n');
+
+                // Append assistant turn with tool_calls, then tool result
+                if (backend === 'llamacpp') {
+                    messages.push({
+                        role: 'assistant',
+                        content: '',
+                        tool_calls: [{ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.args) } }]
+                    });
+                    messages.push({ role: 'tool', tool_call_id: tc.id, content: String(result) });
+                } else {
+                    // Ollama format
+                    messages.push({
+                        role: 'assistant',
+                        content: '',
+                        tool_calls: [{ function: { name: tc.name, arguments: tc.args } }]
+                    });
+                    messages.push({ role: 'tool', content: String(result) });
+                }
+            }
+
+            res.write(JSON.stringify({ type: 'step_done', step, maxSteps: steps }) + '\n');
+
+            if (step === steps) {
+                res.write(JSON.stringify({ type: 'content', text: '\n\n*Agent reached maximum steps.*' }) + '\n');
+            }
+        }
+    } catch (err) {
+        console.error('[Agent] Error:', err);
+        if (!res.writableEnded) res.write(JSON.stringify({ type: 'error', text: err.message }) + '\n');
+    }
+
+    res.write(JSON.stringify({ type: 'done' }) + '\n');
+    res.end();
 });
 
 // --- Ollama Proxy ---

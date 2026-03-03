@@ -115,6 +115,247 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
+    // Agent mode state
+    const agentModeButton = document.getElementById('agentModeButton');
+    let agentModeEnabled = false;
+
+    agentModeButton.addEventListener('click', () => {
+        agentModeEnabled = !agentModeEnabled;
+        agentModeButton.classList.toggle('active', agentModeEnabled);
+        agentModeButton.title = agentModeEnabled ? 'Agent Mode: ON' : 'Agent Mode: OFF';
+        if (agentModeEnabled) {
+            if (webSearchEnabled) {
+                webSearchEnabled = false;
+                webSearchButton.classList.remove('active');
+                webSearchButton.title = 'Web Search: OFF';
+            }
+            if (deepResearchEnabled) {
+                deepResearchEnabled = false;
+                deepResearchButton.classList.remove('active');
+                deepResearchButton.title = 'Deep Research: OFF';
+            }
+        }
+    });
+
+    // --- Agent step renderer helpers ---
+
+    function createAgentStepBlock(type, name, argsObj) {
+        const block = document.createElement('div');
+        block.className = `agent-step-block agent-step-${type}`;
+
+        const header = document.createElement('div');
+        header.className = 'agent-step-header';
+
+        const iconName = type === 'tool_call' ? 'wrench' : 'check-circle';
+        const iconEl = document.createElement('span');
+        iconEl.className = 'agent-step-icon';
+        iconEl.innerHTML = `<i data-lucide="${iconName}"></i>`;
+
+        const nameEl = document.createElement('span');
+        nameEl.className = 'agent-step-name';
+        nameEl.textContent = name;
+
+        const statusEl = document.createElement('span');
+        statusEl.className = 'agent-step-status';
+        statusEl.textContent = type === 'tool_call' ? 'Running…' : 'Done';
+
+        const chevronEl = document.createElement('span');
+        chevronEl.className = 'agent-step-chevron';
+        chevronEl.innerHTML = '<i data-lucide="chevron-right"></i>';
+
+        header.append(iconEl, nameEl, statusEl, chevronEl);
+
+        const body = document.createElement('div');
+        body.className = 'agent-step-body';
+
+        if (argsObj && Object.keys(argsObj).length > 0) {
+            const pre = document.createElement('pre');
+            pre.className = 'agent-step-args';
+            pre.textContent = JSON.stringify(argsObj, null, 2);
+            body.appendChild(pre);
+        }
+
+        header.addEventListener('click', () => {
+            const expanded = body.classList.toggle('expanded');
+            header.classList.toggle('expanded', expanded);
+        });
+
+        block.append(header, body);
+        if (typeof lucide !== 'undefined') lucide.createIcons({ el: block });
+
+        return block;
+    }
+
+    function appendResultToStepBlock(block, result, isError) {
+        const statusEl = block.querySelector('.agent-step-status');
+        if (statusEl) statusEl.textContent = isError ? 'Error' : 'Done';
+
+        const body = block.querySelector('.agent-step-body');
+        if (!body) return;
+
+        const resultPre = document.createElement('pre');
+        resultPre.className = 'agent-step-result' + (isError ? ' error' : '');
+        resultPre.textContent = String(result).slice(0, 2000);
+        body.appendChild(resultPre);
+
+        // Auto-expand on error
+        if (isError) {
+            body.classList.add('expanded');
+            block.querySelector('.agent-step-header').classList.add('expanded');
+        }
+    }
+
+    function createPermissionCard(chunk) {
+        const riskColors = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444', critical: '#dc2626' };
+        const borderColor = riskColors[chunk.risk] || '#f59e0b';
+
+        const card = document.createElement('div');
+        card.className = 'agent-permission-card';
+        card.style.borderColor = borderColor;
+
+        const args = chunk.args || {};
+        const argsLines = Object.entries(args)
+            .map(([k, v]) => `${k}: ${String(v).slice(0, 200)}`)
+            .join('\n');
+
+        const header = document.createElement('div');
+        header.className = 'agent-perm-header';
+        header.innerHTML = `<span class="agent-perm-icon"><i data-lucide="shield-alert"></i></span><span class="agent-perm-tool">${chunk.tool}</span><span class="agent-perm-risk" style="color:${borderColor}">[${chunk.risk || 'confirm'}]</span>`;
+
+        card.appendChild(header);
+
+        if (argsLines) {
+            const argsPre = document.createElement('pre');
+            argsPre.className = 'agent-perm-args';
+            argsPre.textContent = argsLines;
+            card.appendChild(argsPre);
+        }
+
+        const btnRow = document.createElement('div');
+        btnRow.className = 'agent-perm-buttons';
+        const allowBtn = document.createElement('button');
+        allowBtn.className = 'agent-perm-allow';
+        allowBtn.textContent = 'Allow';
+        const denyBtn = document.createElement('button');
+        denyBtn.className = 'agent-perm-deny';
+        denyBtn.textContent = 'Deny';
+        btnRow.append(allowBtn, denyBtn);
+        card.appendChild(btnRow);
+
+        if (typeof lucide !== 'undefined') lucide.createIcons({ el: card });
+
+        const respond = async (approved) => {
+            allowBtn.disabled = true;
+            denyBtn.disabled = true;
+            btnRow.innerHTML = `<span class="agent-perm-result">${approved ? '✓ Allowed' : '✗ Denied'}</span>`;
+            try {
+                await fetch(`${PROXY_BASE}/api/agent/permission`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: chunk.id, approved })
+                });
+            } catch (e) { console.warn('[Agent] Permission POST failed:', e); }
+        };
+
+        allowBtn.addEventListener('click', () => respond(true));
+        denyBtn.addEventListener('click', () => respond(false));
+
+        return card;
+    }
+
+    async function handleAgentStream(botTextElement, botMessageDiv, reader) {
+        const decoder = new TextDecoder();
+        let buf = '';
+        let currentContentDiv = null;
+        let currentContentText = '';
+        let lastToolCallBlock = {}; // toolName → last block element
+
+        // Step counter line
+        const counterEl = document.createElement('span');
+        counterEl.className = 'agent-step-counter';
+        counterEl.textContent = 'Agent running…';
+        botTextElement.appendChild(counterEl);
+
+        while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            const lines = buf.split('\n');
+            buf = lines.pop();
+
+            for (const line of lines) {
+                if (!line.trim()) continue;
+                let chunk;
+                try { chunk = JSON.parse(line); } catch { continue; }
+
+                if (chunk.type === 'content' && chunk.text) {
+                    if (!currentContentDiv) {
+                        currentContentDiv = document.createElement('div');
+                        currentContentDiv.className = 'agent-content-block';
+                        botTextElement.appendChild(currentContentDiv);
+                    }
+                    currentContentText += chunk.text;
+                    currentContentDiv.innerHTML = '';
+                    currentContentDiv.appendChild(renderMarkdownWithThinking(currentContentText, false));
+                }
+
+                if (chunk.type === 'tool_call') {
+                    currentContentDiv = null;
+                    currentContentText = '';
+                    const block = createAgentStepBlock('tool_call', chunk.name, chunk.args);
+                    block.dataset.toolName = chunk.name;
+                    botTextElement.appendChild(block);
+                    lastToolCallBlock[chunk.name] = block;
+                }
+
+                if (chunk.type === 'tool_result') {
+                    const block = lastToolCallBlock[chunk.name];
+                    if (block) {
+                        appendResultToStepBlock(block, chunk.result, chunk.error);
+                        // Change block class to show result type
+                        block.classList.remove('agent-step-tool_call');
+                        block.classList.add('agent-step-tool_result');
+                    }
+                }
+
+                if (chunk.type === 'permission_request') {
+                    currentContentDiv = null;
+                    currentContentText = '';
+                    const card = createPermissionCard(chunk);
+                    botTextElement.appendChild(card);
+                }
+
+                if (chunk.type === 'tool_running') {
+                    const block = lastToolCallBlock[chunk.name];
+                    if (block) {
+                        const statusEl = block.querySelector('.agent-step-status');
+                        if (statusEl) statusEl.textContent = 'Executing…';
+                    }
+                }
+
+                if (chunk.type === 'step_done') {
+                    counterEl.textContent = `Step ${chunk.step} / ${chunk.maxSteps}`;
+                }
+
+                if (chunk.type === 'error') {
+                    const errDiv = document.createElement('div');
+                    errDiv.className = 'agent-error';
+                    errDiv.textContent = 'Agent error: ' + chunk.text;
+                    botTextElement.appendChild(errDiv);
+                }
+
+                if (chunk.type === 'done') {
+                    counterEl.textContent = '';
+                    break;
+                }
+
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+
+        return currentContentText;
+    }
+
     // Speech Recognition Setup
     let recognition = null;
     let isListening = false;
@@ -2909,6 +3150,38 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             console.log('Request body for Ollama:', JSON.stringify(requestBody, null, 2));
 
+            // --- Agent Mode Branch ---
+            if (agentModeEnabled) {
+                const agentBody = {
+                    messages: apiMessages,
+                    model: currentModelName,
+                    backend: currentModelBackend,
+                    maxSteps: 15
+                };
+                const agentResponse = await fetch(`${PROXY_BASE}/api/agent/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agentBody),
+                    signal: currentAbortController.signal
+                });
+                if (!agentResponse.ok) throw new Error(`Agent API Error: ${agentResponse.status}`);
+                if (loadingIndicator) loadingIndicator.style.display = 'none';
+                contentHasStarted = true;
+                const agentReader = agentResponse.body.getReader();
+                const finalText = await handleAgentStream(botTextElement, botMessageDiv, agentReader);
+
+                if (stopButton) stopButton.style.display = 'none';
+                if (botMessageDiv) botMessageDiv.classList.remove('streaming');
+
+                const messageToSave = { role: 'assistant', content: finalText || '*(Agent response — see steps above)*' };
+                currentConversation.messages.push(messageToSave);
+                currentConversation.summary = getConversationSummary(currentConversation.messages);
+                currentConversation.lastMessageTime = Date.now();
+                await updateContextIndicator(currentConversation.messages, modelData.systemPrompt, modelData);
+                return;
+            }
+            // --- End Agent Mode Branch ---
+
             const chatEndpoint = currentModelBackend === 'llamacpp'
                 ? `${PROXY_BASE}/api/llamacpp/chat`
                 : `${PROXY_BASE}/proxy/api/chat`;
@@ -3930,6 +4203,180 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadLlamaCppSettings();
         });
     }
+
+    // --- Agent Settings Section ---
+
+    const TOOL_LABELS = {
+        webSearch: 'Web Search',
+        fetchPage: 'Fetch Page',
+        getDateTime: 'Get Date/Time',
+        math: 'Math Eval',
+        readFile: 'Read File',
+        writeFile: 'Write File',
+        listDirectory: 'List Directory',
+        deleteFile: 'Delete File',
+        runCode: 'Run Code',
+        runShell: 'Run Shell',
+    };
+
+    let agentConfig = {
+        maxSteps: 15,
+        allowedDirs: [],
+        blockedPaths: ['C:\\Windows\\System32', 'C:\\Windows\\SysWOW64'],
+        toolPermissions: {
+            webSearch: 'auto', fetchPage: 'auto', getDateTime: 'auto', math: 'auto',
+            readFile: 'confirm', writeFile: 'confirm', listDirectory: 'confirm',
+            deleteFile: 'confirm',
+            runCode: 'disabled', runShell: 'disabled'
+        }
+    };
+
+    async function loadAgentConfig() {
+        try {
+            const resp = await fetch(`${PROXY_BASE}/api/agent/config`);
+            if (resp.ok) agentConfig = await resp.json();
+        } catch {}
+        renderAgentSettings();
+    }
+
+    function renderAgentSettings() {
+        // Max steps slider
+        const slider = document.getElementById('agentMaxStepsSlider');
+        const sliderVal = document.getElementById('agentMaxStepsValue');
+        if (slider) { slider.value = agentConfig.maxSteps; }
+        if (sliderVal) sliderVal.textContent = agentConfig.maxSteps;
+
+        // Tool permissions
+        const permContainer = document.getElementById('agentToolPermissions');
+        if (permContainer) {
+            permContainer.innerHTML = '';
+            const perms = agentConfig.toolPermissions || {};
+            for (const [tool, perm] of Object.entries(perms)) {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+                const label = document.createElement('span');
+                label.style.cssText = 'flex:1;font-size:var(--font-size-sm);color:var(--text-secondary)';
+                label.textContent = TOOL_LABELS[tool] || tool;
+                const sel = document.createElement('select');
+                sel.className = 'settings-select';
+                sel.dataset.tool = tool;
+                sel.style.cssText = 'width:100px;font-size:var(--font-size-xs)';
+                ['auto', 'confirm', 'disabled'].forEach(v => {
+                    const opt = document.createElement('option');
+                    opt.value = v;
+                    opt.textContent = v;
+                    if (v === perm) opt.selected = true;
+                    sel.appendChild(opt);
+                });
+                // runShell is always min 'confirm'
+                if (tool === 'runShell' && perm === 'auto') sel.value = 'confirm';
+                row.append(label, sel);
+                permContainer.appendChild(row);
+            }
+        }
+
+        // Allowed dirs list
+        renderPathList('agentAllowedDirsList', agentConfig.allowedDirs || [], 'allowedDir');
+        // Blocked paths list
+        renderPathList('agentBlockedPathsList', agentConfig.blockedPaths || [], 'blockedPath');
+    }
+
+    function renderPathList(containerId, items, type) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        container.innerHTML = '';
+        items.forEach((p, i) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:6px;';
+            const span = document.createElement('span');
+            span.style.cssText = 'flex:1;font-size:var(--font-size-xs);color:var(--text-secondary);word-break:break-all;';
+            span.textContent = p;
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'modal-button secondary';
+            removeBtn.style.cssText = 'padding:2px 8px;font-size:var(--font-size-xs)';
+            removeBtn.textContent = '✕';
+            removeBtn.addEventListener('click', () => {
+                if (type === 'allowedDir') agentConfig.allowedDirs.splice(i, 1);
+                else agentConfig.blockedPaths.splice(i, 1);
+                renderAgentSettings();
+            });
+            row.append(span, removeBtn);
+            container.appendChild(row);
+        });
+    }
+
+    async function saveAgentConfig() {
+        // Collect tool permissions from selects
+        const perms = {};
+        document.querySelectorAll('#agentToolPermissions select[data-tool]').forEach(sel => {
+            perms[sel.dataset.tool] = sel.value;
+        });
+        agentConfig.toolPermissions = perms;
+
+        const slider = document.getElementById('agentMaxStepsSlider');
+        if (slider) agentConfig.maxSteps = parseInt(slider.value, 10);
+
+        const statusEl = document.getElementById('agentConfigStatus');
+        try {
+            const resp = await fetch(`${PROXY_BASE}/api/agent/config`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(agentConfig)
+            });
+            if (resp.ok && statusEl) {
+                statusEl.textContent = 'Saved';
+                setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 2000);
+            }
+        } catch (e) {
+            if (statusEl) statusEl.textContent = 'Error saving';
+        }
+    }
+
+    function initAgentSettings() {
+        const agentSectionToggle = document.getElementById('agentSectionToggle');
+        if (agentSectionToggle) {
+            agentSectionToggle.addEventListener('click', () => {
+                toggleSection('agentSectionToggle', 'agentSectionBody');
+                const body = document.getElementById('agentSectionBody');
+                if (body && body.classList.contains('expanded')) loadAgentConfig();
+            });
+        }
+
+        const slider = document.getElementById('agentMaxStepsSlider');
+        const sliderVal = document.getElementById('agentMaxStepsValue');
+        if (slider && sliderVal) {
+            slider.addEventListener('input', () => { sliderVal.textContent = slider.value; });
+        }
+
+        const saveBtn = document.getElementById('saveAgentConfig');
+        if (saveBtn) saveBtn.addEventListener('click', saveAgentConfig);
+
+        const addDirBtn = document.getElementById('agentAddAllowedDir');
+        if (addDirBtn) {
+            addDirBtn.addEventListener('click', () => {
+                const inp = document.getElementById('agentNewAllowedDir');
+                if (inp && inp.value.trim()) {
+                    agentConfig.allowedDirs.push(inp.value.trim());
+                    inp.value = '';
+                    renderAgentSettings();
+                }
+            });
+        }
+
+        const addBlockedBtn = document.getElementById('agentAddBlockedPath');
+        if (addBlockedBtn) {
+            addBlockedBtn.addEventListener('click', () => {
+                const inp = document.getElementById('agentNewBlockedPath');
+                if (inp && inp.value.trim()) {
+                    agentConfig.blockedPaths.push(inp.value.trim());
+                    inp.value = '';
+                    renderAgentSettings();
+                }
+            });
+        }
+    }
+
+    initAgentSettings();
 
     // Slash command popup: close when input loses focus (unless clicking popup itself)
     messageInput.addEventListener('blur', () => {

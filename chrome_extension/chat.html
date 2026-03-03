@@ -2079,7 +2079,7 @@
         }
 
         .settings-section-body.expanded {
-            max-height: 600px;
+            max-height: 1200px;
             opacity: 1;
         }
 
@@ -3127,6 +3127,210 @@
             color: var(--text-primary);
             border-color: var(--border);
         }
+
+        /* Agent Mode Styles */
+        #agentModeButton.active {
+            color: #8b5cf6;
+            background-color: rgba(139, 92, 246, 0.15);
+        }
+
+        .agent-step-counter {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            padding: 2px 8px;
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        .agent-step-block {
+            border-left: 3px solid var(--border);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            margin: 6px 0;
+            background-color: var(--bg-tertiary);
+            overflow: hidden;
+        }
+
+        .agent-step-block.agent-step-tool_call {
+            border-left-color: var(--accent);
+        }
+
+        .agent-step-block.agent-step-tool_result {
+            border-left-color: #22c55e;
+        }
+
+        .agent-step-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+            user-select: none;
+            font-size: var(--font-size-sm);
+        }
+
+        .agent-step-header:hover {
+            background-color: var(--bg-quaternary);
+        }
+
+        .agent-step-icon .lucide {
+            width: 13px;
+            height: 13px;
+            flex-shrink: 0;
+            color: var(--text-muted);
+        }
+
+        .agent-step-name {
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .agent-step-status {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .agent-step-chevron .lucide {
+            width: 12px;
+            height: 12px;
+            color: var(--text-muted);
+            transition: transform 0.15s ease;
+        }
+
+        .agent-step-header.expanded .agent-step-chevron .lucide {
+            transform: rotate(90deg);
+        }
+
+        .agent-step-body {
+            display: none;
+            padding: 6px 10px 8px 10px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .agent-step-body.expanded {
+            display: block;
+        }
+
+        .agent-step-args,
+        .agent-step-result {
+            margin: 0;
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .agent-step-result.error {
+            color: var(--error-text);
+        }
+
+        .agent-content-block {
+            margin: 4px 0;
+        }
+
+        /* Permission Card */
+        .agent-permission-card {
+            border: 2px solid #f59e0b;
+            border-radius: var(--radius-sm);
+            background-color: var(--bg-tertiary);
+            padding: 10px 12px;
+            margin: 8px 0;
+        }
+
+        .agent-perm-header {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 8px;
+        }
+
+        .agent-perm-icon .lucide {
+            width: 14px;
+            height: 14px;
+        }
+
+        .agent-perm-tool {
+            font-weight: 600;
+            font-size: var(--font-size-sm);
+            color: var(--text-primary);
+            flex: 1;
+        }
+
+        .agent-perm-risk {
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .agent-perm-args {
+            font-size: var(--font-size-xs);
+            color: var(--text-secondary);
+            background-color: var(--bg-secondary);
+            border-radius: var(--radius-sm);
+            padding: 6px 8px;
+            margin: 0 0 8px 0;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .agent-perm-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .agent-perm-allow,
+        .agent-perm-deny {
+            padding: 4px 14px;
+            border-radius: var(--radius-sm);
+            border: none;
+            font-size: var(--font-size-xs);
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .agent-perm-allow {
+            background-color: #22c55e;
+            color: #fff;
+        }
+
+        .agent-perm-allow:hover { background-color: #16a34a; }
+
+        .agent-perm-deny {
+            background-color: var(--bg-quaternary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .agent-perm-deny:hover { background-color: var(--bg-tertiary); }
+
+        .agent-perm-allow:disabled,
+        .agent-perm-deny:disabled { opacity: 0.5; cursor: default; }
+
+        .agent-perm-result {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+        }
+
+        .agent-error {
+            color: var(--error-text);
+            font-size: var(--font-size-xs);
+            padding: 4px 8px;
+            border-left: 3px solid var(--error-text);
+            margin: 4px 0;
+        }
+
+        .agent-running-indicator {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            padding: 3px 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
     </style>
 </head>
 
@@ -3237,6 +3441,9 @@
                 </button>
                 <button id="deepResearchButton" class="input-icon-button" title="Deep Research: OFF">
                     <i data-lucide="search-check"></i>
+                </button>
+                <button id="agentModeButton" class="input-icon-button" title="Agent Mode: OFF">
+                    <i data-lucide="bot"></i>
                 </button>
                 <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
                 <button id="sendButton">Send</button>
@@ -3615,6 +3822,67 @@
                         <div id="llamaCppServerStatus"
                             style="margin-top:var(--space-sm);font-size:var(--font-size-xs);color:var(--text-muted)">
                             Server: checking...</div>
+                    </div>
+                </div>
+
+                <div class="settings-section collapsible-section">
+                    <button class="settings-section-toggle" id="agentSectionToggle">
+                        🤖 Agent Mode
+                        <span class="section-chevron"><i data-lucide="chevron-right"></i></span>
+                    </button>
+                    <div id="agentSectionBody" class="settings-section-body">
+                        <p class="modal-description">Configure the agentic loop: which tools the AI can use and what
+                            permissions are required before each action.</p>
+
+                        <div class="llamacpp-field">
+                            <label class="llamacpp-field-label">Max Steps</label>
+                            <div style="display:flex;align-items:center;gap:var(--space-sm)">
+                                <input type="range" id="agentMaxStepsSlider" min="1" max="50" value="15"
+                                    style="flex:1">
+                                <span id="agentMaxStepsValue"
+                                    style="min-width:24px;text-align:right;font-size:var(--font-size-sm)">15</span>
+                            </div>
+                        </div>
+
+                        <div class="llamacpp-field" style="margin-top:var(--space-md)">
+                            <label class="llamacpp-field-label">Tool Permissions</label>
+                            <p class="modal-description" style="margin:2px 0 8px 0">auto = runs silently &nbsp;|&nbsp;
+                                confirm = ask before each use &nbsp;|&nbsp; disabled = never use</p>
+                            <div id="agentToolPermissions" style="display:flex;flex-direction:column;gap:6px"></div>
+                        </div>
+
+                        <div class="llamacpp-field" style="margin-top:var(--space-md)">
+                            <label class="llamacpp-field-label">Allowed Directories</label>
+                            <p class="modal-description" style="margin:2px 0 6px 0">Agent can read/write files in these
+                                directories. Leave empty for unrestricted access.</p>
+                            <div id="agentAllowedDirsList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px"></div>
+                            <div style="display:flex;gap:var(--space-sm)">
+                                <input type="text" id="agentNewAllowedDir" class="llamacpp-input"
+                                    placeholder="C:\Users\Boris\Documents">
+                                <button id="agentAddAllowedDir" class="modal-button secondary"
+                                    style="white-space:nowrap">Add</button>
+                            </div>
+                        </div>
+
+                        <div class="llamacpp-field" style="margin-top:var(--space-md)">
+                            <label class="llamacpp-field-label">Blocked Paths</label>
+                            <p class="modal-description" style="margin:2px 0 6px 0">These paths are always blocked
+                                regardless of permission level.</p>
+                            <div id="agentBlockedPathsList"
+                                style="display:flex;flex-direction:column;gap:4px;margin-bottom:6px"></div>
+                            <div style="display:flex;gap:var(--space-sm)">
+                                <input type="text" id="agentNewBlockedPath" class="llamacpp-input"
+                                    placeholder="C:\Windows\System32">
+                                <button id="agentAddBlockedPath" class="modal-button secondary"
+                                    style="white-space:nowrap">Add</button>
+                            </div>
+                        </div>
+
+                        <div style="display:flex;align-items:center;gap:var(--space-md);margin-top:var(--space-md)">
+                            <button id="saveAgentConfig" class="modal-button primary">Save</button>
+                            <span id="agentConfigStatus"
+                                style="font-size:var(--font-size-xs);color:var(--text-muted)"></span>
+                        </div>
                     </div>
                 </div>
 
