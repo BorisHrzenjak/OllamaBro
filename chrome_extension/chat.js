@@ -4216,6 +4216,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateCurrentModelButton.addEventListener('click', updateCurrentModel);
     }
 
+    const appearanceSectionToggle = document.getElementById('appearanceSectionToggle');
+    if (appearanceSectionToggle) {
+        appearanceSectionToggle.addEventListener('click', () => toggleSection('appearanceSectionToggle', 'appearanceSectionBody'));
+    }
+
     const modelMgmtSectionToggle = document.getElementById('modelMgmtSectionToggle');
     if (modelMgmtSectionToggle) {
         modelMgmtSectionToggle.addEventListener('click', () => toggleSection('modelMgmtSectionToggle', 'modelMgmtSectionBody'));
@@ -6084,7 +6089,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ── Theme System ──────────────────────────────────────────────────────────
 
-    const LIGHT_THEMES = new Set(['github-light', 'solarized-light', 'catppuccin-latte']);
+    const LIGHT_THEMES = new Set([
+        'github-light', 'solarized-light', 'catppuccin-latte',
+        'kanagawa-lotus', 'rose-pine-dawn', 'nord-light', 'night-owl-light', 'one-light'
+    ]);
     const HLJS_LIGHT_HREF = 'lib/github-light.min.css';
     const HLJS_DARK_HREF = 'lib/atom-one-dark.min.css';
 
