@@ -5916,7 +5916,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 : '—';
             const cloudBadge = m.isCloud ? cloudSvg : '';
             const archivedBadge = !m.installed
-                ? `<span style="font-size:10px;padding:1px 5px;background:rgba(115,115,115,0.15);color:var(--text-muted);border-radius:3px;margin-left:4px;">archived</span>`
+                ? `<span style="font-size:10px;padding:1px 5px;background:rgba(115,115,115,0.15);color:var(--text-muted);border-radius:3px;margin-left:4px;">removed</span>`
                 : '';
             const rowStyle = !m.installed ? 'opacity:0.55;' : '';
             return `<tr style="${rowStyle}">
@@ -5953,7 +5953,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         </div>
                         <div class="stat-value">${dashFmt(stats.totalConversations)}</div>
                         <div class="stat-label">Conversations</div>
-                        <div class="stat-sublabel">${sortedModels.filter(m => m.installed).length} installed · ${sortedModels.filter(m => !m.installed).length} archived</div>
+                        <div class="stat-sublabel">${sortedModels.filter(m => m.installed).length} installed · ${sortedModels.filter(m => !m.installed).length} removed</div>
                     </div>
                     <div class="stat-card">
                         <div class="stat-card-header">
