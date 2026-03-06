@@ -161,8 +161,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Keyword patterns that trigger auto-save to memory
     const MEMORY_SAVE_PATTERNS = [
-        /\b(remember (that|this|the fact that)|please remember|save (this|that) to memory|note that|add to (my |your )?memory)\b/i,
+        /\b(remember (that|this|the fact that)|please remember|note that)\b/i,
+        /\bsave (this|that|it|the fact that)?\s*(to|in|into)?\s*(the\s+)?memory\b/i,
+        /\bsave to (the\s+)?memory\b/i,
+        /\b(store|add) (this|that|it)?\s*(to|in|into)\s*(my |your |the )?memory\b/i,
+        /\badd to (my |your |the )?memory\b/i,
         /\b(don'?t forget (that|this)|keep in mind that)\b/i,
+        /\bremember (me|this|that|my|for future)\b/i,
     ];
 
     function detectMemorySaveIntent(text) {
@@ -2448,6 +2453,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Settings modal functions
     function openSettingsModal() {
+        // Refresh memory count every time modal opens
+        loadMemoryStatus();
+
         // Update model name label in the update button
         const updateNameEl = document.getElementById('updateCurrentModelName');
         if (updateNameEl && currentModelName) {

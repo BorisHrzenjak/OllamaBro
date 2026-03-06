@@ -18,7 +18,8 @@
       "Bash(llmfit system:*)",
       "Bash(llmfit fit:*)",
       "Bash(python:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(ollama pull:*)"
     ],
     "deny": []
   }

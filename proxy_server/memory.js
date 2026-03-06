@@ -34,7 +34,17 @@ async function getIndex() {
     const { LocalDocumentIndex } = await import('vectra');
     const idx = new LocalDocumentIndex({
         folderPath: MEMORY_DIR,
-        embeddings: { model: EMBED_MODEL, create: embedTexts }
+        embeddings: {
+            createEmbeddings: async (inputs) => {
+                try {
+                    const arr = Array.isArray(inputs) ? inputs : [inputs];
+                    const output = await embedTexts(arr);
+                    return { status: 'success', output };
+                } catch (err) {
+                    return { status: 'error', message: err.message };
+                }
+            }
+        }
     });
     if (!(await idx.isCatalogCreated())) {
         await idx.createIndex();
@@ -43,10 +53,25 @@ async function getIndex() {
     return _index;
 }
 
+const DEDUP_THRESHOLD = 0.75; // cosine similarity above this = semantically duplicate
+
 async function addMemory(text, metadata = {}) {
     const index = await getIndex();
+
+    // Check for semantically similar existing memory before saving
+    try {
+        const similar = await index.queryDocuments(text, { maxDocuments: 1 });
+        if (similar.length > 0 && similar[0].score >= DEDUP_THRESHOLD) {
+            const meta = await similar[0].loadMetadata().catch(() => ({}));
+            console.log(`[Memory] Skipping duplicate (score: ${similar[0].score.toFixed(3)}): "${(meta?.text || '').slice(0, 80)}"`);
+            return similar[0].uri; // return existing ID without saving
+        }
+    } catch (err) {
+        console.warn('[Memory] Dedup check failed, saving anyway:', err.message);
+    }
+
     const id = `mem_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    await index.upsertDocument(id, text, {
+    await index.upsertDocument(id, text, 'text', {
         text,
         timestamp: new Date().toISOString(),
         ...metadata
@@ -58,14 +83,16 @@ async function searchMemories(query, k = 3) {
     try {
         const index = await getIndex();
         const results = await index.queryDocuments(query, { maxDocuments: k });
-        return results
-            .filter(r => r.score > 0.1)
-            .map(r => ({
+        const filtered = results.filter(r => r.score > 0.1);
+        return await Promise.all(filtered.map(async (r) => {
+            const meta = await r.loadMetadata().catch(() => ({}));
+            return {
                 id: r.uri,
-                text: r.document?.metadata?.text ?? '',
+                text: meta?.text ?? '',
                 score: r.score,
-                timestamp: r.document?.metadata?.timestamp
-            }));
+                timestamp: meta?.timestamp
+            };
+        }));
     } catch (err) {
         console.warn('[Memory] Search failed:', err.message);
         return [];
@@ -76,14 +103,16 @@ async function listMemories() {
     try {
         const index = await getIndex();
         const docs = await index.listDocuments();
-        return docs
-            .map(d => ({
+        const results = await Promise.all(docs.map(async (d) => {
+            const meta = await d.loadMetadata().catch(() => ({}));
+            return {
                 id: d.uri,
-                text: d.metadata?.text ?? '',
-                timestamp: d.metadata?.timestamp,
-                source: d.metadata?.source
-            }))
-            .sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
+                text: meta?.text ?? '',
+                timestamp: meta?.timestamp,
+                source: meta?.source
+            };
+        }));
+        return results.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
     } catch (err) {
         console.warn('[Memory] List failed:', err.message);
         return [];

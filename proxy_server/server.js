@@ -1437,27 +1437,37 @@ app.post('/api/agent/chat', async (req, res) => {
                 break;
             }
 
-            // Execute each tool call
+            // Stream all tool_call events upfront, then dispatch all tools in parallel
             for (const tc of toolCalls) {
                 res.write(JSON.stringify({ type: 'tool_call', name: tc.name, args: tc.args }) + '\n');
-                const { result, error } = await executeTool(res, tc.name, tc.args);
-                res.write(JSON.stringify({ type: 'tool_result', name: tc.name, result, error: !!error }) + '\n');
+            }
 
-                // Append assistant turn with tool_calls, then tool result
-                if (backend === 'llamacpp') {
-                    messages.push({
-                        role: 'assistant',
-                        content: '',
-                        tool_calls: [{ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.args) } }]
-                    });
+            const execResults = await Promise.all(
+                toolCalls.map(async tc => {
+                    const { result, error } = await executeTool(res, tc.name, tc.args);
+                    res.write(JSON.stringify({ type: 'tool_result', name: tc.name, result, error: !!error }) + '\n');
+                    return { tc, result, error };
+                })
+            );
+
+            // Append one assistant turn with all tool_calls, then one tool result per call
+            if (backend === 'llamacpp') {
+                messages.push({
+                    role: 'assistant',
+                    content: '',
+                    tool_calls: execResults.map(({ tc }) => ({ id: tc.id, type: 'function', function: { name: tc.name, arguments: JSON.stringify(tc.args) } }))
+                });
+                for (const { tc, result } of execResults) {
                     messages.push({ role: 'tool', tool_call_id: tc.id, content: String(result) });
-                } else {
-                    // Ollama format
-                    messages.push({
-                        role: 'assistant',
-                        content: '',
-                        tool_calls: [{ function: { name: tc.name, arguments: tc.args } }]
-                    });
+                }
+            } else {
+                // Ollama format
+                messages.push({
+                    role: 'assistant',
+                    content: '',
+                    tool_calls: execResults.map(({ tc }) => ({ function: { name: tc.name, arguments: tc.args } }))
+                });
+                for (const { result } of execResults) {
                     messages.push({ role: 'tool', content: String(result) });
                 }
             }
@@ -1660,16 +1670,19 @@ app.all('/proxy/*', async (req, res) => {
                         try {
                             const query = (lastMsg.content || '').slice(0, 500);
                             const hits = await memory.searchMemories(query, 4);
+                            const parts = [];
+                            parts.push('You have a persistent memory system. When the user asks you to remember something, acknowledge that it has been saved and will be available in future conversations. Do not say you lack persistent memory.');
                             if (hits.length > 0) {
-                                const memBlock = 'Relevant memories from previous conversations:\n' +
-                                    hits.map((h, i) => `[${i + 1}] ${h.text}`).join('\n');
-                                const sysIdx = ollamaPayload.messages.findIndex(m => m.role === 'system');
-                                if (sysIdx >= 0) {
-                                    ollamaPayload.messages[sysIdx].content = memBlock + '\n\n' + ollamaPayload.messages[sysIdx].content;
-                                } else {
-                                    ollamaPayload.messages.unshift({ role: 'system', content: memBlock });
-                                }
+                                parts.push('Relevant memories from previous conversations:\n' +
+                                    hits.map((h, i) => `[${i + 1}] ${h.text}`).join('\n'));
                                 console.log(`[Memory] Injected ${hits.length} memories into context`);
+                            }
+                            const memBlock = parts.join('\n\n');
+                            const sysIdx = ollamaPayload.messages.findIndex(m => m.role === 'system');
+                            if (sysIdx >= 0) {
+                                ollamaPayload.messages[sysIdx].content = memBlock + '\n\n' + ollamaPayload.messages[sysIdx].content;
+                            } else {
+                                ollamaPayload.messages.unshift({ role: 'system', content: memBlock });
                             }
                         } catch (memErr) {
                             console.warn('[Memory] Context injection failed:', memErr.message);
@@ -1679,10 +1692,39 @@ app.all('/proxy/*', async (req, res) => {
                     // --- Auto-save explicit memory requests ---
                     if (ollamaPayload._saveToMemory) {
                         const toSave = String(ollamaPayload._saveToMemory).trim();
-                        if (toSave) {
+                        const SAVE_CMD_RE = /^\s*(save (this|that|it|the fact that)?(\s*(to|in|into))?(\s*the)?\s*memory|please (remember|save)|note that|remember (that|this)|don'?t forget (that|this)|keep in mind that|add (this|that|it) to (my |your |the )?memory)\s*$/i;
+                        const isBareCommand = SAVE_CMD_RE.test(toSave);
+                        if (toSave && !isBareCommand) {
                             memory.addMemory(toSave, { source: 'user' })
                                 .then(id => console.log(`[Memory] Auto-saved from user request (id: ${id}): "${toSave.slice(0, 80)}"`))
                                 .catch(err => console.warn('[Memory] Auto-save failed:', err.message));
+                            const saveNote = 'Note: The user\'s request to save information has been automatically processed and stored in your persistent memory.';
+                            const sysIdx0 = ollamaPayload.messages.findIndex(m => m.role === 'system');
+                            if (sysIdx0 >= 0) {
+                                ollamaPayload.messages[sysIdx0].content = saveNote + '\n\n' + ollamaPayload.messages[sysIdx0].content;
+                            } else {
+                                ollamaPayload.messages.unshift({ role: 'system', content: saveNote });
+                            }
+                        } else if (isBareCommand) {
+                            // "save that to memory" — find what "that" refers to (the prior user message)
+                            const msgs = ollamaPayload.messages || [];
+                            const userMsgs = msgs.filter(m => m.role === 'user');
+                            const prevUserContent = userMsgs.length >= 2 ? (userMsgs[userMsgs.length - 2].content || '').trim() : '';
+                            if (prevUserContent) {
+                                memory.addMemory(prevUserContent, { source: 'user' })
+                                    .then(id => console.log(`[Memory] Saved prior user message (id: ${id}): "${prevUserContent.slice(0, 80)}"`))
+                                    .catch(err => console.warn('[Memory] Save prior user failed:', err.message));
+                            } else {
+                                console.log('[Memory] "save that" command but no prior user message found to save');
+                            }
+                            // Inject a note so the model acknowledges the save
+                            const saveNote = 'Note: The user\'s request to save information has been automatically processed and stored in your persistent memory.';
+                            const sysIdx = ollamaPayload.messages.findIndex(m => m.role === 'system');
+                            if (sysIdx >= 0) {
+                                ollamaPayload.messages[sysIdx].content = saveNote + '\n\n' + ollamaPayload.messages[sysIdx].content;
+                            } else {
+                                ollamaPayload.messages.unshift({ role: 'system', content: saveNote });
+                            }
                         }
                     }
 
