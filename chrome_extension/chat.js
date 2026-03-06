@@ -1655,6 +1655,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Clear input and draft for new conversation
         messageInput.value = '';
+        autoResizeInput();
         await clearDraft(newConversationId);
         messageInput.focus();
         return newConversationId;
@@ -3583,6 +3584,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         addMessageToChatUI('You', prompt, 'user-message', modelData, userMessage.images, currentConversation.messages.length - 1);
 
         messageInput.value = '';
+        autoResizeInput();
         clearSelectedImages(); // Clear images after sending
 
         await triggerLLMCompletion(modelData);
@@ -4118,11 +4120,18 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Event Listeners
     sendButton.addEventListener('click', () => { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); });
-    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !slashCommandPopup.classList.contains('visible')) { pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); } });
+    messageInput.addEventListener('keypress', (e) => { if (e.key === 'Enter' && !e.shiftKey && !slashCommandPopup.classList.contains('visible')) { e.preventDefault(); pushToHistory(messageInput.value); sendMessageToOllama(messageInput.value); } });
+
+    // Auto-resize the main message input to fit its content
+    function autoResizeInput() {
+        messageInput.style.height = 'auto';
+        messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+    }
 
     // Save draft as user types (debounced) + slash command detection
     let draftSaveTimeout;
     messageInput.addEventListener('input', () => {
+        autoResizeInput();
         handleSlashInput();
         clearTimeout(draftSaveTimeout);
         draftSaveTimeout = setTimeout(async () => {
