@@ -590,7 +590,149 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .conv-text-col {
             flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .conv-tags-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 3px;
+            margin-top: 3px;
+        }
+
+        .conv-tag-pill {
+            font-size: 10px;
+            padding: 1px 5px;
+            border-radius: 8px;
+            background: var(--bg-quaternary);
+            color: var(--text-muted);
+            border: 1px solid var(--border-subtle);
+            white-space: nowrap;
+        }
+
+        .tag-button {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: var(--radius-sm);
+            opacity: 0;
+            transition: all var(--transition);
+            flex-shrink: 0;
+        }
+
+        .conversation-item:hover .tag-button {
+            opacity: 1;
+        }
+
+        .tag-button:hover {
+            background-color: var(--bg-quaternary);
+            color: var(--text-primary);
+        }
+
+        #tagFilterBar {
+            display: none;
+            flex-wrap: wrap;
+            gap: 4px;
+            padding: 6px var(--space-md);
+            border-bottom: 1px solid var(--border);
+        }
+
+        #tagFilterBar.has-tags {
+            display: flex;
+        }
+
+        .tag-filter-pill {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            transition: all var(--transition);
+            white-space: nowrap;
+        }
+
+        .tag-filter-pill:hover {
+            background: var(--bg-quaternary);
+            color: var(--text-primary);
+        }
+
+        .tag-filter-pill.active {
+            background: var(--accent-subtle);
+            color: var(--accent-text);
+            border-color: var(--accent);
+        }
+
+        .tag-editor-popover {
+            position: fixed;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: var(--space-sm);
+            z-index: 10000;
+            min-width: 180px;
+            max-width: 240px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.35);
+        }
+
+        .tag-editor-input {
+            width: 100%;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-size: var(--font-size-xs);
+            font-family: inherit;
+            padding: 4px 8px;
+            outline: none;
+            box-sizing: border-box;
+        }
+
+        .tag-editor-input:focus {
+            border-color: var(--accent);
+        }
+
+        .tag-editor-existing {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+
+        .tag-editor-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 8px;
+            background: var(--accent-subtle);
+            color: var(--accent-text);
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .tag-editor-pill:hover {
+            opacity: 0.7;
+        }
+
+        .tag-editor-hint {
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
         }
 
         .conversation-item-snippet {
@@ -3805,6 +3947,7 @@
                     </button>
                 </div>
             </div>
+            <div id="tagFilterBar"></div>
             <div id="conversationList"></div>
             <div id="sidebarFooter">
                 <button id="dashboardButton" class="sidebar-footer-button" title="Usage Dashboard">

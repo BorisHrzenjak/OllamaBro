@@ -512,6 +512,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let currentModelName = '';
     let sidebarSearchQuery = '';
+    let sidebarTagFilter = '';
     const storageKeyPrefix = 'ollamaBroChat_';
     const sidebarStateKey = 'ollamaBroSidebarState';
     const draftsKey = 'ollamaBroDrafts';
@@ -1755,14 +1756,141 @@ document.addEventListener('DOMContentLoaded', async () => {
         return null;
     }
 
+    // --- Tagging ---
+
+    function getAllTags(modelData) {
+        if (!modelData?.conversations) return [];
+        const tagSet = new Set();
+        Object.values(modelData.conversations).forEach(conv => (conv.tags || []).forEach(t => tagSet.add(t)));
+        return [...tagSet].sort();
+    }
+
+    const tagFilterBar = document.getElementById('tagFilterBar');
+
+    function renderTagFilterBar(modelData) {
+        const allTags = getAllTags(modelData);
+        tagFilterBar.innerHTML = '';
+        if (allTags.length === 0) {
+            tagFilterBar.classList.remove('has-tags');
+            return;
+        }
+        tagFilterBar.classList.add('has-tags');
+        allTags.forEach(tag => {
+            const pill = document.createElement('button');
+            pill.className = 'tag-filter-pill' + (sidebarTagFilter === tag ? ' active' : '');
+            pill.textContent = '#' + tag;
+            pill.addEventListener('click', async () => {
+                sidebarTagFilter = sidebarTagFilter === tag ? '' : tag;
+                const md = await loadModelChatState(currentModelName);
+                renderTagFilterBar(md);
+                populateConversationSidebar(currentModelName, md);
+            });
+            tagFilterBar.appendChild(pill);
+        });
+    }
+
+    let activeTagPopover = null;
+
+    function closeTagPopover() {
+        if (activeTagPopover) {
+            activeTagPopover.remove();
+            activeTagPopover = null;
+        }
+    }
+
+    function openTagEditor(convId, anchorEl, modelData) {
+        closeTagPopover();
+        const conv = modelData.conversations[convId];
+        if (!conv) return;
+
+        const popover = document.createElement('div');
+        popover.className = 'tag-editor-popover';
+
+        const input = document.createElement('input');
+        input.className = 'tag-editor-input';
+        input.placeholder = 'New tag name…';
+        input.type = 'text';
+
+        const existingDiv = document.createElement('div');
+        existingDiv.className = 'tag-editor-existing';
+
+        const hint = document.createElement('div');
+        hint.className = 'tag-editor-hint';
+        hint.textContent = 'Press Enter to add · click tag to remove';
+
+        const refreshPills = () => {
+            existingDiv.innerHTML = '';
+            (conv.tags || []).forEach(tag => {
+                const pill = document.createElement('span');
+                pill.className = 'tag-editor-pill';
+                pill.innerHTML = `#${escapeHtml(tag)} <span style="font-size:9px;opacity:0.7">×</span>`;
+                pill.title = 'Remove tag';
+                pill.addEventListener('click', async () => {
+                    conv.tags = (conv.tags || []).filter(t => t !== tag);
+                    if (sidebarTagFilter === tag) sidebarTagFilter = '';
+                    await saveModelChatState(currentModelName, modelData);
+                    refreshPills();
+                    const md = await loadModelChatState(currentModelName);
+                    renderTagFilterBar(md);
+                    populateConversationSidebar(currentModelName, md);
+                });
+                existingDiv.appendChild(pill);
+            });
+        };
+        refreshPills();
+
+        input.addEventListener('keydown', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const val = input.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+                if (val && !(conv.tags || []).includes(val)) {
+                    conv.tags = [...(conv.tags || []), val];
+                    await saveModelChatState(currentModelName, modelData);
+                    refreshPills();
+                    const md = await loadModelChatState(currentModelName);
+                    renderTagFilterBar(md);
+                    populateConversationSidebar(currentModelName, md);
+                }
+                input.value = '';
+            } else if (e.key === 'Escape') {
+                closeTagPopover();
+            }
+        });
+
+        popover.appendChild(input);
+        popover.appendChild(existingDiv);
+        popover.appendChild(hint);
+        document.body.appendChild(popover);
+        activeTagPopover = popover;
+
+        // Position below the anchor button
+        const rect = anchorEl.getBoundingClientRect();
+        popover.style.top = (rect.bottom + 6) + 'px';
+        const left = Math.min(rect.left, window.innerWidth - 248);
+        popover.style.left = Math.max(4, left) + 'px';
+
+        input.focus();
+
+        setTimeout(() => {
+            document.addEventListener('click', function handler(e) {
+                if (!popover.contains(e.target) && e.target !== anchorEl) {
+                    closeTagPopover();
+                    document.removeEventListener('click', handler);
+                }
+            });
+        }, 0);
+    }
+
     function populateConversationSidebar(modelForSidebar, modelData) {
-        conversationList.innerHTML = ''; // Clear existing items
+        conversationList.innerHTML = '';
         if (!modelData || !modelData.conversations) return;
 
-        let sortedConversations = Object.values(modelData.conversations)
-            .sort((a, b) => b.lastMessageTime - a.lastMessageTime); // Newest first
+        renderTagFilterBar(modelData);
 
-        // Apply search filter if a query exists
+        let sortedConversations = Object.values(modelData.conversations)
+            .sort((a, b) => b.lastMessageTime - a.lastMessageTime);
+
+        // Apply search filter
         if (sidebarSearchQuery) {
             const q = sidebarSearchQuery.toLowerCase();
             sortedConversations = sortedConversations.filter(conv => {
@@ -1773,8 +1901,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        // Show empty state when no results
-        if (sidebarSearchQuery && sortedConversations.length === 0) {
+        // Apply tag filter
+        if (sidebarTagFilter) {
+            sortedConversations = sortedConversations.filter(conv =>
+                (conv.tags || []).includes(sidebarTagFilter)
+            );
+        }
+
+        if ((sidebarSearchQuery || sidebarTagFilter) && sortedConversations.length === 0) {
             const empty = document.createElement('div');
             empty.id = 'noSearchResults';
             empty.textContent = 'No matching chats';
@@ -1782,73 +1916,83 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        const q = sidebarSearchQuery;
         sortedConversations.forEach(conv => {
             const item = document.createElement('div');
             item.classList.add('conversation-item');
             item.dataset.conversationId = conv.id;
-            if (conv.id === modelData.activeConversationId) {
-                item.classList.add('active');
-            }
+            if (conv.id === modelData.activeConversationId) item.classList.add('active');
 
             const summary = conv.summary || 'Chat';
+
+            // Title
             const titleSpan = document.createElement('span');
             titleSpan.classList.add('conversation-item-title');
             titleSpan.title = summary;
-
-            const q = sidebarSearchQuery;
             if (q) {
                 titleSpan.innerHTML = highlightMatch(summary, q);
-                // If title didn't match, show a snippet of the matching message
-                if (!summary.toLowerCase().includes(q.toLowerCase())) {
-                    const match = getMatchSnippet(conv.messages || [], q);
-                    if (match) {
-                        const snippetSpan = document.createElement('span');
-                        snippetSpan.classList.add('conversation-item-snippet');
-                        snippetSpan.innerHTML = highlightMatch(match.snippet, q);
-                        // Wrap title + snippet in a column container
-                        const textCol = document.createElement('div');
-                        textCol.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;';
-                        textCol.appendChild(titleSpan);
-                        textCol.appendChild(snippetSpan);
-                        const deleteButton = document.createElement('button');
-                        deleteButton.classList.add('delete-conversation-button');
-                        deleteButton.appendChild(createLucideIcon('trash-2', 14));
-                        deleteButton.title = 'Delete chat';
-                        deleteButton.dataset.conversationId = conv.id;
-                        item.appendChild(textCol);
-                        item.appendChild(deleteButton);
-                        conversationList.appendChild(item);
-                        item.addEventListener('click', (e) => {
-                            if (e.target === deleteButton || deleteButton.contains(e.target)) return;
-                            switchActiveConversation(modelForSidebar, conv.id);
-                        });
-                        deleteButton.addEventListener('click', (e) => {
-                            e.stopPropagation();
-                            handleDeleteConversation(modelForSidebar, conv.id);
-                        });
-                        return;
-                    }
-                }
             } else {
                 titleSpan.textContent = summary;
             }
 
+            // Text column
+            const textCol = document.createElement('div');
+            textCol.className = 'conv-text-col';
+            textCol.appendChild(titleSpan);
+
+            // Snippet (search hit in message body, not title)
+            if (q && !summary.toLowerCase().includes(q.toLowerCase())) {
+                const match = getMatchSnippet(conv.messages || [], q);
+                if (match) {
+                    const snippetSpan = document.createElement('span');
+                    snippetSpan.classList.add('conversation-item-snippet');
+                    snippetSpan.innerHTML = highlightMatch(match.snippet, q);
+                    textCol.appendChild(snippetSpan);
+                }
+            }
+
+            // Tag pills
+            const tags = conv.tags || [];
+            if (tags.length > 0) {
+                const tagsRow = document.createElement('div');
+                tagsRow.className = 'conv-tags-row';
+                tags.forEach(tag => {
+                    const pill = document.createElement('span');
+                    pill.className = 'conv-tag-pill';
+                    pill.textContent = '#' + tag;
+                    tagsRow.appendChild(pill);
+                });
+                textCol.appendChild(tagsRow);
+            }
+
+            // Tag button
+            const tagButton = document.createElement('button');
+            tagButton.className = 'tag-button';
+            tagButton.title = 'Edit tags';
+            tagButton.appendChild(createLucideIcon('tag', 12));
+
+            // Delete button
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-conversation-button');
             deleteButton.appendChild(createLucideIcon('trash-2', 14));
             deleteButton.title = 'Delete chat';
             deleteButton.dataset.conversationId = conv.id;
 
-            item.appendChild(titleSpan);
+            item.appendChild(textCol);
+            item.appendChild(tagButton);
             item.appendChild(deleteButton);
             conversationList.appendChild(item);
 
             item.addEventListener('click', (e) => {
-                if (e.target === deleteButton || deleteButton.contains(e.target)) return; // Don't switch if delete is clicked
+                if (deleteButton.contains(e.target) || tagButton.contains(e.target)) return;
                 switchActiveConversation(modelForSidebar, conv.id);
             });
+            tagButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openTagEditor(conv.id, tagButton, modelData);
+            });
             deleteButton.addEventListener('click', (e) => {
-                e.stopPropagation(); // Prevent item click event
+                e.stopPropagation();
                 handleDeleteConversation(modelForSidebar, conv.id);
             });
         });
@@ -3829,6 +3973,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentModelName = newModelName;
         chrome.storage.local.set({ lastUsedOllamaModel: newModelName });
         sidebarSearchQuery = '';
+        sidebarTagFilter = '';
         conversationSearchInput.value = '';
         clearSearchButton.style.display = 'none';
         updateModelDisplay(currentModelName);
@@ -3897,6 +4042,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             currentLlamaCppPath = cppModel._path;
             currentModelName = cppModel.name;
             sidebarSearchQuery = '';
+            sidebarTagFilter = '';
             conversationSearchInput.value = '';
             clearSearchButton.style.display = 'none';
             updateModelDisplay(currentModelName);
