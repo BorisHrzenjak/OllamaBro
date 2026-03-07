@@ -1729,6 +1729,32 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function escapeHtml(str) {
+        return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function highlightMatch(text, query) {
+        const idx = text.toLowerCase().indexOf(query.toLowerCase());
+        if (idx === -1) return escapeHtml(text);
+        return escapeHtml(text.slice(0, idx))
+            + `<mark class="search-highlight">${escapeHtml(text.slice(idx, idx + query.length))}</mark>`
+            + escapeHtml(text.slice(idx + query.length));
+    }
+
+    function getMatchSnippet(messages, query) {
+        const q = query.toLowerCase();
+        for (const msg of messages) {
+            if (typeof msg.content !== 'string') continue;
+            const idx = msg.content.toLowerCase().indexOf(q);
+            if (idx === -1) continue;
+            const start = Math.max(0, idx - 30);
+            const end = Math.min(msg.content.length, idx + query.length + 60);
+            const snippet = (start > 0 ? '…' : '') + msg.content.slice(start, end) + (end < msg.content.length ? '…' : '');
+            return { snippet, matchIdx: idx - start + (start > 0 ? 1 : 0) };
+        }
+        return null;
+    }
+
     function populateConversationSidebar(modelForSidebar, modelData) {
         conversationList.innerHTML = ''; // Clear existing items
         if (!modelData || !modelData.conversations) return;
@@ -1764,10 +1790,48 @@ document.addEventListener('DOMContentLoaded', async () => {
                 item.classList.add('active');
             }
 
+            const summary = conv.summary || 'Chat';
             const titleSpan = document.createElement('span');
             titleSpan.classList.add('conversation-item-title');
-            titleSpan.textContent = conv.summary || 'Chat';
-            titleSpan.title = conv.summary || 'Chat'; // Tooltip for full title
+            titleSpan.title = summary;
+
+            const q = sidebarSearchQuery;
+            if (q) {
+                titleSpan.innerHTML = highlightMatch(summary, q);
+                // If title didn't match, show a snippet of the matching message
+                if (!summary.toLowerCase().includes(q.toLowerCase())) {
+                    const match = getMatchSnippet(conv.messages || [], q);
+                    if (match) {
+                        const snippetSpan = document.createElement('span');
+                        snippetSpan.classList.add('conversation-item-snippet');
+                        snippetSpan.innerHTML = highlightMatch(match.snippet, q);
+                        // Wrap title + snippet in a column container
+                        const textCol = document.createElement('div');
+                        textCol.style.cssText = 'flex:1;min-width:0;display:flex;flex-direction:column;';
+                        textCol.appendChild(titleSpan);
+                        textCol.appendChild(snippetSpan);
+                        const deleteButton = document.createElement('button');
+                        deleteButton.classList.add('delete-conversation-button');
+                        deleteButton.appendChild(createLucideIcon('trash-2', 14));
+                        deleteButton.title = 'Delete chat';
+                        deleteButton.dataset.conversationId = conv.id;
+                        item.appendChild(textCol);
+                        item.appendChild(deleteButton);
+                        conversationList.appendChild(item);
+                        item.addEventListener('click', (e) => {
+                            if (e.target === deleteButton || deleteButton.contains(e.target)) return;
+                            switchActiveConversation(modelForSidebar, conv.id);
+                        });
+                        deleteButton.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            handleDeleteConversation(modelForSidebar, conv.id);
+                        });
+                        return;
+                    }
+                }
+            } else {
+                titleSpan.textContent = summary;
+            }
 
             const deleteButton = document.createElement('button');
             deleteButton.classList.add('delete-conversation-button');

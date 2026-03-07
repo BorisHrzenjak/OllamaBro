@@ -593,6 +593,23 @@
             flex: 1;
         }
 
+        .conversation-item-snippet {
+            font-size: 11px;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+
+        .search-highlight {
+            background: rgba(255, 210, 0, 0.35);
+            color: var(--text-primary);
+            border-radius: 2px;
+            padding: 0 1px;
+            font-weight: 600;
+        }
+
         .conversation-item:hover .conversation-item-title,
         .conversation-item.active .conversation-item-title {
             color: var(--text-primary);
