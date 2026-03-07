@@ -1104,6 +1104,27 @@
             border-radius: 0 0 var(--radius-md) var(--radius-md);
         }
 
+        #messageInputWrapper {
+            flex: 1;
+            position: relative;
+            display: flex;
+        }
+
+        #inputTokenCount {
+            position: absolute;
+            bottom: 7px;
+            right: 10px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-subtle);
+            border-radius: 4px;
+            padding: 1px 5px;
+            pointer-events: none;
+            display: none;
+        }
+
         #messageInput {
             flex: 1;
             padding: var(--space-md) var(--space-lg);
@@ -3851,7 +3872,10 @@
                 <button id="memoryButton" class="input-icon-button" title="Memory: OFF">
                     <i data-lucide="brain"></i>
                 </button>
-                <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
+                <div id="messageInputWrapper">
+                    <textarea id="messageInput" placeholder="Message..." rows="1" autofocus></textarea>
+                    <span id="inputTokenCount"></span>
+                </div>
                 <button id="sendButton">Send</button>
             </div>
         </div>

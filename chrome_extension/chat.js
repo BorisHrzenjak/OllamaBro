@@ -41,6 +41,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const saveSystemPromptButton = document.getElementById('saveSystemPromptButton');
     const clearSystemPromptButton = document.getElementById('clearSystemPromptButton');
     const systemPromptTokenCount = document.getElementById('systemPromptTokenCount');
+    const inputTokenCount = document.getElementById('inputTokenCount');
     const contextLimitInput = document.getElementById('contextLimitInput');
     const contextLimitInfo = document.getElementById('contextLimitInfo');
 
@@ -695,8 +696,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Token estimation functions
     function estimateTokens(text) {
         if (!text || typeof text !== 'string') return 0;
-        // Rough approximation: ~4 characters per token for English text
-        return Math.ceil(text.length / 4);
+        // Approximate BPE tokenization using the GPT-2/LLaMA pretokenization regex
+        // (same pattern used by tiktoken/minbpe before the actual BPE encoding step).
+        // Handles contractions, numbers, punctuation, and whitespace absorption correctly.
+        // Exact counting would require shipping the full BPE vocab table (~5MB).
+        const GPT2_PATTERN = /'(?:[sdmt]|ll|ve|re)| ?\w+| ?\d+| ?[^\s\w]+|\s+(?!\S)|\s+/gi;
+        const pieces = text.match(GPT2_PATTERN) || [];
+        // Each piece is 1 BPE token for common/short words; rare or long pieces split ~every 4 chars.
+        return pieces.reduce((sum, p) => {
+            const len = p.trimStart().length;
+            return sum + (len <= 8 ? 1 : Math.ceil(len / 4));
+        }, 0);
     }
 
     function getConversationTokenCount(messages) {
@@ -2518,6 +2528,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         systemPromptTokenCount.textContent = `${tokens} tokens`;
     }
 
+    function updateInputTokenCount() {
+        const val = messageInput.value;
+        if (val.trim()) {
+            inputTokenCount.textContent = `${estimateTokens(val)} tokens`;
+            inputTokenCount.style.display = 'block';
+        } else {
+            inputTokenCount.style.display = 'none';
+        }
+    }
+
     function updateContextLimitInfo() {
         const isCloud = isCloudModel(currentModelName);
         const autoLimit = isCloud ? formatContextLimit(CLOUD_CONTEXT_LIMIT) : formatContextLimit(DEFAULT_CONTEXT_LIMIT);
@@ -4126,6 +4146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function autoResizeInput() {
         messageInput.style.height = 'auto';
         messageInput.style.height = Math.min(messageInput.scrollHeight, 200) + 'px';
+        updateInputTokenCount();
     }
 
     // Save draft as user types (debounced) + slash command detection
