@@ -19,7 +19,8 @@
       "Bash(llmfit fit:*)",
       "Bash(python:*)",
       "Bash(ls:*)",
-      "Bash(ollama pull:*)"
+      "Bash(ollama pull:*)",
+      "Bash(gh repo:*)"
     ],
     "deny": []
   }

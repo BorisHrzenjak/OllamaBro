@@ -66,28 +66,48 @@ async function fetchTavilyResults(query) {
     return resp.json();
 }
 
-async function fetchTavilyResearch(query) {
-    const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey || apiKey === 'your_tavily_api_key_here') {
-        console.warn('[Research] TAVILY_API_KEY not set in .env — skipping research');
+async function fetchExaResearch(query) {
+    const apiKey = process.env.EXA_API_KEY;
+    if (!apiKey || apiKey === 'your_exa_api_key_here') {
+        console.warn('[Research] EXA_API_KEY not set in .env — skipping deep research');
         return null;
     }
-    console.log(`[Research] Starting deep research for: "${query.slice(0, 100)}"`);
-    const resp = await fetch('https://api.tavily.com/research', {
+    console.log(`[Research] Querying Exa for: "${query.slice(0, 100)}"`);
+    const resp = await fetch('https://api.exa.ai/search', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'x-api-key': apiKey, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            api_key: apiKey,
             query: query.slice(0, 500),
-            max_depth: 3,
-            max_breadth: 4
+            numResults: 5,
+            type: 'auto',
+            contents: {
+                text: { maxCharacters: 2000 },
+                highlights: { numSentences: 3, highlightsPerUrl: 3 }
+            }
         })
     });
     if (!resp.ok) {
         const errorText = await resp.text().catch(() => '');
-        throw new Error(`Tavily Research HTTP ${resp.status}: ${errorText}`);
+        throw new Error(`Exa HTTP ${resp.status}: ${errorText}`);
     }
     return resp.json();
+}
+
+function formatExaResults(data) {
+    if (!data?.results?.length) return null;
+    const sections = data.results.map((r, i) => {
+        const title = r.title || 'Untitled';
+        const url = r.url || '';
+        const lines = [
+            `[${i + 1}] Title: ${title}`,
+            `    URL: ${url}`,
+        ];
+        if (r.publishedDate) lines.push(`    Published: ${r.publishedDate.slice(0, 10)}`);
+        if (r.text) lines.push(`\n${r.text.trim()}`);
+        if (r.highlights?.length) lines.push(`\nKey highlights:\n${r.highlights.map(h => `- ${h}`).join('\n')}`);
+        return lines.join('\n');
+    });
+    return sections.join('\n\n---\n\n');
 }
 
 const app = express();
@@ -349,7 +369,7 @@ app.get('/api/llmfit/recommend', (req, res) => {
     }, 30000);
 });
 
-// --- Tavily Research Endpoint ---
+// --- Exa Research Endpoint ---
 
 app.post('/api/research', async (req, res) => {
     const { query } = req.body;
@@ -359,10 +379,10 @@ app.post('/api/research', async (req, res) => {
 
     try {
         console.log(`[Research] Received research request: "${query.slice(0, 100)}"`);
-        const result = await fetchTavilyResearch(query);
-        
+        const result = await fetchExaResearch(query);
+
         if (!result) {
-            return res.status(503).json({ error: 'TAVILY_API_KEY not configured' });
+            return res.status(503).json({ error: 'EXA_API_KEY not configured' });
         }
 
         res.json(result);
@@ -571,6 +591,7 @@ app.post('/api/llamacpp/chat', async (req, res) => {
     const webSearchRequested = req.body?._webSearch === true;
     const deepResearchRequested = req.body?._deepResearch === true;
     let finalMessages = cleanedMessages;
+    let llamaCppSourcesBlock = null;
     const lastUserMsg = cleanedMessages.filter(m => m.role === 'user').pop();
     if (lastUserMsg) {
         const messageContent = lastUserMsg.content || '';
@@ -589,19 +610,18 @@ app.post('/api/llamacpp/chat', async (req, res) => {
             }
         }
 
-        // Track 2a: Deep research
+        // Track 2a: Deep research (Exa.ai)
         if (deepResearchRequested) {
             try {
-                const data = await fetchTavilyResearch(messageContent.slice(0, 500));
-                if (data?.content) {
-                    contextParts.push(`Deep Research Report:\n${data.content}`);
-                    if (data.sources?.length > 0) {
-                        contextParts.push(`Sources:\n${data.sources.map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`).join('\n')}`);
-                    }
-                    console.log(`[llama.cpp/Research] Injected deep research with ${data.sources?.length || 0} sources`);
+                const data = await fetchExaResearch(messageContent.slice(0, 500));
+                const formatted = formatExaResults(data);
+                if (formatted) {
+                    contextParts.push(`Deep Research Sources:\n\n${formatted}`);
+                    llamaCppSourcesBlock = '\n\n---\n\n**Sources**\n' + data.results.map((r, i) => `- [${i + 1}] [${r.title || r.url}](${r.url})`).join('\n');
+                    console.log(`[llama.cpp/Research] Exa: injected ${data.results.length} sources`);
                 }
             } catch (e) {
-                console.warn('[llama.cpp/Research] Tavily Research failed, trying basic search:', e.message);
+                console.warn('[llama.cpp/Research] Exa failed, falling back to Tavily search:', e.message);
                 try {
                     const data = await fetchTavilyResults(messageContent.slice(0, 300));
                     if (data?.results?.length > 0) {
@@ -627,7 +647,10 @@ app.post('/api/llamacpp/chat', async (req, res) => {
         }
 
         if (contextParts.length > 0) {
-            const contextBlock = `The following information was retrieved by a tool before this conversation. Use it to answer the user directly — do not say you cannot access the internet, as this data is already provided to you.\n\n${contextParts.join('\n\n')}\n\nToday's date: ${today}.`;
+            const preamble = deepResearchRequested
+                ? `You are in Deep Research mode. The following sources were retrieved live via Exa semantic search specifically for this query. Your answer MUST be grounded in these sources — do not rely on training data alone. Synthesize the information across all sources and cite them inline using [1], [2], [3], etc. after each relevant sentence or claim. Do NOT add a sources list at the end — it will be appended automatically.\n\nToday's date: ${today}.`
+                : `The following information was retrieved by a tool before this conversation. Use it to answer the user directly — do not say you cannot access the internet, as this data is already provided to you.\n\nToday's date: ${today}.`;
+            const contextBlock = `${preamble}\n\n${contextParts.join('\n\n')}`;
             finalMessages = [...cleanedMessages];
             const sysIdx = finalMessages.findIndex(m => m.role === 'system');
             if (sysIdx >= 0) {
@@ -737,6 +760,10 @@ app.post('/api/llamacpp/chat', async (req, res) => {
             }
         }
         console.log(`[llama.cpp] Stream done — think_chunks=${dbgThinkTokens}, content_chunks=${dbgContentTokens}, finish_reason=${dbgFinishReason}`);
+        if (llamaCppSourcesBlock) {
+            const sourcesChunk = { model: llamaCurrentModel || '', message: { role: 'assistant', content: llamaCppSourcesBlock }, done: false };
+            res.write(JSON.stringify(sourcesChunk) + '\n');
+        }
         res.end();
     } catch (err) {
         console.error('[llama.cpp] Chat error:', err);
@@ -1526,12 +1553,50 @@ app.all('/proxy/*', async (req, res) => {
             headers: ollamaRequestHeaders, // Use our more controlled set of headers
         };
 
+        // Set by deep research path to append a sources block after the model response
+        let exaSourcesBlock = null;
+
         const proxyReq = http.request(options, (proxyRes) => {
             console.log(`Proxy to Ollama: Received response status: ${proxyRes.statusCode}`);
             console.log('Proxy to Ollama: Received response headers:', JSON.stringify(proxyRes.headers, null, 2));
             res.writeHead(proxyRes.statusCode, proxyRes.headers);
-            proxyRes.pipe(res, { end: true });
-            proxyRes.on('end', () => console.log('Proxy to Ollama: Response stream from Ollama ended.'));
+
+            if (!exaSourcesBlock) {
+                proxyRes.pipe(res, { end: true });
+            } else {
+                // Intercept stream to inject sources block before the final done chunk
+                let lineBuffer = '';
+                proxyRes.on('data', chunk => {
+                    lineBuffer += chunk.toString();
+                    const lines = lineBuffer.split('\n');
+                    lineBuffer = lines.pop();
+                    for (const line of lines) {
+                        if (!line.trim()) { res.write('\n'); continue; }
+                        try {
+                            const parsed = JSON.parse(line);
+                            if (parsed.done === true) {
+                                const sourcesChunk = { model: parsed.model || '', created_at: new Date().toISOString(), message: { role: 'assistant', content: exaSourcesBlock }, done: false };
+                                res.write(JSON.stringify(sourcesChunk) + '\n');
+                            }
+                        } catch (e) { /* not JSON, forward as-is */ }
+                        res.write(line + '\n');
+                    }
+                });
+                proxyRes.on('end', () => {
+                    if (lineBuffer.trim()) {
+                        try {
+                            const parsed = JSON.parse(lineBuffer);
+                            if (parsed.done === true) {
+                                const sourcesChunk = { model: parsed.model || '', created_at: new Date().toISOString(), message: { role: 'assistant', content: exaSourcesBlock }, done: false };
+                                res.write(JSON.stringify(sourcesChunk) + '\n');
+                            }
+                        } catch (e) { /* not JSON */ }
+                        res.write(lineBuffer + '\n');
+                    }
+                    console.log('Proxy to Ollama: Response stream from Ollama ended.');
+                    res.end();
+                });
+            }
             proxyRes.on('error', (err) => console.error('Proxy to Ollama: Error on response stream from Ollama:', err));
         });
 
@@ -1602,25 +1667,20 @@ app.all('/proxy/*', async (req, res) => {
                             }
                         }
 
-                        // Track 2a: Deep Research (Tavily Research API) - takes priority
+                        // Track 2a: Deep Research (Exa.ai) - takes priority
                         if (deepResearchRequested) {
                             try {
                                 const query = messageContent.slice(0, 500);
-                                console.log(`[Research] Starting deep research for: "${query.slice(0, 80)}"`);
-                                const data = await fetchTavilyResearch(query);
-                                if (data?.content) {
-                                    contextParts.push(`Deep Research Report:\n${data.content}`);
-                                    if (data.sources && data.sources.length > 0) {
-                                        const sourcesList = data.sources
-                                            .map((s, i) => `[${i + 1}] ${s.title || s.url} — ${s.url}`)
-                                            .join('\n');
-                                        contextParts.push(`Sources:\n${sourcesList}`);
-                                    }
-                                    console.log(`[Research] Injected deep research report with ${data.sources?.length || 0} sources`);
+                                console.log(`[Research] Starting deep research via Exa for: "${query.slice(0, 80)}"`);
+                                const data = await fetchExaResearch(query);
+                                const formatted = formatExaResults(data);
+                                if (formatted) {
+                                    contextParts.push(`Deep Research Sources:\n\n${formatted}`);
+                                    exaSourcesBlock = '\n\n---\n\n**Sources**\n' + data.results.map((r, i) => `- [${i + 1}] [${r.title || r.url}](${r.url})`).join('\n');
+                                    console.log(`[Research] Exa: injected ${data.results.length} sources`);
                                 }
                             } catch (researchErr) {
-                                console.warn('[Research] Tavily Research failed, falling back to basic search:', researchErr.message);
-                                // Fallback to basic search
+                                console.warn('[Research] Exa failed, falling back to Tavily search:', researchErr.message);
                                 try {
                                     const query = messageContent.slice(0, 300);
                                     const data = await fetchTavilyResults(query);
@@ -1656,7 +1716,10 @@ app.all('/proxy/*', async (req, res) => {
 
                         // Inject all gathered context into the system message
                         if (contextParts.length > 0) {
-                            const contextBlock = `The following information was retrieved by a tool before this conversation. Use it to answer the user directly — do not say you cannot access the internet, as this data is already provided to you.\n\n${contextParts.join('\n\n')}\n\nToday's date: ${today}.`;
+                            const preamble = deepResearchRequested
+                                ? `You are in Deep Research mode. The following sources were retrieved live via Exa semantic search specifically for this query. Your answer MUST be grounded in these sources — do not rely on training data alone. Synthesize the information across all sources and cite them inline using [1], [2], [3], etc. after each relevant sentence or claim. Do NOT add a sources list at the end — it will be appended automatically.\n\nToday's date: ${today}.`
+                                : `The following information was retrieved by a tool before this conversation. Use it to answer the user directly — do not say you cannot access the internet, as this data is already provided to you.\n\nToday's date: ${today}.`;
+                            const contextBlock = `${preamble}\n\n${contextParts.join('\n\n')}`;
                             const sysIdx = ollamaPayload.messages.findIndex(m => m.role === 'system');
                             if (sysIdx >= 0) {
                                 ollamaPayload.messages[sysIdx].content = contextBlock + '\n\n' + ollamaPayload.messages[sysIdx].content;

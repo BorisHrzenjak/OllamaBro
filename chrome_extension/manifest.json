@@ -1,6 +1,6 @@
 {
   "name": "OllamaBro",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "manifest_version": 3,
   "description": "Chat with local Ollama models directly in Chrome.",
   "action": {
