@@ -115,16 +115,32 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - Override the context window size per model, or let it auto-detect
 
 ### 🎨 Themes
-Six built-in themes selectable from Settings → Appearance:
+Seventeen built-in themes selectable from Settings → Appearance:
 
-| Theme | Style |
-|---|---|
-| Default Dark | Dark minimal (default) |
-| Dracula | Dark — purple accent |
-| Tokyo Night | Dark — blue-violet accent |
-| GitHub Light | Light — GitHub blue |
-| Solarized Light | Light — warm beige |
-| Catppuccin Latte | Light — pastel blue |
+**Dark themes:**
+| Theme | Description |
+|-------|-------------|
+| Default | Dark minimal (default) |
+| Dracula | Purple accent |
+| Tokyo Night | Blue-violet accent |
+| Catppuccin Mocha | Pastel pink & blue |
+| Kanagawa | Wave-inspired |
+| Rosé Pine | Warm purple |
+| Nord | Arctic blue |
+| Night Owl | Deep blue |
+| One Dark Pro | Atom-inspired |
+
+**Light themes:**
+| Theme | Description |
+|-------|-------------|
+| GitHub Light | GitHub blue |
+| Solarized Light | Warm beige |
+| Catppuccin Latte | Pastel blue |
+| Kanagawa Lotus | Soft pink |
+| Rosé Pine Dawn | Warm pink |
+| Nord Light | Frosty blue |
+| Night Owl Light | Light blue |
+| One Light | Clean white |
 
 Theme is applied instantly and persisted across sessions. Code blocks automatically switch between a matching dark or light syntax-highlighting stylesheet.
 
