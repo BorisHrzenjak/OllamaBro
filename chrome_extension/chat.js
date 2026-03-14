@@ -491,6 +491,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 botTextElement.appendChild(card);
             }
 
+            if (chunk.type === 'context_compressed') {
+                const note = document.createElement('div');
+                note.className = 'agent-context-compressed';
+                const kb = n => Math.round(n / 1000) + 'k';
+                note.textContent = `↯ Context compressed at step ${chunk.step} — ${kb(chunk.tokensBefore)} → ${kb(chunk.tokensAfter)} tokens`;
+                botTextElement.appendChild(note);
+            }
+
             if (chunk.type === 'tool_running') {
                 const block = lastToolCallBlock[chunk.name];
                 if (block) {

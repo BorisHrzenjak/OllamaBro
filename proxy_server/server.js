@@ -30,7 +30,7 @@ function extractUrls(text) {
 }
 
 // Jina Reader: fetches live page content as markdown, free, no API key needed
-async function fetchPageViaJina(url) {
+async function fetchPageViaJina(url, maxChars = 4000) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000); // 10s max
     try {
@@ -40,7 +40,7 @@ async function fetchPageViaJina(url) {
         });
         if (!resp.ok) throw new Error(`Jina HTTP ${resp.status}`);
         const text = await resp.text();
-        return text.slice(0, 4000); // cap to avoid flooding context window
+        return text.slice(0, maxChars);
     } finally {
         clearTimeout(timeout);
     }
@@ -996,7 +996,7 @@ async function requestPermission(res, tool, args, risk, sessionPermissions) {
 }
 
 // Execute a single tool call, streaming progress/result
-async function executeTool(res, name, args, sessionPermissions) {
+async function executeTool(res, name, args, sessionPermissions, model, backend) {
     try {
         switch (name) {
             case 'webSearch': {
@@ -1005,7 +1005,7 @@ async function executeTool(res, name, args, sessionPermissions) {
                 return { result: text };
             }
             case 'fetchPage': {
-                const text = await fetchPageViaJina(args.url || '');
+                const text = await fetchPageViaJina(args.url || '', 8000);
                 return { result: text || 'No content' };
             }
             case 'getDateTime': {
@@ -1187,6 +1187,113 @@ async function runShellTool(cmd) {
         proc.on('close', () => resolve({ result: (out + err).slice(0, 4000) || '(no output)' }));
         proc.on('error', e => resolve({ result: 'Error: ' + e.message, error: true }));
     });
+}
+
+// --- Context compression helpers ---
+
+// Rough token estimate: ~3.5 chars per token (sufficient for threshold detection)
+function estimateTokens(messages) {
+    let chars = 0;
+    for (const m of messages) {
+        if (typeof m.content === 'string') chars += m.content.length;
+        else if (m.content) chars += JSON.stringify(m.content).length;
+        if (m.tool_calls) chars += JSON.stringify(m.tool_calls).length;
+    }
+    return Math.ceil(chars / 3.5);
+}
+
+// Cache context limits so we don't re-fetch /api/show on every step
+const modelContextLimitCache = new Map();
+async function getModelContextLimit(model) {
+    if (modelContextLimitCache.has(model)) return modelContextLimitCache.get(model);
+    try {
+        const body = JSON.stringify({ model });
+        const info = await new Promise((resolve, reject) => {
+            const req = http.request({
+                hostname: 'localhost', port: 11434, path: '/api/show', method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+            }, (r) => {
+                let raw = '';
+                r.on('data', d => raw += d);
+                r.on('end', () => { try { resolve(JSON.parse(raw)); } catch { reject(new Error('Bad response')); } });
+                r.on('error', reject);
+            });
+            req.setTimeout(5000, () => { req.destroy(); reject(new Error('Timeout')); });
+            req.on('error', reject);
+            req.write(body);
+            req.end();
+        });
+        // Ollama 0.1.40+ exposes llama.context_length in model_info; fall back to num_ctx param
+        const limit =
+            info.model_info?.['llama.context_length'] ||
+            parseInt((info.parameters || '').match(/num_ctx\s+(\d+)/)?.[1] || '0', 10) ||
+            32768;
+        modelContextLimitCache.set(model, limit);
+        return limit;
+    } catch {
+        return 32768;
+    }
+}
+
+// Non-streaming Ollama call — returns text or throws
+async function callOllamaSync(model, userPrompt, timeoutMs = 30000) {
+    const body = JSON.stringify({
+        model,
+        messages: [{ role: 'user', content: userPrompt }],
+        stream: false,
+        options: { temperature: 0 }
+    });
+    return new Promise((resolve, reject) => {
+        const req = http.request({
+            hostname: 'localhost', port: 11434, path: '/api/chat', method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+        }, (r) => {
+            let raw = '';
+            r.on('data', d => raw += d);
+            r.on('end', () => {
+                try { resolve(JSON.parse(raw).message?.content || ''); }
+                catch { reject(new Error('Bad Ollama response')); }
+            });
+            r.on('error', reject);
+        });
+        const timer = setTimeout(() => { req.destroy(); reject(new Error('Sync call timed out')); }, timeoutMs);
+        req.on('error', (err) => { clearTimeout(timer); reject(err); });
+        req.write(body);
+        req.end();
+    });
+}
+
+// Non-streaming llama.cpp call — returns text or throws
+async function callLlamaCppSync(userPrompt, timeoutMs = 30000) {
+    const body = JSON.stringify({
+        messages: [{ role: 'user', content: userPrompt }],
+        stream: false,
+        temperature: 0
+    });
+    return new Promise((resolve, reject) => {
+        const req = http.request({
+            hostname: '127.0.0.1', port: llamaPort, path: '/v1/chat/completions', method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+        }, (r) => {
+            let raw = '';
+            r.on('data', d => raw += d);
+            r.on('end', () => {
+                try { resolve(JSON.parse(raw).choices?.[0]?.message?.content || ''); }
+                catch { reject(new Error('Bad llama.cpp response')); }
+            });
+            r.on('error', reject);
+        });
+        const timer = setTimeout(() => { req.destroy(); reject(new Error('Sync call timed out')); }, timeoutMs);
+        req.on('error', (err) => { clearTimeout(timer); reject(err); });
+        req.write(body);
+        req.end();
+    });
+}
+
+// Unified sync call — dispatches to the active backend
+async function callModelSync(model, backend, userPrompt, timeoutMs = 30000) {
+    if (backend === 'llamacpp') return callLlamaCppSync(userPrompt, timeoutMs);
+    return callOllamaSync(model || 'llama3.2', userPrompt, timeoutMs);
 }
 
 const AGENT_TOOL_CALL_TIMEOUT_MS = 120000; // 2 min timeout for backend tool calls (large contexts need more time)
@@ -1510,7 +1617,7 @@ app.post('/api/agent/chat', async (req, res) => {
 
             const execResults = await Promise.all(
                 toolCalls.map(async tc => {
-                    const { result, error } = await executeTool(res, tc.name, tc.args, sessionPermissions);
+                    const { result, error } = await executeTool(res, tc.name, tc.args, sessionPermissions, model, backend);
                     res.write(JSON.stringify({ type: 'tool_result', name: tc.name, result, error: !!error }) + '\n');
                     return { tc, result, error };
                 })
@@ -1535,6 +1642,54 @@ app.post('/api/agent/chat', async (req, res) => {
                 });
                 for (const { result } of execResults) {
                     messages.push({ role: 'tool', content: String(result) });
+                }
+            }
+
+            // --- Rolling context compression ---
+            // Estimate tokens and compress middle steps when approaching context limit
+            const tokenEstimate = estimateTokens(messages);
+            const ctxLimit = backend === 'llamacpp'
+                ? llamaCtxSize
+                : await getModelContextLimit(model || 'llama3.2').catch(() => 32768);
+            const compressionThreshold = Math.floor(ctxLimit * 0.65);
+
+            if (tokenEstimate > compressionThreshold) {
+                // Keep first 3 messages (system + user + earliest response) and last 6 (~3 steps)
+                const KEEP_HEAD = 3;
+                const KEEP_TAIL = 6;
+                const middleStart = KEEP_HEAD;
+                const middleEnd = Math.max(KEEP_HEAD, messages.length - KEEP_TAIL);
+                const middle = messages.slice(middleStart, middleEnd);
+
+                if (middle.length >= 2) {
+                    try {
+                        const workLog = middle.map(m => {
+                            const content = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
+                            const calls = m.tool_calls
+                                ? ' [called: ' + m.tool_calls.map(tc => tc.function?.name || tc.name || '?').join(', ') + ']'
+                                : '';
+                            return `[${m.role}${calls}]: ${content.slice(0, 600)}`;
+                        }).join('\n---\n');
+
+                        const summary = await callModelSync(
+                            model || 'llama3.2', backend,
+                            'Summarize the following agent work log. List: goals pursued, tools called, key findings, files read/written, current status, and any errors. Be concise but preserve all specific values (file paths, counts, errors):\n\n' + workLog,
+                            30000
+                        );
+
+                        if (summary && summary.trim()) {
+                            const summaryMsg = {
+                                role: 'assistant',
+                                content: `[Progress summary — ${middle.length} messages compressed]\n${summary.trim()}`
+                            };
+                            messages.splice(middleStart, middle.length, summaryMsg);
+                            const tokensAfter = estimateTokens(messages);
+                            console.log(`[Agent] Context compressed at step ${step}: ~${tokenEstimate} → ~${tokensAfter} tokens`);
+                            res.write(JSON.stringify({ type: 'context_compressed', step, tokensBefore: tokenEstimate, tokensAfter }) + '\n');
+                        }
+                    } catch (err) {
+                        console.warn('[Agent] Mid-run compression failed:', err.message);
+                    }
                 }
             }
 
