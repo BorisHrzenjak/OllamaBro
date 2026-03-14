@@ -1,18 +1,27 @@
-# OllamaBro `v1.0.7`
+# OllamaBro `v1.1.0`
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
-
 OllamaBro is a Chrome extension that provides a full-featured chat interface for your local Ollama models — directly in the browser, no cloud required. It also supports **llama.cpp** as a second backend, letting you run any GGUF model alongside your Ollama models without touching a terminal.
+
+## Quick Start
+- **Run `setup.bat`** — installs dependencies, starts proxy server, registers native host
+- **Load extension** — Go to `chrome://extensions` → Enable Developer mode → Load unpacked → Select `chrome_extension/`
+- **Pick a model** — Click the OllamaBro icon in your toolbar and start chatting
+
+---
+
+## What's New in v1.1.0
+
+- **Document Support** — Upload and chat with text files, code, PDFs, Markdown, and more (up to 10 MB) alongside images — works with any vision-capable model
+
+---
 
 ## Features
 
-### Model Management
+### 🤖 Model Management
 - Switch between all available Ollama models from the extension popup
-- **Model capability indicators** next to every model name:
-  - 👁️ Green eye icon — vision-capable models (LLaVA, Llama 3.2-Vision, Gemma3, etc.)
-  - 🧠 Purple brain icon — reasoning-optimised models (Qwen2.5, DeepSeek, CodeLlama, etc.)
-- Smart capability detection via Ollama API (`/api/show`), template analysis, and architecture inspection, with caching to avoid repeated calls
+- **Cloud model indicator** — blue cloud icon next to Ollama Cloud models (those with `:cloud` in the name)
 - **Hardware Recommendations** — Settings → Model Management → *View Recommended Models* opens a popup powered by [llmfit](https://github.com/notBradPitt/llmfit) that analyses your GPU/CPU and lists every model from a curated catalogue, grouped by fit level:
   - 🟢 **Perfect** — fully fits in VRAM at the recommended quantisation
   - 🟡 **Good** — runs well with minor tradeoffs
@@ -21,7 +30,7 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
   - Each card shows estimated speed (t/s), VRAM usage %, best quantisation, run mode, and a **Pull** button that pre-fills the model name in the Pull Model input
   - Requires llmfit to be installed (optional — the rest of the extension works fine without it)
 
-### ⚡ llama.cpp Support *(new in v1.0.2)*
+### ⚡ llama.cpp Support
 - Run any **GGUF model** directly via llama.cpp alongside your Ollama models — no config file editing required
 - The model switcher shows a dedicated **⚡ llama.cpp** section listing every `.gguf` file found in your configured models directory
 - Clicking a GGUF model loads it automatically — the proxy starts and manages the `llama-server` process, polls until it is ready, and then enables the input
@@ -30,7 +39,7 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Generation stats** — token count, prompt tokens, tokens/second, and generation time appear after each response, same as Ollama
 - Configure everything from Settings → **⚡ llama.cpp**: binary path, models directory, GPU layers (`-1` = all), and server port
 
-### Agent Mode *(new in v1.0.7)*
+### 🦸 Agent Mode
 - **Bot button** in the input bar activates Agent Mode — the model can now take actions on your behalf, not just answer questions
 - Runs a multi-step tool-calling loop: the model decides which tools to use, calls them, reads the results, and keeps going until the task is done (up to a configurable step limit)
 - Built-in tools:
@@ -42,14 +51,14 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - Configure in **Settings → Agent**: max steps, allowed directories, and per-tool permission levels
 - Mutually exclusive with Web Search and Deep Research modes
 
-### Prompt Templates (Slash Commands) *(new in v1.0.5)*
+### ⌨️ Prompt Templates (Slash Commands)
 - Type `/` at the start of the message box to open a **command palette** of saved prompt templates
 - Filter in real time as you type (e.g. `/sum` narrows to `/summarize`)
 - Navigate with **↑ ↓**, insert with **Enter** or **Tab**, dismiss with **Esc**, or click any item
 - Eight built-in templates: `/translate`, `/summarize`, `/fix-code`, `/explain`, `/improve`, `/eli5`, `/brainstorm`, `/proofread`
 - Fully customisable — **Settings → Prompt Templates** to add, edit, or delete templates
 
-### Chat Interface
+### 💬 Chat Interface
 - Dedicated browser tab chat window with a collapsible conversation sidebar
 - Multiple independent conversations per model, each with its own history
 - **Streaming responses** with a stop-generation button
@@ -58,7 +67,7 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Message actions** (appear on hover): copy, regenerate, text-to-speech
 - **Message metadata** (appear on hover): token count, generation speed, timing
 
-### Web Search
+### 🌐 Web Search
 - **Globe button** in the input bar toggles web search on/off for the current message
 - **Auto-trigger** — search fires automatically when your message contains temporal or news-related keywords (`today`, `latest`, `newest`, `breaking`, `news about`, year mentions, etc.)
 - **Live URL fetching** — any `http(s)://` URL you include in a message is automatically fetched and its live content injected into context (no toggle needed)
@@ -68,39 +77,44 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - Search results are injected into the model's context before the request is sent — works with every local model, no tool-calling support required
 - Configure your Tavily key in `proxy_server/.env` (see Setup)
 
-### Multimodal / Vision
+### 🖼️ Multimodal / Vision
+- **File upload** — drag-and-drop or click the 📎 button to attach images and documents
+- **Document support** — upload code files, text files, JSON, Markdown, PDFs, and more (up to 10 MB)
+- **Supported formats**: Images (JPEG, PNG, GIF, WebP) and text/code (.py, .js, .ts, .json, .md, .txt, .pdf, .sql, .sh, .yml, .xml, and 20+ more)
 - Image upload UI appears automatically for vision-capable models
-- Drag-and-drop images anywhere in the chat window
-- Multiple images per message (JPEG, PNG, GIF, WebP up to 20 MB)
-- Image preview before sending with individual removal
+- Drag-and-drop files anywhere in the chat window
+- Multiple files per message
+- File preview before sending with individual removal
 - Auto-compression for oversized images
-- Images stored in conversation history and displayed inline
+- Files stored in conversation history and displayed inline
 
-### Voice
+### 🎤 Voice
 - **Voice input** — dictate messages with the microphone button (Web Speech API), with animated recording indicator
 - **Text-to-speech** — read any AI response aloud:
   - *Browser engine* — uses the system's built-in Web Speech API with voice selection
   - *Kokoro engine* — local neural TTS with model status indicator and voice selection
 - `Ctrl+R` to read the last response without touching the mouse
 
-### System Prompt & Persona Presets
+### ⚙️ Configuration
+
+#### System Prompt & Persona Presets
 - Per-model system prompt, saved and restored automatically
 - **Persona presets** — save, name, edit, and one-click apply reusable system prompts
 - Live token counter on the system prompt textarea
 
-### Model Parameters
+#### Model Parameters
 - Adjust generation parameters per model without leaving the chat:
   - Temperature, Top P, Top K, Repeat Penalty, Max Tokens, Seed
 - Sliders and numeric inputs stay in sync
 - Reset to defaults button
 - Quick access via the **⊟ parameters button** in the chat header (opens directly to the parameters section)
 
-### Context Window
+#### Context Window
 - Visual context usage indicator in the sidebar (tokens used / limit)
 - Warning and critical states as the context fills
 - Override the context window size per model, or let it auto-detect
 
-### Themes
+### 🎨 Themes
 Six built-in themes selectable from Settings → Appearance:
 
 | Theme | Style |
@@ -114,7 +128,7 @@ Six built-in themes selectable from Settings → Appearance:
 
 Theme is applied instantly and persisted across sessions. Code blocks automatically switch between a matching dark or light syntax-highlighting stylesheet.
 
-### UX & Polish
+### ✨ UX & Polish
 - **Smart auto-scrolling** — follows new tokens automatically; pauses when you scroll up; scroll-to-bottom button reappears during streaming
 - **Input draft persistence** — unsent text is saved per conversation and restored when you return
 - **Prompt history navigation** — press ↑/↓ in the input to cycle through previously sent messages

@@ -1424,6 +1424,46 @@
             object-fit: cover;
         }
 
+        /* File preview (documents) */
+        .file-preview {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            min-width: 180px;
+            max-width: 250px;
+        }
+
+        .file-preview svg {
+            flex-shrink: 0;
+            color: var(--accent);
+        }
+
+        .file-preview .file-info {
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+
+        .file-preview .file-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-preview .file-size {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
         .remove-image {
             position: absolute;
             top: 4px;
@@ -1498,6 +1538,38 @@
 
         .message-image:hover {
             transform: scale(1.02);
+        }
+
+        /* Message Documents */
+        .message-documents {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--space-sm);
+            margin-top: var(--space-sm);
+        }
+
+        .message-document {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background-color: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            font-size: 13px;
+            color: var(--text-primary);
+        }
+
+        .message-document svg {
+            flex-shrink: 0;
+            color: var(--accent);
+        }
+
+        .message-document .document-filename {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         /* Cloud Icon */
@@ -3920,8 +3992,8 @@
 <body>
     <div id="dragDropOverlay">
         <div class="drop-message">
-            <div>Drop images here</div>
-            <div>Supports JPEG, PNG, GIF, WebP</div>
+            <div>Drop files here</div>
+            <div>Supports images, PDF, TXT, code files</div>
         </div>
     </div>
 
@@ -4013,9 +4085,9 @@
 
             <div id="inputArea">
                 <div id="slashCommandPopup"></div>
-                <input type="file" id="imageInput" accept="image/*" multiple style="display: none;">
-                <button id="imageButton" class="input-icon-button" title="Add image" style="display: none;">
-                    <i data-lucide="image-plus"></i>
+                <input type="file" id="fileInput" accept="image/*,.pdf,.txt,.md,.py,.js,.ts,.jsx,.tsx,.json,.html,.css,.sql,.sh,.yml,.yaml,.xml,.log,.csv" multiple style="display: none;">
+                <button id="fileButton" class="input-icon-button" title="Add file (image or document)" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M12 12v6"/><path d="m15 15-3-3-3 3"/></svg>
                 </button>
                 <button id="micButton" class="input-icon-button" title="Voice Input">
                     <i data-lucide="mic"></i>
