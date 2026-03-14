@@ -611,8 +611,8 @@
             padding: 1px 5px;
             border-radius: 8px;
             background: var(--bg-quaternary);
-            color: var(--text-muted);
-            border: 1px solid var(--border-subtle);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
             white-space: nowrap;
         }
 
@@ -3883,6 +3883,30 @@
 
         .agent-content-block {
             margin: 4px 0;
+        }
+
+        .agent-continue-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+
+        .agent-continue-btn {
+            padding: 5px 12px;
+            border-radius: var(--radius-sm);
+            background-color: var(--bg-quaternary);
+            border: 1px solid var(--border);
+            color: var(--text-primary);
+            font-size: var(--font-size-xs);
+            cursor: pointer;
+            transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+        }
+
+        .agent-continue-btn:hover {
+            background-color: var(--accent-subtle);
+            border-color: var(--accent);
+            color: var(--accent-text);
         }
 
         /* Permission Card */

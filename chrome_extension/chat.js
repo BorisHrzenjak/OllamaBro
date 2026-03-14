@@ -335,12 +335,51 @@ document.addEventListener('DOMContentLoaded', async () => {
         let currentContentDiv = null;
         let currentContentText = '';
         let lastToolCallBlock = {}; // toolName → last block element
+        let savedMessagesForContinue = null;
 
         // Step counter line
         const counterEl = document.createElement('span');
         counterEl.className = 'agent-step-counter';
         counterEl.textContent = 'Agent running…';
         botTextElement.appendChild(counterEl);
+
+        function renderContinueButtons(savedMessages) {
+            const row = document.createElement('div');
+            row.className = 'agent-continue-row';
+            for (const extraSteps of [5, 15]) {
+                const btn = document.createElement('button');
+                btn.className = 'agent-continue-btn';
+                btn.textContent = `Continue (+${extraSteps} steps)`;
+                btn.onclick = async () => {
+                    row.remove();
+                    currentContentDiv = null;
+                    currentContentText = '';
+                    try {
+                        const resp = await fetch(`${PROXY_BASE}/api/agent/chat`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                model: currentModelName,
+                                backend: currentModelBackend,
+                                maxSteps: extraSteps,
+                                continueFrom: savedMessages
+                            })
+                        });
+                        if (!resp.ok) throw new Error(`Agent API Error: ${resp.status}`);
+                        const contReader = resp.body.getReader();
+                        const contText = await handleAgentStream(botTextElement, botMessageDiv, contReader);
+                        if (contText) currentContentText = contText;
+                    } catch (e) {
+                        const errDiv = document.createElement('div');
+                        errDiv.className = 'agent-error';
+                        errDiv.textContent = 'Continue failed: ' + e.message;
+                        botTextElement.appendChild(errDiv);
+                    }
+                };
+                row.appendChild(btn);
+            }
+            botTextElement.appendChild(row);
+        }
 
         const processAgentChunk = (chunk) => {
             if (chunk.type === 'content' && chunk.text) {
@@ -392,6 +431,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 counterEl.textContent = `Step ${chunk.step} / ${chunk.maxSteps}`;
             }
 
+            if (chunk.type === 'max_steps_reached') {
+                savedMessagesForContinue = chunk.messages;
+            }
+
             if (chunk.type === 'error') {
                 const errDiv = document.createElement('div');
                 errDiv.className = 'agent-error';
@@ -401,6 +444,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (chunk.type === 'done') {
                 counterEl.textContent = '';
+                if (savedMessagesForContinue) {
+                    renderContinueButtons(savedMessagesForContinue);
+                }
                 return true; // signal caller to stop
             }
 

@@ -801,13 +801,13 @@ let agentToolPermissions = {
     getDateTime: 'auto',
     math: 'auto',
     saveMemory: 'auto',
-    readFile: 'confirm',
+    readFile: 'auto',
     writeFile: 'confirm',
-    listDirectory: 'confirm',
-    findFiles: 'confirm',
+    listDirectory: 'auto',
+    findFiles: 'auto',
     deleteFile: 'confirm',
-    runCode: 'disabled',
-    runShell: 'disabled',
+    runCode: 'confirm',
+    runShell: 'confirm',
 };
 
 // Pending permission requests: id → { resolve, reject }
@@ -1161,7 +1161,7 @@ async function runShellTool(cmd) {
     });
 }
 
-const AGENT_TOOL_CALL_TIMEOUT_MS = 30000; // 30s timeout for backend tool calls
+const AGENT_TOOL_CALL_TIMEOUT_MS = 120000; // 2 min timeout for backend tool calls (large contexts need more time)
 
 // Call Ollama with tools, collect full response (streaming internally, return complete message)
 async function callOllamaWithTools(messages, tools, model) {
@@ -1399,7 +1399,7 @@ app.post('/api/memory/extract', async (req, res) => {
 
 // POST /api/agent/chat — main agent loop endpoint
 app.post('/api/agent/chat', async (req, res) => {
-    const { messages: initialMessages, model, backend = 'ollama', maxSteps } = req.body || {};
+    const { messages: initialMessages, model, backend = 'ollama', maxSteps, continueFrom } = req.body || {};
     const steps = Math.max(1, Math.min(50, parseInt(maxSteps, 10) || agentMaxSteps));
     const tools = getEnabledTools();
 
@@ -1407,38 +1407,44 @@ app.post('/api/agent/chat', async (req, res) => {
     res.setHeader('Transfer-Encoding', 'chunked');
     res.setHeader('Cache-Control', 'no-cache');
 
-    const messages = [...(initialMessages || [])];
+    // Use continueFrom if resuming; directive is already embedded in those messages
+    const messages = continueFrom ? [...continueFrom] : [...(initialMessages || [])];
 
-    // Inject agent directive so the model knows to call tools instead of refusing
-    const _platform = os.platform();
-    const _isWin = _platform === 'win32';
-    const _pathSep = path.sep;
-    const _examplePath = _isWin
-        ? `C:\\Users\\${path.basename(os.homedir())}\\Documents\\file.txt`
-        : `${os.homedir()}/documents/file.txt`;
-    const _pathGuidance = _isWin
-        ? `Always use Windows-style absolute paths (e.g. ${_examplePath}), never Unix-style paths (e.g. /home/user/file).`
-        : `Always use Unix-style absolute paths (e.g. ${_examplePath}), never Windows-style paths (e.g. C:\\Users\\...).`;
-    const AGENT_DIRECTIVE = 'You are operating in AGENT MODE with real, functional tools available. ' +
-        'When the user asks you to do something that requires a tool (read a file, search the web, run code, etc.), ' +
-        'ALWAYS call the appropriate tool — never say you cannot access the internet or file system. ' +
-        'The tools are real. Use them.\n' +
-        `SYSTEM INFORMATION: OS=${_platform}, home directory="${os.homedir()}", path separator="${_pathSep}". ` +
-        _pathGuidance + '\n' +
-        'TOOL GUIDANCE: To count or find files by type use findFiles (e.g. pattern=".jpg,.png" for images). ' +
-        'Do NOT count lines from listDirectory output manually — call findFiles instead. ' +
-        'Use runCode only when you need to process data that no other tool can return directly.';
-    const sysIdx = messages.findIndex(m => m.role === 'system');
-    if (sysIdx >= 0) {
-        messages[sysIdx] = { ...messages[sysIdx], content: messages[sysIdx].content + '\n\n' + AGENT_DIRECTIVE };
-    } else {
-        messages.unshift({ role: 'system', content: AGENT_DIRECTIVE });
+    if (!continueFrom) {
+        // Inject agent directive so the model knows to call tools instead of refusing
+        const _platform = os.platform();
+        const _isWin = _platform === 'win32';
+        const _pathSep = path.sep;
+        const _examplePath = _isWin
+            ? `C:\\Users\\${path.basename(os.homedir())}\\Documents\\file.txt`
+            : `${os.homedir()}/documents/file.txt`;
+        const _pathGuidance = _isWin
+            ? `Always use Windows-style absolute paths (e.g. ${_examplePath}), never Unix-style paths (e.g. /home/user/file).`
+            : `Always use Unix-style absolute paths (e.g. ${_examplePath}), never Windows-style paths (e.g. C:\\Users\\...).`;
+        const AGENT_DIRECTIVE = 'You are operating in AGENT MODE with real, functional tools available. ' +
+            'When the user asks you to do something that requires a tool (read a file, search the web, run code, etc.), ' +
+            'ALWAYS call the appropriate tool — never say you cannot access the internet or file system. ' +
+            'The tools are real. Use them.\n' +
+            `SYSTEM INFORMATION: OS=${_platform}, home directory="${os.homedir()}", path separator="${_pathSep}". ` +
+            _pathGuidance + '\n' +
+            'TOOL GUIDANCE: To count or find files by type use findFiles (e.g. pattern=".jpg,.png" for images). ' +
+            'Do NOT count lines from listDirectory output manually — call findFiles instead. ' +
+            'Use runCode only when you need to process data that no other tool can return directly.';
+        const sysIdx = messages.findIndex(m => m.role === 'system');
+        if (sysIdx >= 0) {
+            messages[sysIdx] = { ...messages[sysIdx], content: messages[sysIdx].content + '\n\n' + AGENT_DIRECTIVE };
+        } else {
+            messages.unshift({ role: 'system', content: AGENT_DIRECTIVE });
+        }
     }
 
     try {
         for (let step = 1; step <= steps; step++) {
-            // Call model
+            // Call model — heartbeat keeps the SSE connection alive during long inference
             let response;
+            const heartbeat = setInterval(() => {
+                if (!res.writableEnded) res.write(JSON.stringify({ type: 'heartbeat' }) + '\n');
+            }, 15000);
             try {
                 if (backend === 'llamacpp') {
                     response = await callLlamaCppWithTools(messages, tools, model || 'default');
@@ -1446,9 +1452,11 @@ app.post('/api/agent/chat', async (req, res) => {
                     response = await callOllamaWithTools(messages, tools, model || 'llama3.2');
                 }
             } catch (err) {
+                clearInterval(heartbeat);
                 res.write(JSON.stringify({ type: 'error', text: 'Model call failed: ' + err.message }) + '\n');
                 break;
             }
+            clearInterval(heartbeat);
 
             const toolCalls = extractToolCalls(response, backend);
             const content = extractContent(response, backend);
@@ -1503,6 +1511,7 @@ app.post('/api/agent/chat', async (req, res) => {
 
             if (step === steps) {
                 res.write(JSON.stringify({ type: 'content', text: '\n\n*Agent reached maximum steps.*' }) + '\n');
+                res.write(JSON.stringify({ type: 'max_steps_reached', messages: [...messages] }) + '\n');
             }
         }
     } catch (err) {
