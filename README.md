@@ -2,6 +2,7 @@
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
+
 OllamaBro is a Chrome extension that provides a full-featured chat interface for your local Ollama models — directly in the browser, no cloud required. It also supports **llama.cpp** as a second backend, letting you run any GGUF model alongside your Ollama models without touching a terminal.
 
 ## Quick Start
