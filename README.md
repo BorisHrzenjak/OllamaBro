@@ -1,4 +1,4 @@
-# OllamaBro `v1.1.2`
+# OllamaBro `v1.1.3`
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
@@ -11,6 +11,15 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Pick a model** — Click the OllamaBro icon in your toolbar and start chatting
 
 ---
+
+## What's New in v1.1.3
+
+- **5 new agent tools** — the built-in tool set now includes:
+  - **clipboardRead / clipboardWrite** — read and write the system clipboard; useful for "reformat whatever I copied"
+  - **readUrl** — like fetchPage but with full PDF support; handles both remote URLs and local file paths (`.pdf` auto-detected)
+  - **diffFiles** — compares two files and returns a unified diff; lets the agent explain or apply precise changes instead of rewriting whole files
+  - **appendFile** — appends to a file without overwriting; safer than writeFile for logs and notes
+- **Agent loop stops on disconnect** — reloading or closing the extension now immediately halts the running agent instead of letting it continue in the background
 
 ## What's New in v1.1.2
 
@@ -50,8 +59,8 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Bot button** in the input bar activates Agent Mode — the model can now take actions on your behalf, not just answer questions
 - Runs a multi-step tool-calling loop: the model decides which tools to use, calls them, reads the results, and keeps going until the task is done (up to a configurable step limit)
 - Built-in tools:
-  - **Auto-approved:** web search, fetch URL, get date/time, evaluate math, read file, list directory, find files
-  - **Requires confirmation:** write file, delete file, run code (JavaScript or Python), run shell command
+  - **Auto-approved:** web search, fetch URL, read URL (with PDF support), get date/time, evaluate math, read file, list directory, find files, diff files
+  - **Requires confirmation:** write file, append file, delete file, clipboard read/write, run code (JavaScript or Python), run shell command
 - Sensitive tools show an inline permission card before executing with three approval options:
   - **Allow once** — approves this single call
   - **Allow session** — approves all future calls to this tool for the current agent run

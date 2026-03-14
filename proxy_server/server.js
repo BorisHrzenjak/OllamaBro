@@ -8,6 +8,7 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const memory = require('./memory');
+const diffLib = require('diff');
 
 // --- Web Search (Tavily + Jina Reader) ---
 
@@ -44,6 +45,23 @@ async function fetchPageViaJina(url, maxChars = 4000) {
     } finally {
         clearTimeout(timeout);
     }
+}
+
+// Fetch a URL as a raw Buffer (follows up to 5 redirects)
+async function fetchBinaryUrl(url, maxRedirects = 5) {
+    return new Promise((resolve, reject) => {
+        const mod = url.startsWith('https') ? require('https') : require('http');
+        mod.get(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, timeout: 20000 }, (resp) => {
+            if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location && maxRedirects > 0) {
+                resolve(fetchBinaryUrl(resp.headers.location, maxRedirects - 1));
+                return;
+            }
+            const bufs = [];
+            resp.on('data', d => bufs.push(d));
+            resp.on('end', () => resolve(Buffer.concat(bufs)));
+            resp.on('error', reject);
+        }).on('error', reject);
+    });
 }
 
 async function fetchTavilyResults(query) {
@@ -808,6 +826,11 @@ let agentToolPermissions = {
     deleteFile: 'confirm',
     runCode: 'confirm',
     runShell: 'confirm',
+    clipboardRead: 'confirm',
+    clipboardWrite: 'confirm',
+    readUrl: 'auto',
+    diffFiles: 'auto',
+    appendFile: 'confirm',
 };
 
 // Pending permission requests: id → { resolve, reject }
@@ -930,6 +953,67 @@ const AGENT_TOOLS = [
             name: 'saveMemory',
             description: 'Save an important fact, preference, or piece of information to persistent memory so it can be recalled in future conversations. Use this when the user asks you to remember something, or when you learn something worth preserving.',
             parameters: { type: 'object', properties: { text: { type: 'string', description: 'The information to remember. Write it clearly in third person, e.g. "User prefers dark mode" or "User\'s project uses Python 3.11".' } }, required: ['text'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'clipboardRead',
+            description: 'Read the current text contents of the system clipboard.',
+            parameters: { type: 'object', properties: {} }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'clipboardWrite',
+            description: 'Write text to the system clipboard, replacing its current contents.',
+            parameters: { type: 'object', properties: { text: { type: 'string', description: 'Text to place on the clipboard' } }, required: ['text'] }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'readUrl',
+            description: 'Fetch and read a URL, with full PDF support. For .pdf URLs or local PDF file paths, extracts the text content using pdf-parse. For regular web pages, uses the Jina reader for clean markdown output.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    url: { type: 'string', description: 'Full http/https URL or absolute local file path to a PDF' },
+                    type: { type: 'string', description: 'Force parsing mode: "pdf" to treat as PDF, omit for auto-detection' }
+                },
+                required: ['url']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'diffFiles',
+            description: 'Compare two files and return a unified diff showing exactly what changed. Use this when you need to explain, review, or apply differences between two file versions.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    pathA: { type: 'string', description: 'Absolute path to the original (before) file' },
+                    pathB: { type: 'string', description: 'Absolute path to the new (after) file' }
+                },
+                required: ['pathA', 'pathB']
+            }
+        }
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'appendFile',
+            description: 'Append text to the end of a file without overwriting its existing content. Safer than writeFile for logs, notes, or journals. Creates the file if it does not exist.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: { type: 'string', description: 'Absolute path to the file' },
+                    content: { type: 'string', description: 'Text to append' }
+                },
+                required: ['path', 'content']
+            }
         }
     },
 ];
@@ -1138,6 +1222,86 @@ async function executeTool(res, name, args, sessionPermissions, model, backend) 
                 } catch (err) {
                     return { result: `Memory save failed: ${err.message}`, error: true };
                 }
+            }
+            case 'clipboardRead': {
+                const approved = await requestPermission(res, 'clipboardRead', args, 'medium', sessionPermissions);
+                if (!approved) return { result: 'User denied', error: true };
+                return new Promise((resolve) => {
+                    const proc = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', 'Get-Clipboard'], { timeout: 10000 });
+                    let out = '', err = '';
+                    proc.stdout.on('data', d => { out += d; });
+                    proc.stderr.on('data', d => { err += d; });
+                    proc.on('close', (code) => {
+                        if (code !== 0) resolve({ result: 'Error reading clipboard: ' + err.trim(), error: true });
+                        else resolve({ result: out.trim() || '(clipboard is empty)' });
+                    });
+                    proc.on('error', e => resolve({ result: 'Error: ' + e.message, error: true }));
+                });
+            }
+            case 'clipboardWrite': {
+                const text = String(args.text || '');
+                const preview = text.slice(0, 80) + (text.length > 80 ? '…' : '');
+                const approved = await requestPermission(res, 'clipboardWrite', { text: preview }, 'medium', sessionPermissions);
+                if (!approved) return { result: 'User denied', error: true };
+                return new Promise((resolve) => {
+                    const proc = spawn('powershell', ['-NoProfile', '-NonInteractive', '-Command', '$input | Set-Clipboard'], { timeout: 10000 });
+                    let err = '';
+                    proc.stderr.on('data', d => { err += d; });
+                    proc.on('close', (code) => {
+                        if (code !== 0) resolve({ result: 'Error writing clipboard: ' + err.trim(), error: true });
+                        else resolve({ result: 'Clipboard updated.' });
+                    });
+                    proc.on('error', e => resolve({ result: 'Error: ' + e.message, error: true }));
+                    proc.stdin.write(text);
+                    proc.stdin.end();
+                });
+            }
+            case 'readUrl': {
+                const url = args.url || '';
+                const isHttpUrl = /^https?:\/\//i.test(url);
+                const isPdf = /\.pdf(\?.*)?$/i.test(url) || args.type === 'pdf';
+                if (isPdf) {
+                    let pdfParse;
+                    try { pdfParse = require('pdf-parse'); } catch {
+                        return { result: 'pdf-parse is not installed. Run: npm install pdf-parse in proxy_server/', error: true };
+                    }
+                    try {
+                        let buffer;
+                        if (isHttpUrl) {
+                            buffer = await fetchBinaryUrl(url);
+                        } else {
+                            if (!isPathAllowed(url)) return { result: 'Path not allowed', error: true };
+                            buffer = fs.readFileSync(url);
+                        }
+                        const data = await pdfParse(buffer, { max: 20 });
+                        const meta = data.numpages ? `Pages: ${data.numpages}\n\n` : '';
+                        return { result: (meta + data.text).slice(0, 8000) || '(no text extracted)' };
+                    } catch (e) { return { result: 'Error reading PDF: ' + e.message, error: true }; }
+                } else {
+                    const text = await fetchPageViaJina(url, 8000);
+                    return { result: text || 'No content' };
+                }
+            }
+            case 'diffFiles': {
+                const approved = await requestPermission(res, 'diffFiles', args, 'low', sessionPermissions);
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.pathA) || !isPathAllowed(args.pathB)) return { result: 'Path not allowed', error: true };
+                try {
+                    const a = fs.readFileSync(args.pathA, 'utf8');
+                    const b = fs.readFileSync(args.pathB, 'utf8');
+                    const patch = diffLib.createTwoFilesPatch(args.pathA, args.pathB, a, b);
+                    return { result: patch.slice(0, 8000) };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
+            }
+            case 'appendFile': {
+                const approved = await requestPermission(res, 'appendFile', args, 'medium', sessionPermissions);
+                if (!approved) return { result: 'User denied', error: true };
+                if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
+                try {
+                    fs.mkdirSync(path.dirname(args.path), { recursive: true });
+                    fs.appendFileSync(args.path, args.content || '', 'utf8');
+                    return { result: 'Appended to: ' + args.path };
+                } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             default:
                 return { result: `Unknown tool: ${name}`, error: true };
@@ -1577,7 +1741,13 @@ app.post('/api/agent/chat', async (req, res) => {
     }
 
     try {
+        // Abort the loop immediately if the client disconnects
+        let clientGone = false;
+        res.once('close', () => { clientGone = true; });
+
         for (let step = 1; step <= steps; step++) {
+            if (clientGone || res.destroyed || res.writableEnded) break;
+
             // Call model — heartbeat keeps the SSE connection alive during long inference
             let response;
             const heartbeat = setInterval(() => {
@@ -1692,6 +1862,8 @@ app.post('/api/agent/chat', async (req, res) => {
                     }
                 }
             }
+
+            if (clientGone || res.destroyed || res.writableEnded) break;
 
             res.write(JSON.stringify({ type: 'step_done', step, maxSteps: steps }) + '\n');
 
