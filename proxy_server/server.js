@@ -940,35 +940,63 @@ function getEnabledTools() {
 }
 
 // Ask user permission via streaming — returns true if approved
-async function requestPermission(res, tool, args, risk) {
+// sessionPermissions: Map scoped to the current agent run (not global)
+async function requestPermission(res, tool, args, risk, sessionPermissions) {
     const perm = agentToolPermissions[tool];
     if (perm === 'auto') return true;
     if (perm === 'disabled') return false;
-    // perm === 'confirm'
+
+    // Check session-level grants before prompting the user
+    if (sessionPermissions.has(tool)) return true;
+    if (args && args.path) {
+        const dir = path.dirname(args.path);
+        if (sessionPermissions.has(`${tool}:${dir}`)) return true;
+    }
+
+    // perm === 'confirm' — stream a permission card and wait
     const id = generatePermissionId();
     res.write(JSON.stringify({ type: 'permission_request', id, tool, args, risk }) + '\n');
+
     return new Promise((resolve) => {
+        let keepaliveInterval;
+
         const cleanup = (approved) => {
             clearTimeout(timeout);
+            clearInterval(keepaliveInterval);
             res.removeListener('close', onClose);
             pendingPermissions.delete(id);
             resolve(approved);
         };
 
-        const timeout = setTimeout(() => cleanup(false), 30000); // auto-deny after 30s
+        // Keepalive pings prevent the HTTP connection from timing out during long waits
+        keepaliveInterval = setInterval(() => {
+            if (!res.writableEnded) res.write(JSON.stringify({ type: 'keepalive' }) + '\n');
+        }, 25000);
+
+        const timeout = setTimeout(() => cleanup(false), 300000); // auto-deny after 5 min
 
         const onClose = () => cleanup(false); // client disconnected
         res.once('close', onClose);
 
         pendingPermissions.set(id, {
-            resolve: (approved) => cleanup(approved),
+            resolve: (approved, scope) => {
+                if (approved) {
+                    if (scope === 'session') {
+                        sessionPermissions.set(tool, true);
+                    } else if (scope === 'path' && args && args.path) {
+                        const dir = path.dirname(args.path);
+                        sessionPermissions.set(`${tool}:${dir}`, true);
+                    }
+                }
+                cleanup(approved);
+            },
             reject: () => cleanup(false)
         });
     });
 }
 
 // Execute a single tool call, streaming progress/result
-async function executeTool(res, name, args) {
+async function executeTool(res, name, args, sessionPermissions) {
     try {
         switch (name) {
             case 'webSearch': {
@@ -1001,7 +1029,7 @@ async function executeTool(res, name, args) {
                 }
             }
             case 'readFile': {
-                const approved = await requestPermission(res, 'readFile', args, 'medium');
+                const approved = await requestPermission(res, 'readFile', args, 'medium', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
                 try {
@@ -1010,7 +1038,7 @@ async function executeTool(res, name, args) {
                 } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             case 'writeFile': {
-                const approved = await requestPermission(res, 'writeFile', args, 'high');
+                const approved = await requestPermission(res, 'writeFile', args, 'high', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
                 try {
@@ -1020,7 +1048,7 @@ async function executeTool(res, name, args) {
                 } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             case 'listDirectory': {
-                const approved = await requestPermission(res, 'listDirectory', args, 'low');
+                const approved = await requestPermission(res, 'listDirectory', args, 'low', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
                 try {
@@ -1049,7 +1077,7 @@ async function executeTool(res, name, args) {
                 } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             case 'findFiles': {
-                const approved = await requestPermission(res, 'findFiles', args, 'low');
+                const approved = await requestPermission(res, 'findFiles', args, 'low', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
                 try {
@@ -1078,7 +1106,7 @@ async function executeTool(res, name, args) {
                 } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             case 'deleteFile': {
-                const approved = await requestPermission(res, 'deleteFile', args, 'high');
+                const approved = await requestPermission(res, 'deleteFile', args, 'high', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 if (!isPathAllowed(args.path)) return { result: 'Path not allowed', error: true };
                 try {
@@ -1087,7 +1115,7 @@ async function executeTool(res, name, args) {
                 } catch (e) { return { result: 'Error: ' + e.message, error: true }; }
             }
             case 'runCode': {
-                const approved = await requestPermission(res, 'runCode', { lang: args.lang, code: args.code }, 'high');
+                const approved = await requestPermission(res, 'runCode', { lang: args.lang, code: args.code }, 'high', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 res.write(JSON.stringify({ type: 'tool_running', name: 'runCode', preview: `${args.lang}:\n${args.code}` }) + '\n');
                 return await runCodeTool(args.lang, args.code);
@@ -1095,7 +1123,7 @@ async function executeTool(res, name, args) {
             case 'runShell': {
                 // runShell respects agentToolPermissions (default: 'disabled').
                 // When enabled, permission level 'confirm' is strongly recommended.
-                const approved = await requestPermission(res, 'runShell', { cmd: args.cmd }, 'critical');
+                const approved = await requestPermission(res, 'runShell', { cmd: args.cmd }, 'critical', sessionPermissions);
                 if (!approved) return { result: 'User denied', error: true };
                 res.write(JSON.stringify({ type: 'tool_running', name: 'runShell', preview: args.cmd }) + '\n');
                 return await runShellTool(args.cmd);
@@ -1253,11 +1281,12 @@ function extractContent(response, backend) {
 }
 
 // POST /api/agent/permission — resolve a pending permission request
+// scope: 'once' (default) | 'session' (blanket for this tool) | 'path' (same directory)
 app.post('/api/agent/permission', (req, res) => {
-    const { id, approved } = req.body || {};
+    const { id, approved, scope = 'once' } = req.body || {};
     const pending = pendingPermissions.get(id);
     if (!pending) return res.status(404).json({ error: 'No pending permission with that id' });
-    pending.resolve(!!approved);
+    pending.resolve(!!approved, scope);
     res.json({ ok: true });
 });
 
@@ -1402,6 +1431,8 @@ app.post('/api/agent/chat', async (req, res) => {
     const { messages: initialMessages, model, backend = 'ollama', maxSteps, continueFrom } = req.body || {};
     const steps = Math.max(1, Math.min(50, parseInt(maxSteps, 10) || agentMaxSteps));
     const tools = getEnabledTools();
+    // Session-scoped permission grants — cleared when this request ends (not global)
+    const sessionPermissions = new Map();
 
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.setHeader('Transfer-Encoding', 'chunked');
@@ -1479,7 +1510,7 @@ app.post('/api/agent/chat', async (req, res) => {
 
             const execResults = await Promise.all(
                 toolCalls.map(async tc => {
-                    const { result, error } = await executeTool(res, tc.name, tc.args);
+                    const { result, error } = await executeTool(res, tc.name, tc.args, sessionPermissions);
                     res.write(JSON.stringify({ type: 'tool_result', name: tc.name, result, error: !!error }) + '\n');
                     return { tc, result, error };
                 })

@@ -1,4 +1,4 @@
-# OllamaBro `v1.1.0`
+# OllamaBro `v1.1.2`
 
 ![Screenshot_2](https://github.com/user-attachments/assets/b3e0d3ad-6415-4f04-aff5-dd0929d54458)
 
@@ -11,6 +11,12 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Pick a model** — Click the OllamaBro icon in your toolbar and start chatting
 
 ---
+
+## What's New in v1.1.2
+
+- **Agent session permissions** — Permission cards now offer **Allow once**, **Allow session** (approves all future calls to that tool for the current run), and **Allow folder** (approves all calls to the same directory). No more clicking Allow 13 times for a task that reads 10 files
+- **5-minute permission timeout** — Auto-deny extended from 30 s to 5 minutes with a keepalive stream to hold the connection open. Countdown only appears in the final 60 seconds (turns red at 15 s)
+- **Smarter tool defaults** — `readFile`, `listDirectory`, and `findFiles` are now auto-approved; `runCode` and `runShell` require confirmation instead of being disabled
 
 ## What's New in v1.1.0
 
@@ -44,10 +50,13 @@ OllamaBro is a Chrome extension that provides a full-featured chat interface for
 - **Bot button** in the input bar activates Agent Mode — the model can now take actions on your behalf, not just answer questions
 - Runs a multi-step tool-calling loop: the model decides which tools to use, calls them, reads the results, and keeps going until the task is done (up to a configurable step limit)
 - Built-in tools:
-  - **Auto-approved:** web search, fetch URL, get date/time, evaluate math
-  - **Requires confirmation:** read file, write file, list directory
-  - **Always requires confirmation:** run shell command, run code (JavaScript or Python)
-- Sensitive tools show an inline **Allow / Deny** card before executing — you stay in control
+  - **Auto-approved:** web search, fetch URL, get date/time, evaluate math, read file, list directory, find files
+  - **Requires confirmation:** write file, delete file, run code (JavaScript or Python), run shell command
+- Sensitive tools show an inline permission card before executing with three approval options:
+  - **Allow once** — approves this single call
+  - **Allow session** — approves all future calls to this tool for the current agent run
+  - **Allow folder** — (file tools only) approves all future calls targeting the same directory
+- Permission cards auto-deny after **5 minutes**; a countdown appears only in the final 60 seconds
 - Tool calls and results appear as collapsible step blocks in the chat, so you can inspect exactly what the agent did
 - Configure in **Settings → Agent**: max steps, allowed directories, and per-tool permission levels
 - Mutually exclusive with Web Search and Deep Research modes

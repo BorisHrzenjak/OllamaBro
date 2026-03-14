@@ -3962,6 +3962,8 @@
         }
 
         .agent-perm-allow,
+        .agent-perm-session,
+        .agent-perm-path,
         .agent-perm-deny {
             padding: 4px 14px;
             border-radius: var(--radius-sm);
@@ -3978,6 +3980,18 @@
 
         .agent-perm-allow:hover { background-color: #16a34a; }
 
+        .agent-perm-session {
+            background-color: #3b82f6;
+            color: #fff;
+        }
+        .agent-perm-session:hover { background-color: #2563eb; }
+
+        .agent-perm-path {
+            background-color: #8b5cf6;
+            color: #fff;
+        }
+        .agent-perm-path:hover { background-color: #7c3aed; }
+
         .agent-perm-deny {
             background-color: var(--bg-quaternary);
             color: var(--text-primary);
@@ -3987,7 +4001,19 @@
         .agent-perm-deny:hover { background-color: var(--bg-tertiary); }
 
         .agent-perm-allow:disabled,
+        .agent-perm-session:disabled,
+        .agent-perm-path:disabled,
         .agent-perm-deny:disabled { opacity: 0.5; cursor: default; }
+
+        .agent-perm-countdown {
+            font-size: var(--font-size-xs);
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+        .agent-perm-countdown.urgent {
+            color: #ef4444;
+            font-weight: 600;
+        }
 
         .agent-perm-result {
             font-size: var(--font-size-xs);

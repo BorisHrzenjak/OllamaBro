@@ -246,6 +246,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function createPermissionCard(chunk) {
         const riskColors = { low: '#22c55e', medium: '#f59e0b', high: '#ef4444', critical: '#dc2626' };
         const borderColor = riskColors[chunk.risk] || '#f59e0b';
+        const FILE_TOOLS = new Set(['readFile', 'writeFile', 'listDirectory', 'findFiles', 'deleteFile']);
+        const isFileTool = FILE_TOOLS.has(chunk.tool);
 
         const card = document.createElement('div');
         card.className = 'agent-permission-card';
@@ -278,7 +280,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         header.append(headerIcon, headerTool, headerRisk);
-
         card.appendChild(header);
 
         if (argsLines) {
@@ -290,41 +291,110 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const btnRow = document.createElement('div');
         btnRow.className = 'agent-perm-buttons';
+
         const allowBtn = document.createElement('button');
         allowBtn.className = 'agent-perm-allow';
-        allowBtn.textContent = 'Allow';
+        allowBtn.textContent = 'Allow once';
+
+        const sessionBtn = document.createElement('button');
+        sessionBtn.className = 'agent-perm-session';
+        sessionBtn.textContent = 'Allow session';
+
         const denyBtn = document.createElement('button');
         denyBtn.className = 'agent-perm-deny';
         denyBtn.textContent = 'Deny';
-        btnRow.append(allowBtn, denyBtn);
+
+        if (isFileTool) {
+            const pathBtn = document.createElement('button');
+            pathBtn.className = 'agent-perm-path';
+            pathBtn.textContent = 'Allow folder';
+            btnRow.append(allowBtn, sessionBtn, pathBtn, denyBtn);
+
+            if (typeof lucide !== 'undefined') lucide.createIcons({ el: card });
+
+            const respond = async (approved, scope) => {
+                [allowBtn, sessionBtn, pathBtn, denyBtn].forEach(b => b.disabled = true);
+                clearInterval(countdownInterval);
+                try {
+                    await fetch(`${PROXY_BASE}/api/agent/permission`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: chunk.id, approved, scope })
+                    });
+                    const label = !approved ? '✗ Denied' : scope === 'session' ? '✓ Allowed (session)' : scope === 'path' ? '✓ Allowed (folder)' : '✓ Allowed';
+                    btnRow.innerHTML = `<span class="agent-perm-result">${label}</span>`;
+                    countdownEl.remove();
+                } catch (e) {
+                    console.warn('[Agent] Permission POST failed:', e);
+                    [allowBtn, sessionBtn, pathBtn, denyBtn].forEach(b => b.disabled = false);
+                    const errSpan = document.createElement('span');
+                    errSpan.className = 'agent-perm-result';
+                    errSpan.style.color = 'var(--error-text)';
+                    errSpan.textContent = '⚠ Request failed — try again';
+                    btnRow.appendChild(errSpan);
+                }
+            };
+            allowBtn.addEventListener('click', () => respond(true, 'once'));
+            sessionBtn.addEventListener('click', () => respond(true, 'session'));
+            pathBtn.addEventListener('click', () => respond(true, 'path'));
+            denyBtn.addEventListener('click', () => respond(false, 'once'));
+        } else {
+            btnRow.append(allowBtn, sessionBtn, denyBtn);
+
+            if (typeof lucide !== 'undefined') lucide.createIcons({ el: card });
+
+            const respond = async (approved, scope) => {
+                [allowBtn, sessionBtn, denyBtn].forEach(b => b.disabled = true);
+                clearInterval(countdownInterval);
+                try {
+                    await fetch(`${PROXY_BASE}/api/agent/permission`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ id: chunk.id, approved, scope })
+                    });
+                    const label = !approved ? '✗ Denied' : scope === 'session' ? '✓ Allowed (session)' : '✓ Allowed';
+                    btnRow.innerHTML = `<span class="agent-perm-result">${label}</span>`;
+                    countdownEl.remove();
+                } catch (e) {
+                    console.warn('[Agent] Permission POST failed:', e);
+                    [allowBtn, sessionBtn, denyBtn].forEach(b => b.disabled = false);
+                    const errSpan = document.createElement('span');
+                    errSpan.className = 'agent-perm-result';
+                    errSpan.style.color = 'var(--error-text)';
+                    errSpan.textContent = '⚠ Request failed — try again';
+                    btnRow.appendChild(errSpan);
+                }
+            };
+            allowBtn.addEventListener('click', () => respond(true, 'once'));
+            sessionBtn.addEventListener('click', () => respond(true, 'session'));
+            denyBtn.addEventListener('click', () => respond(false, 'once'));
+        }
+
         card.appendChild(btnRow);
 
-        if (typeof lucide !== 'undefined') lucide.createIcons({ el: card });
-
-        const respond = async (approved) => {
-            allowBtn.disabled = true;
-            denyBtn.disabled = true;
-            try {
-                await fetch(`${PROXY_BASE}/api/agent/permission`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ id: chunk.id, approved })
-                });
-                btnRow.innerHTML = `<span class="agent-perm-result">${approved ? '✓ Allowed' : '✗ Denied'}</span>`;
-            } catch (e) {
-                console.warn('[Agent] Permission POST failed:', e);
-                allowBtn.disabled = false;
-                denyBtn.disabled = false;
-                const errSpan = document.createElement('span');
-                errSpan.className = 'agent-perm-result';
-                errSpan.style.color = 'var(--error-text)';
-                errSpan.textContent = '⚠ Request failed — try again';
-                btnRow.appendChild(errSpan);
+        // Countdown — silent for first 4 minutes, visible in final 60 seconds
+        const countdownEl = document.createElement('div');
+        countdownEl.className = 'agent-perm-countdown';
+        card.appendChild(countdownEl);
+        const TIMEOUT_SEC = 300;
+        let remaining = TIMEOUT_SEC;
+        const countdownInterval = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                clearInterval(countdownInterval);
+                countdownEl.textContent = 'Auto-denied';
+                countdownEl.classList.add('urgent');
+                return;
             }
-        };
-
-        allowBtn.addEventListener('click', () => respond(true));
-        denyBtn.addEventListener('click', () => respond(false));
+            if (remaining <= 60) {
+                const m = Math.floor(remaining / 60);
+                const s = String(remaining % 60).padStart(2, '0');
+                countdownEl.textContent = `Auto-denies in ${m}:${s}`;
+                countdownEl.classList.toggle('urgent', remaining <= 15);
+            } else {
+                countdownEl.textContent = '';
+            }
+        }, 1000);
 
         return card;
     }
@@ -382,6 +452,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         const processAgentChunk = (chunk) => {
+            if (chunk.type === 'keepalive') return;
+
             if (chunk.type === 'content' && chunk.text) {
                 if (!currentContentDiv) {
                     currentContentDiv = document.createElement('div');
