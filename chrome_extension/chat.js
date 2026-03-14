@@ -4128,7 +4128,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateModelDisplay(currentModelName);
 
         // Clear any selected images when switching models
-        clearSelectedImages();
+        clearSelectedFiles();
 
         // Show image upload UI (users can upload images to any model, API will error if unsupported)
         toggleFileUploadUI(true);
